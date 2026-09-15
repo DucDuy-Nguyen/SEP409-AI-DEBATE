@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/Services/">
+    <Project Path="Services/IdentityService/IdentityService.csproj" />
+  </Folder>
+  <Project Path="Gateway/Gateway.csproj" />
+</Solution>
