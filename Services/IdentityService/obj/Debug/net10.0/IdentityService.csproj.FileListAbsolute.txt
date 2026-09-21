@@ -1,8 +1,0 @@
-D:\AI-Debate\Services\IdentityService\obj\Debug\net10.0\IdentityService.csproj.AssemblyReference.cache
-D:\AI-Debate\Services\IdentityService\obj\Debug\net10.0\rpswa.dswa.cache.json
-D:\AI-Debate\Services\IdentityService\obj\Debug\net10.0\IdentityService.GeneratedMSBuildEditorConfig.editorconfig
-D:\AI-Debate\Services\IdentityService\obj\Debug\net10.0\IdentityService.AssemblyInfoInputs.cache
-D:\AI-Debate\Services\IdentityService\obj\Debug\net10.0\IdentityService.AssemblyInfo.cs
-D:\AI-Debate\Services\IdentityService\obj\Debug\net10.0\IdentityService.csproj.CoreCompileInputs.cache
-D:\AI-Debate\Services\IdentityService\obj\Debug\net10.0\IdentityService.MvcApplicationPartsAssemblyInfo.cs
-D:\AI-Debate\Services\IdentityService\obj\Debug\net10.0\IdentityService.MvcApplicationPartsAssemblyInfo.cache
