@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SystemService.Common.Responses;
+using SystemService.BLL.Common.Responses;
 
 namespace SystemService.Controllers.Identity
 {

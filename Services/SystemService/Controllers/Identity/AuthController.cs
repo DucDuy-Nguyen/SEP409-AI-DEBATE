@@ -3,9 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using SystemService.Common.Responses;
-using SystemService.Models.DTOs.Identity.Auth;
-using SystemService.Services.Identity.Interfaces;
+using SystemService.BLL.Common.Responses;
+using SystemService.BLL.DTOs.Identity.Auth;
+using SystemService.BLL.Services.Identity.Interfaces;
 
 namespace SystemService.Controllers.Identity
 {
@@ -38,6 +38,62 @@ namespace SystemService.Controllers.Identity
             if (!result.Success)
             {
                 return Unauthorized(result);
+            }
+            return Ok(result);
+        }
+
+        [HttpPost("google-login")]
+        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _authService.GoogleLoginAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
+        [HttpPost("send-otp")]
+        public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _authService.SendOtpAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
+        [HttpPost("verify-otp")]
+        public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _authService.VerifyOtpAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] SendOtpRequest request, CancellationToken cancellationToken)
+        {
+            request.Type = "ForgotPassword";
+            var result = await _authService.SendOtpAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _authService.ResetPasswordAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
             }
             return Ok(result);
         }

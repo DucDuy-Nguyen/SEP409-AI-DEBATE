@@ -5,7 +5,7 @@ using System;
 using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
-using SystemService.Common.Responses;
+using SystemService.BLL.Common.Responses;
 
 namespace SystemService.Middleware
 {

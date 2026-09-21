@@ -6,11 +6,11 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System;
 using System.Text;
-using SystemService.Data;
-using SystemService.Repositories.Identity.Implementations;
-using SystemService.Repositories.Identity.Interfaces;
-using SystemService.Services.Identity.Implementations;
-using SystemService.Services.Identity.Interfaces;
+using SystemService.BLL.Services.Identity.Implementations;
+using SystemService.BLL.Services.Identity.Interfaces;
+using SystemService.DAL.Context;
+using SystemService.DAL.Repositories.Identity.Implementations;
+using SystemService.DAL.Repositories.Identity.Interfaces;
 
 namespace SystemService.Extensions
 {
@@ -29,6 +29,7 @@ namespace SystemService.Extensions
         {
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IRoleRepository, RoleRepository>();
+            services.AddScoped<IOtpRepository, OtpRepository>();
 
             return services;
         }
@@ -36,6 +37,8 @@ namespace SystemService.Extensions
         public static IServiceCollection AddIdentityServices(this IServiceCollection services)
         {
             services.AddScoped<ITokenService, TokenService>();
+            services.AddScoped<IEmailService, EmailService>();
+            services.AddScoped<IOtpService, OtpService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IUserService, UserService>();
 

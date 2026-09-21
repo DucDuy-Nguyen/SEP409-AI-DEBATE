@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/Services/">
     <Project Path="Services/SystemService/SystemService.csproj" />
+    <Project Path="Services/SystemService.BLL/SystemService.BLL.csproj" />
+    <Project Path="Services/SystemService.DAL/SystemService.DAL.csproj" />
   </Folder>
   <Project Path="Gateway/Gateway.csproj" />
 </Solution>

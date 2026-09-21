@@ -3,9 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using SystemService.Common.Responses;
-using SystemService.Models.DTOs.Identity.Users;
-using SystemService.Services.Identity.Interfaces;
+using SystemService.BLL.Common.Responses;
+using SystemService.BLL.DTOs.Identity.Users;
+using SystemService.BLL.Services.Identity.Interfaces;
 
 namespace SystemService.Controllers.Identity
 {
