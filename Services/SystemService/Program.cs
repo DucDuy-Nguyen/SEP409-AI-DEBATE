@@ -13,6 +13,8 @@ builder.Services.AddControllers();
 builder.Services.AddSystemDbContext(builder.Configuration);
 builder.Services.AddIdentityRepositories();
 builder.Services.AddIdentityServices();
+builder.Services.AddCompetitionRepositories();
+builder.Services.AddCompetitionServices();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddSwaggerWithJwt();
 

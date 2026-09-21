@@ -45,6 +45,26 @@ namespace SystemService.Extensions
             return services;
         }
 
+        public static IServiceCollection AddCompetitionRepositories(this IServiceCollection services)
+        {
+            services.AddScoped<SystemService.DAL.Repositories.Competition.Interfaces.ICompetitionRepository, SystemService.DAL.Repositories.Competition.Implementations.CompetitionRepository>();
+            services.AddScoped<SystemService.DAL.Repositories.Competition.Interfaces.ICompetitionRegistrationRepository, SystemService.DAL.Repositories.Competition.Implementations.CompetitionRegistrationRepository>();
+            services.AddScoped<SystemService.DAL.Repositories.Competition.Interfaces.ICompetitionTeamRepository, SystemService.DAL.Repositories.Competition.Implementations.CompetitionTeamRepository>();
+            services.AddScoped<SystemService.DAL.Repositories.Competition.Interfaces.ICompetitionJudgeRepository, SystemService.DAL.Repositories.Competition.Implementations.CompetitionJudgeRepository>();
+
+            return services;
+        }
+
+        public static IServiceCollection AddCompetitionServices(this IServiceCollection services)
+        {
+            services.AddScoped<SystemService.BLL.Services.Competition.Interfaces.ICompetitionService, SystemService.BLL.Services.Competition.Implementations.CompetitionService>();
+            services.AddScoped<SystemService.BLL.Services.Competition.Interfaces.ICompetitionRegistrationService, SystemService.BLL.Services.Competition.Implementations.CompetitionRegistrationService>();
+            services.AddScoped<SystemService.BLL.Services.Competition.Interfaces.ICompetitionTeamService, SystemService.BLL.Services.Competition.Implementations.CompetitionTeamService>();
+            services.AddScoped<SystemService.BLL.Services.Competition.Interfaces.ICompetitionJudgeService, SystemService.BLL.Services.Competition.Implementations.CompetitionJudgeService>();
+
+            return services;
+        }
+
         public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
         {
             var jwtKey = configuration["Jwt:Key"] ?? "development-secret-key-super-secret-1234567890";
