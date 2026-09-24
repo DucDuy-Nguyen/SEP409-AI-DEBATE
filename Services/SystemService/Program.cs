@@ -18,6 +18,8 @@ builder.Services.AddSwaggerWithJwt();
 
 var app = builder.Build();
 
+app.EnsureDatabaseCreated();
+
 // Global Exception Middleware
 app.UseMiddleware<ExceptionMiddleware>();
 

@@ -14,8 +14,5 @@ namespace SystemService.BLL.DTOs.Identity.Auth
         [Required(ErrorMessage = "Password is required.")]
         [MinLength(8, ErrorMessage = "Password must be at least 8 characters.")]
         public string Password { get; set; } = null!;
-
-        [Required(ErrorMessage = "OTP code is required.")]
-        public string OtpCode { get; set; } = null!;
     }
 }

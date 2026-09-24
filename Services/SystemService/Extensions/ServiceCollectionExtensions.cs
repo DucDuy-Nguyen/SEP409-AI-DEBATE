@@ -25,6 +25,27 @@ namespace SystemService.Extensions
             return services;
         }
 
+        public static void EnsureDatabaseCreated(this Microsoft.AspNetCore.Builder.IApplicationBuilder app)
+        {
+            using var scope = app.ApplicationServices.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<SystemDbContext>();
+            context.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'OtpCodes')
+                BEGIN
+                    CREATE TABLE [OtpCodes] (
+                        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [Email] NVARCHAR(255) NOT NULL,
+                        [Code] NVARCHAR(10) NOT NULL,
+                        [Type] NVARCHAR(50) NOT NULL,
+                        [ExpiresAt] DATETIME2 NOT NULL,
+                        [IsUsed] BIT NOT NULL DEFAULT 0,
+                        [CreatedAt] DATETIME2 NOT NULL
+                    );
+                    CREATE INDEX [IX_OtpCodes_Email_Type_IsUsed] ON [OtpCodes] ([Email], [Type], [IsUsed]);
+                END
+            ");
+        }
+
         public static IServiceCollection AddIdentityRepositories(this IServiceCollection services)
         {
             services.AddScoped<IUserRepository, UserRepository>();

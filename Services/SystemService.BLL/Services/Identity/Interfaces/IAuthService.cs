@@ -8,6 +8,7 @@ namespace SystemService.BLL.Services.Identity.Interfaces
     public interface IAuthService
     {
         Task<ApiResponse<object>> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default);
+        Task<ApiResponse<object>> VerifyRegisterOtpAsync(VerifyRegisterOtpRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<LoginResponse>> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<LoginResponse>> GoogleLoginAsync(GoogleLoginRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<object>> SendOtpAsync(SendOtpRequest request, CancellationToken cancellationToken = default);

@@ -32,9 +32,10 @@ namespace SystemService.BLL.Services.Identity.Implementations
 
             if (normalizedType.Equals("Registration", StringComparison.OrdinalIgnoreCase))
             {
-                if (await _userRepository.EmailExistsAsync(normalizedEmail, cancellationToken))
+                var existingUser = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+                if (existingUser != null && existingUser.IsEmailVerified)
                 {
-                    return ApiResponse<object>.FailureResponse("Email is already registered.");
+                    return ApiResponse<object>.FailureResponse("Email is already registered and verified.");
                 }
             }
             else if (normalizedType.Equals("ForgotPassword", StringComparison.OrdinalIgnoreCase))
