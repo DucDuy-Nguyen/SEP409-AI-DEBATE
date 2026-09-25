@@ -45,12 +45,6 @@ namespace SystemService.BLL.Services.Identity.Implementations
                 return ApiResponse<object>.FailureResponse("Email is already registered.");
             }
 
-            var isOtpValid = await _otpService.ValidateAndConsumeOtpAsync(normalizedEmail, request.OtpCode.Trim(), "Registration", cancellationToken);
-            if (!isOtpValid)
-            {
-                return ApiResponse<object>.FailureResponse("Invalid or expired OTP code.");
-            }
-
             var defaultRole = await _roleRepository.GetByNameAsync("Member", cancellationToken);
             if (defaultRole == null)
             {
@@ -65,7 +59,7 @@ namespace SystemService.BLL.Services.Identity.Implementations
                 Email = normalizedEmail,
                 PasswordHash = passwordHash,
                 IsActive = true,
-                IsEmailVerified = true,
+                IsEmailVerified = false,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -77,7 +71,38 @@ namespace SystemService.BLL.Services.Identity.Implementations
 
             await _userRepository.AddAsync(user, cancellationToken);
 
-            return ApiResponse<object>.SuccessResponse(new { }, "Registration successful.");
+            await _otpService.SendOtpAsync(normalizedEmail, "Registration", cancellationToken);
+
+            return ApiResponse<object>.SuccessResponse(new { }, "Registration successful. Please verify the OTP sent to your email.");
+        }
+
+        public async Task<ApiResponse<object>> VerifyRegisterOtpAsync(VerifyRegisterOtpRequest request, CancellationToken cancellationToken = default)
+        {
+            var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
+            var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+            if (user == null)
+            {
+                return ApiResponse<object>.FailureResponse("User not found.");
+            }
+
+            if (user.IsEmailVerified)
+            {
+                return ApiResponse<object>.FailureResponse("Email is already verified.");
+            }
+
+            var isOtpValid = await _otpService.ValidateAndConsumeOtpAsync(normalizedEmail, request.OtpCode.Trim(), "Registration", cancellationToken);
+            if (!isOtpValid)
+            {
+                return ApiResponse<object>.FailureResponse("Invalid or expired OTP code.");
+            }
+
+            user.IsEmailVerified = true;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _userRepository.UpdateAsync(user, cancellationToken);
+
+            return ApiResponse<object>.SuccessResponse(new { }, "Email verified successfully.");
         }
 
         public async Task<ApiResponse<LoginResponse>> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
@@ -93,6 +118,11 @@ namespace SystemService.BLL.Services.Identity.Implementations
             if (!user.IsActive)
             {
                 return ApiResponse<LoginResponse>.FailureResponse("User account is inactive. Please contact support.");
+            }
+
+            if (!user.IsEmailVerified)
+            {
+                return ApiResponse<LoginResponse>.FailureResponse("Email is not verified. Please verify your email with OTP.");
             }
 
             if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))

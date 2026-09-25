@@ -31,6 +31,17 @@ namespace SystemService.Controllers.Identity
             return Ok(result);
         }
 
+        [HttpPost("verify-register-otp")]
+        public async Task<IActionResult> VerifyRegisterOtp([FromBody] VerifyRegisterOtpRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _authService.VerifyRegisterOtpAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
         {
