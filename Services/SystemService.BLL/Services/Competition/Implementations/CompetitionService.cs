@@ -8,29 +8,68 @@ using SystemService.BLL.DTOs.Competition.Management;
 using SystemService.BLL.Services.Competition.Interfaces;
 using SystemService.DAL.Entities.Competition;
 using SystemService.DAL.Repositories.Competition.Interfaces;
+using SystemService.DAL.Repositories.Identity.Interfaces;
 
 namespace SystemService.BLL.Services.Competition.Implementations
 {
     public class CompetitionService : ICompetitionService
     {
         private readonly ICompetitionRepository _competitionRepository;
+        private readonly IDebateFormatRepository _debateFormatRepository;
+        private readonly IUserRepository _userRepository;
 
-        public CompetitionService(ICompetitionRepository competitionRepository)
+        public CompetitionService(
+            ICompetitionRepository competitionRepository,
+            IDebateFormatRepository debateFormatRepository,
+            IUserRepository userRepository)
         {
             _competitionRepository = competitionRepository;
+            _debateFormatRepository = debateFormatRepository;
+            _userRepository = userRepository;
         }
 
         public async Task<ApiResponse<CompetitionResponse>> CreateAsync(int createdByUserId, CreateCompetitionRequest request, CancellationToken cancellationToken = default)
         {
+            var creator = await _userRepository.GetByIdAsync(createdByUserId, cancellationToken);
+            if (creator == null)
+            {
+                return ApiResponse<CompetitionResponse>.FailureResponse("User not found.");
+            }
+
             if (string.IsNullOrWhiteSpace(request.Title))
             {
                 return ApiResponse<CompetitionResponse>.FailureResponse("Title is required.");
+            }
+
+            var trimmedTitle = request.Title.Trim();
+            if (trimmedTitle.Length > 200)
+            {
+                return ApiResponse<CompetitionResponse>.FailureResponse("Title must not exceed 200 characters.");
             }
 
             var type = request.CompetitionType?.ToUpperInvariant();
             if (type != "INDIVIDUAL" && type != "TEAM")
             {
                 return ApiResponse<CompetitionResponse>.FailureResponse("CompetitionType must be either INDIVIDUAL or TEAM.");
+            }
+
+            if (request.FormatId.HasValue)
+            {
+                if (request.FormatId.Value <= 0)
+                {
+                    return ApiResponse<CompetitionResponse>.FailureResponse("FormatId must be greater than 0 or null.");
+                }
+
+                var formatExists = await _debateFormatRepository.ExistsAsync(request.FormatId.Value, cancellationToken);
+                if (!formatExists)
+                {
+                    return ApiResponse<CompetitionResponse>.FailureResponse($"Debate format with FormatId {request.FormatId.Value} does not exist.");
+                }
+            }
+
+            if (request.MaxParticipants.HasValue && request.MaxParticipants.Value <= 0)
+            {
+                return ApiResponse<CompetitionResponse>.FailureResponse("MaxParticipants must be greater than 0 or null.");
             }
 
             if (request.RegistrationEnd <= request.RegistrationStart)
@@ -50,7 +89,7 @@ namespace SystemService.BLL.Services.Competition.Implementations
 
             var competition = new SystemService.DAL.Entities.Competition.Competition
             {
-                Title = request.Title.Trim(),
+                Title = trimmedTitle,
                 Description = request.Description,
                 CreatedBy = createdByUserId,
                 CompetitionType = type,
@@ -77,7 +116,7 @@ namespace SystemService.BLL.Services.Competition.Implementations
             return ApiResponse<CompetitionResponse>.SuccessResponse(response, "Competition created successfully.");
         }
 
-        public async Task<ApiResponse<CompetitionResponse>> UpdateAsync(int competitionId, int currentUserId, UpdateCompetitionRequest request, CancellationToken cancellationToken = default)
+        public async Task<ApiResponse<CompetitionResponse>> PatchAsync(int competitionId, int currentUserId, PatchCompetitionRequest request, CancellationToken cancellationToken = default)
         {
             var competition = await _competitionRepository.GetByIdAsync(competitionId, cancellationToken);
             if (competition == null)
@@ -85,35 +124,142 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<CompetitionResponse>.FailureResponse("Competition not found.");
             }
 
-            if (string.IsNullOrWhiteSpace(request.Title))
+            if (!request.HasAnyProperty)
             {
-                return ApiResponse<CompetitionResponse>.FailureResponse("Title is required.");
+                return ApiResponse<CompetitionResponse>.FailureResponse("At least one field must be provided for update.");
             }
 
-            if (request.RegistrationEnd <= request.RegistrationStart)
+            if (request.HasTitle)
+            {
+                if (string.IsNullOrWhiteSpace(request.Title))
+                {
+                    return ApiResponse<CompetitionResponse>.FailureResponse("Title cannot be empty or whitespace.");
+                }
+                var trimmedTitle = request.Title.Trim();
+                if (trimmedTitle.Length > 200)
+                {
+                    return ApiResponse<CompetitionResponse>.FailureResponse("Title must not exceed 200 characters.");
+                }
+            }
+
+            if (request.HasFormatId && request.FormatId.HasValue)
+            {
+                if (request.FormatId.Value <= 0)
+                {
+                    return ApiResponse<CompetitionResponse>.FailureResponse("FormatId must be greater than 0 or null.");
+                }
+
+                var formatExists = await _debateFormatRepository.ExistsAsync(request.FormatId.Value, cancellationToken);
+                if (!formatExists)
+                {
+                    return ApiResponse<CompetitionResponse>.FailureResponse($"Debate format with FormatId {request.FormatId.Value} does not exist.");
+                }
+            }
+
+            if (request.HasMaxParticipants && request.MaxParticipants.HasValue)
+            {
+                if (request.MaxParticipants.Value <= 0)
+                {
+                    return ApiResponse<CompetitionResponse>.FailureResponse("MaxParticipants must be greater than 0 or null.");
+                }
+            }
+
+            if (request.HasRegistrationStart && !request.RegistrationStart.HasValue)
+            {
+                return ApiResponse<CompetitionResponse>.FailureResponse("RegistrationStart cannot be null.");
+            }
+
+            if (request.HasRegistrationEnd && !request.RegistrationEnd.HasValue)
+            {
+                return ApiResponse<CompetitionResponse>.FailureResponse("RegistrationEnd cannot be null.");
+            }
+
+            if (request.HasStartDate && !request.StartDate.HasValue)
+            {
+                return ApiResponse<CompetitionResponse>.FailureResponse("StartDate cannot be null.");
+            }
+
+            if (request.HasIsPublic && !request.IsPublic.HasValue)
+            {
+                return ApiResponse<CompetitionResponse>.FailureResponse("IsPublic cannot be null.");
+            }
+
+            var effectiveRegistrationStart = request.HasRegistrationStart && request.RegistrationStart.HasValue
+                ? request.RegistrationStart.Value
+                : competition.RegistrationStart;
+
+            var effectiveRegistrationEnd = request.HasRegistrationEnd && request.RegistrationEnd.HasValue
+                ? request.RegistrationEnd.Value
+                : competition.RegistrationEnd;
+
+            var effectiveStartDate = request.HasStartDate && request.StartDate.HasValue
+                ? request.StartDate.Value
+                : competition.StartDate;
+
+            var effectiveEndDate = request.HasEndDate
+                ? request.EndDate
+                : competition.EndDate;
+
+            if (effectiveRegistrationEnd <= effectiveRegistrationStart)
             {
                 return ApiResponse<CompetitionResponse>.FailureResponse("RegistrationEnd must be after RegistrationStart.");
             }
 
-            if (request.StartDate < request.RegistrationEnd)
+            if (effectiveStartDate < effectiveRegistrationEnd)
             {
                 return ApiResponse<CompetitionResponse>.FailureResponse("StartDate must be on or after RegistrationEnd.");
             }
 
-            if (request.EndDate.HasValue && request.EndDate.Value < request.StartDate)
+            if (effectiveEndDate.HasValue && effectiveEndDate.Value < effectiveStartDate)
             {
                 return ApiResponse<CompetitionResponse>.FailureResponse("EndDate must be on or after StartDate.");
             }
 
-            competition.Title = request.Title.Trim();
-            competition.Description = request.Description;
-            competition.FormatId = request.FormatId;
-            competition.MaxParticipants = request.MaxParticipants;
-            competition.RegistrationStart = request.RegistrationStart;
-            competition.RegistrationEnd = request.RegistrationEnd;
-            competition.StartDate = request.StartDate;
-            competition.EndDate = request.EndDate;
-            competition.IsPublic = request.IsPublic;
+            if (request.HasTitle)
+            {
+                competition.Title = request.Title!.Trim();
+            }
+
+            if (request.HasDescription)
+            {
+                competition.Description = request.Description;
+            }
+
+            if (request.HasFormatId)
+            {
+                competition.FormatId = request.FormatId;
+            }
+
+            if (request.HasMaxParticipants)
+            {
+                competition.MaxParticipants = request.MaxParticipants;
+            }
+
+            if (request.HasRegistrationStart)
+            {
+                competition.RegistrationStart = request.RegistrationStart!.Value;
+            }
+
+            if (request.HasRegistrationEnd)
+            {
+                competition.RegistrationEnd = request.RegistrationEnd!.Value;
+            }
+
+            if (request.HasStartDate)
+            {
+                competition.StartDate = request.StartDate!.Value;
+            }
+
+            if (request.HasEndDate)
+            {
+                competition.EndDate = request.EndDate;
+            }
+
+            if (request.HasIsPublic)
+            {
+                competition.IsPublic = request.IsPublic!.Value;
+            }
+
             competition.UpdatedAt = DateTime.UtcNow;
 
             await _competitionRepository.UpdateAsync(competition, cancellationToken);

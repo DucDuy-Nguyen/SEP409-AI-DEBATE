@@ -19,6 +19,7 @@ namespace SystemService.DAL.Context
         public DbSet<Entities.Competition.CompetitionTeam> CompetitionTeams { get; set; } = null!;
         public DbSet<Entities.Competition.CompetitionTeamMember> CompetitionTeamMembers { get; set; } = null!;
         public DbSet<Entities.Competition.CompetitionJudge> CompetitionJudges { get; set; } = null!;
+        public DbSet<Entities.Competition.DebateFormat> DebateFormats { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

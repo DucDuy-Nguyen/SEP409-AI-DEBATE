@@ -57,8 +57,8 @@ namespace SystemService.Controllers.Competition
         }
 
         [Authorize]
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] UpdateCompetitionRequest request, CancellationToken cancellationToken)
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> Patch(int id, [FromBody] PatchCompetitionRequest request, CancellationToken cancellationToken)
         {
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdClaim, out int userId))
@@ -66,7 +66,7 @@ namespace SystemService.Controllers.Competition
                 return Unauthorized(ApiResponse<CompetitionResponse>.FailureResponse("Unauthorized access."));
             }
 
-            var result = await _competitionService.UpdateAsync(id, userId, request, cancellationToken);
+            var result = await _competitionService.PatchAsync(id, userId, request, cancellationToken);
             if (!result.Success)
             {
                 return BadRequest(result);
