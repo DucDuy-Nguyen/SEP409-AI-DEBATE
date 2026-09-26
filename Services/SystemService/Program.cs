@@ -9,8 +9,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add Controllers
 builder.Services.AddControllers();
 
-// Configure Services, Repositories, DbContext, JWT & Swagger
+// Configure Services, Repositories, DbContext, Cache, JWT & Swagger
 builder.Services.AddSystemDbContext(builder.Configuration);
+builder.Services.AddCustomCache(builder.Configuration);
 builder.Services.AddIdentityRepositories();
 builder.Services.AddIdentityServices();
 builder.Services.AddJwtAuthentication(builder.Configuration);
