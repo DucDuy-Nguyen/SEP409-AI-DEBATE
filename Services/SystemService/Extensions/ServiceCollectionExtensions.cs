@@ -6,9 +6,13 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System;
 using System.Text;
+using SystemService.BLL.Services.Debate.Implementations;
+using SystemService.BLL.Services.Debate.Interfaces;
 using SystemService.BLL.Services.Identity.Implementations;
 using SystemService.BLL.Services.Identity.Interfaces;
 using SystemService.DAL.Context;
+using SystemService.DAL.Repositories.Debate.Implementations;
+using SystemService.DAL.Repositories.Debate.Interfaces;
 using SystemService.DAL.Repositories.Identity.Implementations;
 using SystemService.DAL.Repositories.Identity.Interfaces;
 
@@ -51,6 +55,8 @@ namespace SystemService.Extensions
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IRoleRepository, RoleRepository>();
             services.AddScoped<IOtpRepository, OtpRepository>();
+            services.AddScoped<IDebateRepository, DebateRepository>();
+            services.AddScoped<IDebateChallengeRepository, DebateChallengeRepository>();
 
             return services;
         }
@@ -62,9 +68,13 @@ namespace SystemService.Extensions
             services.AddScoped<IOtpService, OtpService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IUserService, UserService>();
+            services.AddScoped<IDebateService, DebateService>();
+            services.AddScoped<IDebateChallengeService, DebateChallengeService>();
 
             return services;
         }
+
+
 
         public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
         {
