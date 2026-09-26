@@ -1,0 +1,27 @@
+# --- Bi mat (API key that) ---
+.env
+
+# --- Python / tooling ---
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+*.egg-info/
+
+# --- Ket qua xuat ra tu cac script batch validate (Excel) ---
+# Bao gom ca file khoa tam "~$*.xlsx" ma Excel tao ra khi dang mo file.
+*.xlsx
+
+# --- Du lieu test batch tu tao trong qua trinh phat trien ---
+# (khong phai du lieu van hanh that)
+data/test_cases.json
+data/session_test_cases.json
+
+# --- Dataset tai tu nguon ngoai (dung luong lon, tai lai duoc) ---
+data/ibm_opening_speeches.parquet
+data/dagstuhl_processed.csv
+data/_dagstuhl_raw/
+
+# --- File tam cua script batch / kiem tra thu cong ---
+scratch_*.txt
