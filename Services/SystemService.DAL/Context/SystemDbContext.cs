@@ -12,6 +12,15 @@ namespace SystemService.DAL.Context
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<Role> Roles { get; set; } = null!;
         public DbSet<UserRole> UserRoles { get; set; } = null!;
+        public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
+
+        public DbSet<Entities.Competition.Competition> Competitions { get; set; } = null!;
+        public DbSet<Entities.Competition.CompetitionRegistration> CompetitionRegistrations { get; set; } = null!;
+        public DbSet<Entities.Competition.CompetitionTeam> CompetitionTeams { get; set; } = null!;
+        public DbSet<Entities.Competition.CompetitionTeamMember> CompetitionTeamMembers { get; set; } = null!;
+        public DbSet<Entities.Competition.CompetitionJudge> CompetitionJudges { get; set; } = null!;
+        public DbSet<Entities.Competition.DebateFormat> DebateFormats { get; set; } = null!;
+        public DbSet<Entities.Competition.CompetitionTeamRequest> CompetitionTeamRequests { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

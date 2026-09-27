@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using SystemService.BLL.Services.Identity.Interfaces;
 using SystemService.DAL.Entities.Identity;
@@ -60,6 +61,23 @@ namespace SystemService.BLL.Services.Identity.Implementations
             var tokenString = tokenHandler.WriteToken(securityToken);
 
             return (tokenString, expiresAt);
+        }
+
+        public (string Token, DateTime ExpiresAt) GenerateRefreshToken()
+        {
+            var randomNumber = new byte[64];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomNumber);
+            var token = Convert.ToBase64String(randomNumber);
+
+            var refreshExpireDaysStr = _configuration["Jwt:RefreshTokenExpireDays"] ?? "7";
+            if (!double.TryParse(refreshExpireDaysStr, out double refreshExpireDays))
+            {
+                refreshExpireDays = 7;
+            }
+
+            var expiresAt = DateTime.UtcNow.AddDays(refreshExpireDays);
+            return (token, expiresAt);
         }
     }
 }

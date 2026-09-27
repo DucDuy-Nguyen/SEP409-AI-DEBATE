@@ -7,6 +7,8 @@ namespace SystemService.BLL.DTOs.Identity.Auth
     {
         public string AccessToken { get; set; } = null!;
         public DateTime ExpiresAt { get; set; }
+        public string RefreshToken { get; set; } = null!;
+        public DateTime RefreshTokenExpiresAt { get; set; }
         public UserInfoDto User { get; set; } = null!;
     }
 
