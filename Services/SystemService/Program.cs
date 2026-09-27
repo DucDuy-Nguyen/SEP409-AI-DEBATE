@@ -24,52 +24,35 @@ using SystemService.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ================================
-// Controllers / API
-// ================================
 builder.Services.AddControllers();
 
-// ================================
-// Database
-// ================================
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<SystemDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// ================================
-// Repositories
-// ================================
-// Identity Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IOtpRepository, OtpRepository>();
 
-// Competition Repositories
 builder.Services.AddScoped<ICompetitionRepository, CompetitionRepository>();
 builder.Services.AddScoped<ICompetitionRegistrationRepository, CompetitionRegistrationRepository>();
 builder.Services.AddScoped<ICompetitionTeamRepository, CompetitionTeamRepository>();
+builder.Services.AddScoped<ICompetitionTeamRequestRepository, CompetitionTeamRequestRepository>();
 builder.Services.AddScoped<ICompetitionJudgeRepository, CompetitionJudgeRepository>();
 builder.Services.AddScoped<IDebateFormatRepository, DebateFormatRepository>();
 
-// ================================
-// Business Services
-// ================================
-// Identity Services
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
-// Competition Services
 builder.Services.AddScoped<ICompetitionService, CompetitionService>();
 builder.Services.AddScoped<ICompetitionRegistrationService, CompetitionRegistrationService>();
 builder.Services.AddScoped<ICompetitionTeamService, CompetitionTeamService>();
+builder.Services.AddScoped<ICompetitionTeamRequestService, CompetitionTeamRequestService>();
 builder.Services.AddScoped<ICompetitionJudgeService, CompetitionJudgeService>();
 
-// ================================
-// Authentication & Authorization / JWT
-// ================================
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "development-secret-key-super-secret-1234567890";
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AIDebatePlatform";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AIDebatePlatform";
@@ -96,9 +79,6 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// ================================
-// Swagger / API Documentation
-// ================================
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -136,9 +116,6 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// ================================
-// Middleware Pipeline
-// ================================
 app.UseMiddleware<ExceptionMiddleware>();
 
 if (app.Environment.IsDevelopment())

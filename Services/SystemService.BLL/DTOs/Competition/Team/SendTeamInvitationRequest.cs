@@ -1,6 +1,6 @@
 namespace SystemService.BLL.DTOs.Competition.Team
 {
-    public class AddCompetitionTeamMemberRequest
+    public class SendTeamInvitationRequest
     {
         public int UserId { get; set; }
     }

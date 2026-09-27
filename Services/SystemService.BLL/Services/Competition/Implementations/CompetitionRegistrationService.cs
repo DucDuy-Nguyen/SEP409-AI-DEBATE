@@ -94,6 +94,16 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Only Pending registrations can be approved.");
             }
 
+            var competition = await _competitionRepository.GetByIdAsync(competitionId, cancellationToken);
+            if (competition != null && competition.CompetitionType == "INDIVIDUAL" && competition.MaxParticipants.HasValue)
+            {
+                int approvedCount = await _registrationRepository.GetApprovedCountAsync(competitionId, cancellationToken);
+                if (approvedCount >= competition.MaxParticipants.Value)
+                {
+                    return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Competition has reached maximum participant capacity.");
+                }
+            }
+
             registration.Status = "Approved";
             registration.ReviewedBy = reviewerUserId;
             registration.ReviewedAt = DateTime.UtcNow;

@@ -84,5 +84,24 @@ namespace SystemService.DAL.Repositories.Competition.Implementations
             _context.CompetitionTeams.Update(team);
             await _context.SaveChangesAsync(cancellationToken);
         }
+
+        public async Task<bool> IsUserCaptainOrMemberInCompetitionAsync(int competitionId, int userId, CancellationToken cancellationToken = default)
+        {
+            return await _context.CompetitionTeams
+                .AnyAsync(t => t.CompetitionId == competitionId && t.Status == "Active" &&
+                               (t.CaptainUserId == userId || t.TeamMembers.Any(tm => tm.UserId == userId)), cancellationToken);
+        }
+
+        public async Task<int> GetActiveTeamCountAsync(int competitionId, CancellationToken cancellationToken = default)
+        {
+            return await _context.CompetitionTeams
+                .CountAsync(t => t.CompetitionId == competitionId && t.Status == "Active", cancellationToken);
+        }
+
+        public async Task<int> GetTeamMemberCountAsync(int teamId, CancellationToken cancellationToken = default)
+        {
+            return await _context.CompetitionTeamMembers
+                .CountAsync(tm => tm.TeamId == teamId, cancellationToken);
+        }
     }
 }

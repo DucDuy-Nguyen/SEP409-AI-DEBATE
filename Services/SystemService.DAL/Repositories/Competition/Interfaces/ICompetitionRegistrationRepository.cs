@@ -13,5 +13,6 @@ namespace SystemService.DAL.Repositories.Competition.Interfaces
         Task<bool> HasUserRegisteredAsync(int competitionId, int userId, CancellationToken cancellationToken = default);
         Task AddAsync(CompetitionRegistration registration, CancellationToken cancellationToken = default);
         Task UpdateAsync(CompetitionRegistration registration, CancellationToken cancellationToken = default);
+        Task<int> GetApprovedCountAsync(int competitionId, CancellationToken cancellationToken = default);
     }
 }

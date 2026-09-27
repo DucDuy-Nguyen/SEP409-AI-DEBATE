@@ -57,8 +57,8 @@ namespace SystemService.Controllers.Competition
         }
 
         [Authorize]
-        [HttpPost("{teamId}/members")]
-        public async Task<IActionResult> AddMember(int id, int teamId, [FromBody] AddCompetitionTeamMemberRequest request, CancellationToken cancellationToken)
+        [HttpDelete("{teamId}/members/me")]
+        public async Task<IActionResult> LeaveTeam(int id, int teamId, CancellationToken cancellationToken)
         {
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdClaim, out int userId))
@@ -66,7 +66,7 @@ namespace SystemService.Controllers.Competition
                 return Unauthorized(ApiResponse<object>.FailureResponse("Unauthorized access."));
             }
 
-            var result = await _teamService.AddMemberAsync(id, teamId, userId, request, cancellationToken);
+            var result = await _teamService.LeaveTeamAsync(id, teamId, userId, cancellationToken);
             if (!result.Success)
             {
                 return BadRequest(result);

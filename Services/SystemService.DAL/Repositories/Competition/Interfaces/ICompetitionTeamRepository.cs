@@ -17,5 +17,8 @@ namespace SystemService.DAL.Repositories.Competition.Interfaces
         Task AddMemberAsync(CompetitionTeamMember member, CancellationToken cancellationToken = default);
         Task RemoveMemberAsync(CompetitionTeamMember member, CancellationToken cancellationToken = default);
         Task UpdateTeamAsync(CompetitionTeam team, CancellationToken cancellationToken = default);
+        Task<bool> IsUserCaptainOrMemberInCompetitionAsync(int competitionId, int userId, CancellationToken cancellationToken = default);
+        Task<int> GetActiveTeamCountAsync(int competitionId, CancellationToken cancellationToken = default);
+        Task<int> GetTeamMemberCountAsync(int teamId, CancellationToken cancellationToken = default);
     }
 }

@@ -65,5 +65,11 @@ namespace SystemService.DAL.Repositories.Competition.Implementations
             _context.CompetitionRegistrations.Update(registration);
             await _context.SaveChangesAsync(cancellationToken);
         }
+
+        public async Task<int> GetApprovedCountAsync(int competitionId, CancellationToken cancellationToken = default)
+        {
+            return await _context.CompetitionRegistrations
+                .CountAsync(r => r.CompetitionId == competitionId && r.Status == "Approved", cancellationToken);
+        }
     }
 }

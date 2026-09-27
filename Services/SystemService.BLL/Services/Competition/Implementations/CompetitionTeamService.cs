@@ -49,6 +49,22 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<CompetitionTeamResponse>.FailureResponse("Teams can only be created for TEAM competitions.");
             }
 
+            bool isAlreadyInTeam = await _teamRepository.IsUserCaptainOrMemberInCompetitionAsync(competitionId, captainUserId, cancellationToken);
+            if (isAlreadyInTeam)
+            {
+                return ApiResponse<CompetitionTeamResponse>.FailureResponse("User is already a captain or member of an active team in this competition.");
+            }
+
+            if (competition.MaxParticipants.HasValue)
+            {
+                int maxTeams = competition.MaxParticipants.Value / 2;
+                int activeTeams = await _teamRepository.GetActiveTeamCountAsync(competitionId, cancellationToken);
+                if (activeTeams >= maxTeams)
+                {
+                    return ApiResponse<CompetitionTeamResponse>.FailureResponse("Competition has reached maximum team capacity.");
+                }
+            }
+
             var teamNameTrimmed = request.TeamName.Trim();
             bool nameExists = await _teamRepository.IsTeamNameExistsAsync(competitionId, teamNameTrimmed, cancellationToken);
             if (nameExists)
@@ -109,7 +125,7 @@ namespace SystemService.BLL.Services.Competition.Implementations
             return ApiResponse<CompetitionTeamDetailResponse>.SuccessResponse(response);
         }
 
-        public async Task<ApiResponse<object>> AddMemberAsync(int competitionId, int teamId, int currentUserId, AddCompetitionTeamMemberRequest request, CancellationToken cancellationToken = default)
+        public async Task<ApiResponse<object>> LeaveTeamAsync(int competitionId, int teamId, int userId, CancellationToken cancellationToken = default)
         {
             var team = await _teamRepository.GetByIdAsync(teamId, cancellationToken);
             if (team == null || team.CompetitionId != competitionId)
@@ -117,38 +133,19 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<object>.FailureResponse("Team not found for the specified competition.");
             }
 
-            if (team.CaptainUserId != currentUserId)
+            if (team.CaptainUserId == userId)
             {
-                return ApiResponse<object>.FailureResponse("Only the team captain can add members.");
+                return ApiResponse<object>.FailureResponse("Team captain cannot leave the team.");
             }
 
-            var targetUser = await _userRepository.GetByIdAsync(request.UserId, cancellationToken);
-            if (targetUser == null)
+            var member = await _teamRepository.GetTeamMemberAsync(teamId, userId, cancellationToken);
+            if (member == null)
             {
-                return ApiResponse<object>.FailureResponse("User to add not found.");
+                return ApiResponse<object>.FailureResponse("User is not a member of this team.");
             }
 
-            bool registrationValid = await ValidateUserRegistrationAsync(competitionId, request.UserId, cancellationToken);
-            if (!registrationValid)
-            {
-                return ApiResponse<object>.FailureResponse("Target user has not registered for this competition.");
-            }
-
-            bool alreadyInTeam = await _teamRepository.IsUserInTeamAsync(teamId, request.UserId, cancellationToken);
-            if (alreadyInTeam)
-            {
-                return ApiResponse<object>.FailureResponse("User is already a member of this team.");
-            }
-
-            var member = new CompetitionTeamMember
-            {
-                TeamId = teamId,
-                UserId = request.UserId,
-                JoinedAt = DateTime.UtcNow
-            };
-
-            await _teamRepository.AddMemberAsync(member, cancellationToken);
-            return ApiResponse<object>.SuccessResponse(new { }, "Member added to team successfully.");
+            await _teamRepository.RemoveMemberAsync(member, cancellationToken);
+            return ApiResponse<object>.SuccessResponse(new { }, "Left team successfully.");
         }
 
         public async Task<ApiResponse<object>> RemoveMemberAsync(int competitionId, int teamId, int targetUserId, int currentUserId, CancellationToken cancellationToken = default)
@@ -162,6 +159,11 @@ namespace SystemService.BLL.Services.Competition.Implementations
             if (team.CaptainUserId != currentUserId)
             {
                 return ApiResponse<object>.FailureResponse("Only the team captain can remove members.");
+            }
+
+            if (targetUserId == team.CaptainUserId)
+            {
+                return ApiResponse<object>.FailureResponse("Captain cannot kick themselves.");
             }
 
             var member = await _teamRepository.GetTeamMemberAsync(teamId, targetUserId, cancellationToken);
@@ -191,12 +193,6 @@ namespace SystemService.BLL.Services.Competition.Implementations
             await _teamRepository.UpdateTeamAsync(team, cancellationToken);
 
             return ApiResponse<object>.SuccessResponse(new { }, "Team withdrawn successfully.");
-        }
-
-        private async Task<bool> ValidateUserRegistrationAsync(int competitionId, int userId, CancellationToken cancellationToken)
-        {
-            // Decoupled registration validation logic. Current version requires ONLY that registration record EXISTS.
-            return await _registrationRepository.HasUserRegisteredAsync(competitionId, userId, cancellationToken);
         }
 
         private static CompetitionTeamResponse MapToResponse(CompetitionTeam t)
