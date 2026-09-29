@@ -8,14 +8,14 @@ namespace SystemService.DAL.Entities.Debate
     public class DebateParticipant
     {
         public int ParticipantId { get; set; }
-        public int SessionId { get; set; }
+        public int DebateSessionId { get; set; }
         public int? UserId { get; set; }
-        public bool IsAI { get; set; }
+        public ParticipantType ParticipantType { get; set; }
         public DebateSide Side { get; set; }
         public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
 
-        public DebateSession Session { get; set; } = null!;
+        public DebateSession DebateSession { get; set; } = null!;
         public User? User { get; set; }
-        public ICollection<DebateArgument> Arguments { get; set; } = new List<DebateArgument>();
+        public ICollection<Argument> Arguments { get; set; } = new List<Argument>();
     }
 }

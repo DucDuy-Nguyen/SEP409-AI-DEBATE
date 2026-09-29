@@ -15,12 +15,13 @@ namespace SystemService.DAL.Context
         public DbSet<UserRole> UserRoles { get; set; } = null!;
         public DbSet<OtpCode> OtpCodes { get; set; } = null!;
 
+        public DbSet<Topic> Topics { get; set; } = null!;
+        public DbSet<DebateFormat> DebateFormats { get; set; } = null!;
         public DbSet<DebateSession> DebateSessions { get; set; } = null!;
         public DbSet<DebateParticipant> DebateParticipants { get; set; } = null!;
-        public DbSet<DebateTurn> DebateTurns { get; set; } = null!;
-        public DbSet<DebateArgument> DebateArguments { get; set; } = null!;
+        public DbSet<DebateRound> DebateRounds { get; set; } = null!;
+        public DbSet<Argument> Arguments { get; set; } = null!;
         public DbSet<DebateChallenge> DebateChallenges { get; set; } = null!;
-
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -29,4 +30,3 @@ namespace SystemService.DAL.Context
         }
     }
 }
-

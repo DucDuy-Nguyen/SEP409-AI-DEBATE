@@ -20,18 +20,15 @@ namespace SystemService.BLL.Services.Debate.Implementations
         private readonly IDebateChallengeRepository _challengeRepository;
         private readonly IDebateRepository _debateRepository;
         private readonly IUserRepository _userRepository;
-        private readonly SystemDbContext _context;
 
         public DebateChallengeService(
             IDebateChallengeRepository challengeRepository,
             IDebateRepository debateRepository,
-            IUserRepository userRepository,
-            SystemDbContext context)
+            IUserRepository userRepository)
         {
             _challengeRepository = challengeRepository;
             _debateRepository = debateRepository;
             _userRepository = userRepository;
-            _context = context;
         }
 
         public async Task<ApiResponse<ChallengeResponse>> CreateChallengeAsync(
@@ -115,7 +112,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
         public async Task<ApiResponse<ChallengeResponse>> AcceptChallengeAsync(
             int userId, int challengeId, CancellationToken cancellationToken = default)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
             try
             {
                 var challenge = await _challengeRepository.GetChallengeWithDetailsAsync(challengeId, cancellationToken);
@@ -136,28 +133,29 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     return ApiResponse<ChallengeResponse>.FailureResponse($"Cannot accept challenge because it is currently '{challenge.Status}'.");
                 }
 
-                var challengedSide = challenge.ChallengerPreferredSide == DebateSide.Affirmative ? DebateSide.Negative : DebateSide.Affirmative;
+                var challengedSide = challenge.ChallengerPreferredSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
 
-                // Create Direct 1v1 DebateSession
+                var topic = await _debateRepository.GetOrCreateTopicAsync(
+                    challenge.Topic, null, "Medium", challenge.ChallengerUserId, cancellationToken);
+
+                var format = await _debateRepository.GetFormatByNameAsync("1 vs 1", cancellationToken)
+                    ?? await _debateRepository.GetFormatByIdAsync(2, cancellationToken)
+                    ?? new DebateFormat { FormatId = 2, FormatName = "1 vs 1" };
+
                 var session = new DebateSession
                 {
-                    Title = $"1v1 Debate: {challenge.Topic}",
-                    Topic = challenge.Topic,
-                    DebateType = DebateType.Direct1v1,
-                    Difficulty = null,
-                    CurrentStage = DebateStage.Opening,
-                    CurrentTurnSide = DebateSide.Affirmative,
+                    TopicId = topic.TopicId,
+                    FormatId = format.FormatId,
                     Status = SessionStatus.InProgress,
-                    CreatedByUserId = challenge.ChallengerUserId,
+                    CreatedBy = challenge.ChallengerUserId,
                     CreatedAt = DateTime.UtcNow,
-                    StartedAt = DateTime.UtcNow
+                    StartTime = DateTime.UtcNow
                 };
 
-                // Add Participants
                 session.Participants.Add(new DebateParticipant
                 {
                     UserId = challenge.ChallengerUserId,
-                    IsAI = false,
+                    ParticipantType = ParticipantType.USER,
                     Side = challenge.ChallengerPreferredSide,
                     JoinedAt = DateTime.UtcNow
                 });
@@ -165,19 +163,17 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 session.Participants.Add(new DebateParticipant
                 {
                     UserId = challenge.ChallengedUserId,
-                    IsAI = false,
+                    ParticipantType = ParticipantType.USER,
                     Side = challengedSide,
                     JoinedAt = DateTime.UtcNow
                 });
 
-                // Create 6 Standard Turns
-                CreateStandardTurns(session, challenge.TurnTimeLimitSeconds);
+                CreateStandardRounds(session);
 
                 await _debateRepository.AddSessionAsync(session, cancellationToken);
 
-                // Update Challenge
                 challenge.Status = ChallengeStatus.Accepted;
-                challenge.DebateSessionId = session.SessionId;
+                challenge.DebateSessionId = session.DebateSessionId;
                 challenge.RespondedAt = DateTime.UtcNow;
 
                 await _challengeRepository.UpdateChallengeAsync(challenge, cancellationToken);
@@ -270,32 +266,18 @@ namespace SystemService.BLL.Services.Debate.Implementations
             }
         }
 
-        private void CreateStandardTurns(DebateSession session, int turnTimeLimit)
+        private void CreateStandardRounds(DebateSession session)
         {
-            var turnSequence = new List<(DebateStage Stage, DebateSide Side)>
+            var roundTypes = new[] { RoundType.OPENING, RoundType.REBUTTAL, RoundType.CLOSING };
+            for (int i = 0; i < roundTypes.Length; i++)
             {
-                (DebateStage.Opening, DebateSide.Affirmative),
-                (DebateStage.Opening, DebateSide.Negative),
-                (DebateStage.Rebuttal, DebateSide.Affirmative),
-                (DebateStage.Rebuttal, DebateSide.Negative),
-                (DebateStage.Closing, DebateSide.Affirmative),
-                (DebateStage.Closing, DebateSide.Negative)
-            };
-
-            for (int i = 0; i < turnSequence.Count; i++)
-            {
-                int turnOrder = i + 1;
-                var (stage, side) = turnSequence[i];
-                bool isActive = (turnOrder == 1);
-
-                session.Turns.Add(new DebateTurn
+                int roundNumber = i + 1;
+                session.DebateRounds.Add(new DebateRound
                 {
-                    Stage = stage,
-                    Side = side,
-                    TurnOrder = turnOrder,
-                    TimeLimitSeconds = turnTimeLimit,
-                    Status = isActive ? TurnStatus.Active : TurnStatus.Pending,
-                    StartedAt = isActive ? DateTime.UtcNow : null
+                    RoundNumber = roundNumber,
+                    RoundType = roundTypes[i],
+                    CreatedAt = DateTime.UtcNow,
+                    StartTime = roundNumber == 1 ? DateTime.UtcNow : null
                 });
             }
         }

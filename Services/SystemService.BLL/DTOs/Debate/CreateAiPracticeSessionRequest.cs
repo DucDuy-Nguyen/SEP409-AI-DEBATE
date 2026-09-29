@@ -16,9 +16,12 @@ namespace SystemService.BLL.DTOs.Debate
         [Required]
         public DebateSide UserSide { get; set; } = DebateSide.Affirmative;
 
+        public bool IsAI { get; set; } = false;
+
         [MaxLength(50)]
         public string Difficulty { get; set; } = "Medium";
 
+        [Range(30, 360, ErrorMessage = "Turn time limit must be between 30 and 360 seconds.")]
         public int TurnTimeLimitSeconds { get; set; } = 180;
     }
 }

@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.Debate.Interfaces;
-using SystemService.DAL.Context;
 using SystemService.DAL.Entities.Debate;
 using SystemService.DAL.Entities.Debate.Enums;
 using SystemService.DAL.Repositories.Debate.Interfaces;
@@ -19,16 +18,13 @@ namespace SystemService.BLL.Services.Debate.Implementations
     {
         private readonly IDebateRepository _debateRepository;
         private readonly IUserRepository _userRepository;
-        private readonly SystemDbContext _context;
 
         public DebateService(
             IDebateRepository debateRepository,
-            IUserRepository userRepository,
-            SystemDbContext context)
+            IUserRepository userRepository)
         {
             _debateRepository = debateRepository;
             _userRepository = userRepository;
-            _context = context;
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> CreateAiPracticeSessionAsync(
@@ -40,46 +36,61 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
-            var aiSide = request.UserSide == DebateSide.Affirmative ? DebateSide.Negative : DebateSide.Affirmative;
+            var topic = await _debateRepository.GetOrCreateTopicAsync(
+                request.Title.Trim(), request.Topic.Trim(), request.Difficulty, userId, cancellationToken);
+
+            var isAi = request.IsAI;
+            var formatName = isAi ? "User vs AI" : "1 vs 1";
+            var formatId = isAi ? 1 : 2;
+
+            var format = await _debateRepository.GetFormatByNameAsync(formatName, cancellationToken)
+                ?? await _debateRepository.GetFormatByIdAsync(formatId, cancellationToken)
+                ?? new DebateFormat { FormatId = formatId, FormatName = formatName };
+
+            int timeLimit = request.TurnTimeLimitSeconds;
+            if (timeLimit < 30 || timeLimit > 360)
+            {
+                timeLimit = 180;
+            }
 
             var session = new DebateSession
             {
-                Title = request.Title.Trim(),
-                Topic = request.Topic.Trim(),
-                DebateType = DebateType.AiPractice,
-                Difficulty = request.Difficulty.Trim(),
-                CurrentStage = DebateStage.Opening,
-                CurrentTurnSide = DebateSide.Affirmative,
-                Status = SessionStatus.InProgress,
-                CreatedByUserId = userId,
-                CreatedAt = DateTime.UtcNow,
-                StartedAt = DateTime.UtcNow
+                TopicId = topic.TopicId,
+                FormatId = format.FormatId,
+                CreatedBy = userId,
+                TurnTimeLimitSeconds = timeLimit,
+                Status = isAi ? SessionStatus.InProgress : SessionStatus.Waiting,
+                StartTime = isAi ? DateTime.UtcNow : null,
+                CreatedAt = DateTime.UtcNow
             };
 
-            // Add Participants
             session.Participants.Add(new DebateParticipant
             {
                 UserId = userId,
-                IsAI = false,
+                ParticipantType = ParticipantType.USER,
                 Side = request.UserSide,
                 JoinedAt = DateTime.UtcNow
             });
 
-            session.Participants.Add(new DebateParticipant
+            if (isAi)
             {
-                UserId = null,
-                IsAI = true,
-                Side = aiSide,
-                JoinedAt = DateTime.UtcNow
-            });
+                var aiSide = request.UserSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+                session.Participants.Add(new DebateParticipant
+                {
+                    UserId = null,
+                    ParticipantType = ParticipantType.AI,
+                    Side = aiSide,
+                    JoinedAt = DateTime.UtcNow
+                });
+            }
 
-            // Initialize Standard 6 Turns
-            CreateStandardTurns(session, request.TurnTimeLimitSeconds);
+            CreateStandardRounds(session);
 
             await _debateRepository.AddSessionAsync(session, cancellationToken);
 
-            var fullSession = await _debateRepository.GetSessionWithDetailsAsync(session.SessionId, cancellationToken);
-            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(fullSession!, userId), "AI practice debate session created successfully.");
+            var fullSession = await _debateRepository.GetSessionWithDetailsAsync(session.DebateSessionId, cancellationToken);
+            var message = isAi ? "AI practice debate session created successfully." : "P2P debate session created. Waiting for opponent to join.";
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(fullSession!, userId), message);
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> CreateP2pSessionAsync(
@@ -91,33 +102,61 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
+            var topic = await _debateRepository.GetOrCreateTopicAsync(
+                request.Title.Trim(), request.Topic.Trim(), "Medium", userId, cancellationToken);
+
+            var isAi = request.IsAI;
+            var formatName = isAi ? "User vs AI" : "1 vs 1";
+            var formatId = isAi ? 1 : 2;
+
+            var format = await _debateRepository.GetFormatByNameAsync(formatName, cancellationToken)
+                ?? await _debateRepository.GetFormatByIdAsync(formatId, cancellationToken)
+                ?? new DebateFormat { FormatId = formatId, FormatName = formatName };
+
+            int timeLimit = request.TurnTimeLimitSeconds;
+            if (timeLimit < 30 || timeLimit > 360)
+            {
+                timeLimit = 180;
+            }
+
             var session = new DebateSession
             {
-                Title = request.Title.Trim(),
-                Topic = request.Topic.Trim(),
-                DebateType = DebateType.P2pMatch,
-                Difficulty = null,
-                CurrentStage = DebateStage.Opening,
-                CurrentTurnSide = DebateSide.Affirmative,
-                Status = SessionStatus.WaitingForPlayers,
-                CreatedByUserId = userId,
+                TopicId = topic.TopicId,
+                FormatId = format.FormatId,
+                CreatedBy = userId,
+                TurnTimeLimitSeconds = timeLimit,
+                Status = isAi ? SessionStatus.InProgress : SessionStatus.Waiting,
+                StartTime = isAi ? DateTime.UtcNow : null,
                 CreatedAt = DateTime.UtcNow
             };
 
             session.Participants.Add(new DebateParticipant
             {
                 UserId = userId,
-                IsAI = false,
+                ParticipantType = ParticipantType.USER,
                 Side = request.UserSide,
                 JoinedAt = DateTime.UtcNow
             });
 
-            CreateStandardTurns(session, request.TurnTimeLimitSeconds, isP2pPending: true);
+            if (isAi)
+            {
+                var aiSide = request.UserSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+                session.Participants.Add(new DebateParticipant
+                {
+                    UserId = null,
+                    ParticipantType = ParticipantType.AI,
+                    Side = aiSide,
+                    JoinedAt = DateTime.UtcNow
+                });
+            }
+
+            CreateStandardRounds(session);
 
             await _debateRepository.AddSessionAsync(session, cancellationToken);
 
-            var fullSession = await _debateRepository.GetSessionWithDetailsAsync(session.SessionId, cancellationToken);
-            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(fullSession!, userId), "P2P debate session created. Waiting for opponent to join.");
+            var fullSession = await _debateRepository.GetSessionWithDetailsAsync(session.DebateSessionId, cancellationToken);
+            var message = isAi ? "Debate session created with AI opponent." : "P2P debate session created. Waiting for opponent to join.";
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(fullSession!, userId), message);
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> JoinP2pSessionAsync(
@@ -135,12 +174,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.");
             }
 
-            if (session.DebateType != DebateType.P2pMatch)
-            {
-                return ApiResponse<DebateSessionResponse>.FailureResponse("Only P2P Match sessions are open for joining via this endpoint.");
-            }
-
-            if (session.Status != SessionStatus.WaitingForPlayers)
+            if (session.Status != SessionStatus.Waiting)
             {
                 return ApiResponse<DebateSessionResponse>.FailureResponse($"Debate session is not open for joining (Status: {session.Status}).");
             }
@@ -150,7 +184,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session is already full.");
             }
 
-            if (session.CreatedByUserId == userId)
+            if (session.CreatedBy == userId)
             {
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Room creator cannot join as the second participant.");
             }
@@ -161,28 +195,26 @@ namespace SystemService.BLL.Services.Debate.Implementations
             }
 
             var existingParticipant = session.Participants.First();
-            var assignedSide = existingParticipant.Side == DebateSide.Affirmative ? DebateSide.Negative : DebateSide.Affirmative;
+            var assignedSide = existingParticipant.Side == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
 
             var newParticipant = new DebateParticipant
             {
-                SessionId = sessionId,
+                DebateSessionId = sessionId,
                 UserId = userId,
-                IsAI = false,
+                ParticipantType = ParticipantType.USER,
                 Side = assignedSide,
                 JoinedAt = DateTime.UtcNow
             };
 
             await _debateRepository.AddParticipantAsync(newParticipant, cancellationToken);
 
-            // Start Session and activate Turn 1
             session.Status = SessionStatus.InProgress;
-            session.StartedAt = DateTime.UtcNow;
+            session.StartTime = DateTime.UtcNow;
 
-            var firstTurn = session.Turns.FirstOrDefault(t => t.TurnOrder == 1);
-            if (firstTurn != null)
+            var firstRound = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == 1);
+            if (firstRound != null)
             {
-                firstTurn.Status = TurnStatus.Active;
-                firstTurn.StartedAt = DateTime.UtcNow;
+                firstRound.StartTime = DateTime.UtcNow;
             }
 
             await _debateRepository.UpdateSessionAsync(session, cancellationToken);
@@ -199,21 +231,13 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.");
             }
 
-            if (session.DebateType == DebateType.Direct1v1)
-            {
-                if (userId != 0 && !session.Participants.Any(p => p.UserId == userId))
-                {
-                    return ApiResponse<DebateSessionResponse>.FailureResponse("You are not authorized to view this private 1v1 debate session.");
-                }
-            }
-
             return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Session details retrieved.");
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> SubmitArgumentAsync(
             int userId, int sessionId, SubmitArgumentRequest request, CancellationToken cancellationToken = default)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
             try
             {
                 var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
@@ -227,56 +251,82 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session is not currently in progress.");
                 }
 
-                var activeTurn = session.Turns.FirstOrDefault(t => t.Status == TurnStatus.Active);
-                if (activeTurn == null)
-                {
-                    return ApiResponse<DebateSessionResponse>.FailureResponse("No active turn found in this session.");
-                }
-
                 var participant = session.Participants.FirstOrDefault(p => p.UserId == userId);
                 if (participant == null)
                 {
                     return ApiResponse<DebateSessionResponse>.FailureResponse("You are not a participant in this debate session.");
                 }
 
-                if (participant.Side != activeTurn.Side)
+                var currentRound = session.DebateRounds
+                    .OrderBy(r => r.RoundNumber)
+                    .FirstOrDefault(r => r.Arguments.Count < 2);
+
+                if (currentRound == null)
                 {
-                    return ApiResponse<DebateSessionResponse>.FailureResponse($"It is currently {activeTurn.Side}'s turn to speak.");
+                    session.Status = SessionStatus.Completed;
+                    session.EndTime = DateTime.UtcNow;
+                    await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                    return ApiResponse<DebateSessionResponse>.FailureResponse("All rounds in this debate session have already been completed.");
                 }
 
-                var argument = new DebateArgument
+                var expectedTurnSide = DebateSide.PRO;
+                if (currentRound.Arguments.Any())
                 {
-                    TurnId = activeTurn.TurnId,
+                    var firstSubmittedSide = currentRound.Arguments.First().Participant.Side;
+                    expectedTurnSide = firstSubmittedSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+                }
+
+                if (participant.Side != expectedTurnSide)
+                {
+                    return ApiResponse<DebateSessionResponse>.FailureResponse($"It is not your turn to submit an argument. Current turn belongs to {expectedTurnSide}.");
+                }
+
+                if (currentRound.Arguments.Any(a => a.ParticipantId == participant.ParticipantId))
+                {
+                    return ApiResponse<DebateSessionResponse>.FailureResponse("You have already submitted an argument for this round.");
+                }
+
+                string trimmedContent = request.Content.Trim();
+                int wordCount = trimmedContent.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
+
+                int durationSeconds = 30;
+                if (currentRound.StartTime.HasValue)
+                {
+                    durationSeconds = (int)Math.Max(1, (DateTime.UtcNow - currentRound.StartTime.Value).TotalSeconds);
+                }
+
+                var argument = new Argument
+                {
+                    RoundId = currentRound.RoundId,
                     ParticipantId = participant.ParticipantId,
-                    Content = request.Content.Trim(),
+                    Content = trimmedContent,
+                    WordCount = wordCount,
+                    DurationSeconds = durationSeconds,
                     SubmittedAt = DateTime.UtcNow
                 };
 
                 await _debateRepository.AddArgumentAsync(argument, cancellationToken);
 
-                // Close active turn
-                activeTurn.Status = TurnStatus.Completed;
-                activeTurn.EndedAt = DateTime.UtcNow;
-                await _debateRepository.UpdateTurnAsync(activeTurn, cancellationToken);
+                if (currentRound.Arguments.Count + 1 >= 2)
+                {
+                    currentRound.EndTime = DateTime.UtcNow;
+                    await _debateRepository.UpdateRoundAsync(currentRound, cancellationToken);
 
-                // Advance to next turn
-                var nextTurn = session.Turns.FirstOrDefault(t => t.TurnOrder == activeTurn.TurnOrder + 1);
-                if (nextTurn != null)
-                {
-                    nextTurn.Status = TurnStatus.Active;
-                    nextTurn.StartedAt = DateTime.UtcNow;
-                    session.CurrentStage = nextTurn.Stage;
-                    session.CurrentTurnSide = nextTurn.Side;
-                    await _debateRepository.UpdateTurnAsync(nextTurn, cancellationToken);
-                }
-                else
-                {
-                    // All 6 turns completed
-                    session.Status = SessionStatus.Completed;
-                    session.EndedAt = DateTime.UtcNow;
+                    var nextRound = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == currentRound.RoundNumber + 1);
+                    if (nextRound != null)
+                    {
+                        nextRound.StartTime = DateTime.UtcNow;
+                        await _debateRepository.UpdateRoundAsync(nextRound, cancellationToken);
+                    }
+                    else
+                    {
+                        session.Status = SessionStatus.Completed;
+                        session.EndTime = DateTime.UtcNow;
+                        await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+                    }
                 }
 
-                await _debateRepository.UpdateSessionAsync(session, cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
                 var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
@@ -302,29 +352,21 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateTranscriptResponse>.FailureResponse("Debate session not found.");
             }
 
-            if (session.DebateType == DebateType.Direct1v1)
-            {
-                if (userId != 0 && !session.Participants.Any(p => p.UserId == userId))
-                {
-                    return ApiResponse<DebateTranscriptResponse>.FailureResponse("You are not authorized to view this private 1v1 debate transcript.");
-                }
-            }
-
             var transcript = new DebateTranscriptResponse
             {
-                SessionId = session.SessionId,
-                Title = session.Title,
-                Topic = session.Topic,
+                SessionId = session.DebateSessionId,
+                Title = session.Topic?.Title ?? "Debate Session",
+                Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
                 Status = session.Status,
-                Arguments = session.Turns
-                    .SelectMany(t => t.Arguments.Select(a => new ArgumentDetailDto
+                Arguments = session.DebateRounds
+                    .SelectMany(r => r.Arguments.Select(a => new ArgumentDetailDto
                     {
                         ArgumentId = a.ArgumentId,
-                        TurnOrder = t.TurnOrder,
-                        Stage = t.Stage,
-                        Side = t.Side,
-                        SpeakerName = a.Participant.IsAI ? "AI Opponent" : (a.Participant.User?.FullName ?? "Unknown User"),
-                        IsAI = a.Participant.IsAI,
+                        TurnOrder = r.RoundNumber,
+                        Stage = MapRoundTypeToStage(r.RoundType),
+                        Side = a.Participant.Side,
+                        SpeakerName = a.Participant.ParticipantType == ParticipantType.AI ? "AI Opponent" : (a.Participant.User?.FullName ?? "Unknown User"),
+                        IsAI = a.Participant.ParticipantType == ParticipantType.AI,
                         Content = a.Content,
                         SubmittedAt = a.SubmittedAt
                     }))
@@ -345,14 +387,14 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 var myParticipant = s.Participants.FirstOrDefault(p => p.UserId == userId);
                 return new DebateHistoryItemDto
                 {
-                    SessionId = s.SessionId,
-                    Title = s.Title,
-                    Topic = s.Topic,
-                    DebateType = s.DebateType,
+                    SessionId = s.DebateSessionId,
+                    Title = s.Topic?.Title ?? "Debate Session",
+                    Topic = s.Topic?.Description ?? s.Topic?.Title ?? string.Empty,
+                    DebateType = DebateType.AiPractice,
                     Status = s.Status,
-                    UserSide = myParticipant?.Side ?? DebateSide.Affirmative,
+                    UserSide = myParticipant?.Side ?? DebateSide.PRO,
                     CreatedAt = s.CreatedAt,
-                    EndedAt = s.EndedAt
+                    EndedAt = s.EndTime
                 };
             }).ToList();
 
@@ -361,73 +403,76 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
         #region Helper Methods
 
-        private void CreateStandardTurns(DebateSession session, int turnTimeLimit, bool isP2pPending = false)
+        private void CreateStandardRounds(DebateSession session)
         {
-            var turnSequence = new List<(DebateStage Stage, DebateSide Side)>
+            var roundTypes = new[] { RoundType.OPENING, RoundType.REBUTTAL, RoundType.CLOSING };
+            for (int i = 0; i < roundTypes.Length; i++)
             {
-                (DebateStage.Opening, DebateSide.Affirmative),
-                (DebateStage.Opening, DebateSide.Negative),
-                (DebateStage.Rebuttal, DebateSide.Affirmative),
-                (DebateStage.Rebuttal, DebateSide.Negative),
-                (DebateStage.Closing, DebateSide.Affirmative),
-                (DebateStage.Closing, DebateSide.Negative)
-            };
-
-            for (int i = 0; i < turnSequence.Count; i++)
-            {
-                int turnOrder = i + 1;
-                var (stage, side) = turnSequence[i];
-
-                bool isActive = (!isP2pPending && turnOrder == 1);
-
-                session.Turns.Add(new DebateTurn
+                int roundNumber = i + 1;
+                session.DebateRounds.Add(new DebateRound
                 {
-                    Stage = stage,
-                    Side = side,
-                    TurnOrder = turnOrder,
-                    TimeLimitSeconds = turnTimeLimit,
-                    Status = isActive ? TurnStatus.Active : TurnStatus.Pending,
-                    StartedAt = isActive ? DateTime.UtcNow : null
+                    RoundNumber = roundNumber,
+                    RoundType = roundTypes[i],
+                    CreatedAt = DateTime.UtcNow,
+                    StartTime = roundNumber == 1 && session.Status == SessionStatus.InProgress ? DateTime.UtcNow : null
                 });
             }
         }
 
+        private DebateStage MapRoundTypeToStage(RoundType roundType)
+        {
+            return roundType switch
+            {
+                RoundType.OPENING => DebateStage.Opening,
+                RoundType.REBUTTAL => DebateStage.Rebuttal,
+                RoundType.CLOSING => DebateStage.Closing,
+                _ => DebateStage.Opening
+            };
+        }
+
         private DebateSessionResponse MapToSessionResponse(DebateSession session, int currentUserId)
         {
-            var activeTurn = session.Turns.FirstOrDefault(t => t.Status == TurnStatus.Active);
+            var currentRound = session.DebateRounds.OrderBy(r => r.RoundNumber).FirstOrDefault(r => r.Arguments.Count < 2);
+
+            var currentTurnSide = DebateSide.PRO;
+            if (currentRound != null && currentRound.Arguments.Any())
+            {
+                var firstArgumentParticipantSide = currentRound.Arguments.First().Participant.Side;
+                currentTurnSide = firstArgumentParticipantSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+            }
 
             return new DebateSessionResponse
             {
-                SessionId = session.SessionId,
-                Title = session.Title,
-                Topic = session.Topic,
-                DebateType = session.DebateType,
-                Difficulty = session.Difficulty,
-                CurrentStage = session.CurrentStage,
-                CurrentTurnSide = session.CurrentTurnSide,
+                SessionId = session.DebateSessionId,
+                Title = session.Topic?.Title ?? "Debate Session",
+                Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
+                DebateType = DebateType.AiPractice,
+                Difficulty = session.Topic?.Difficulty,
+                CurrentStage = currentRound != null ? MapRoundTypeToStage(currentRound.RoundType) : DebateStage.Closing,
+                CurrentTurnSide = currentTurnSide,
                 Status = session.Status,
-                CreatedByUserId = session.CreatedByUserId,
+                CreatedByUserId = session.CreatedBy,
                 CreatedAt = session.CreatedAt,
-                StartedAt = session.StartedAt,
-                EndedAt = session.EndedAt,
+                StartedAt = session.StartTime,
+                EndedAt = session.EndTime,
                 Participants = session.Participants.Select(p => new ParticipantDto
                 {
                     ParticipantId = p.ParticipantId,
                     UserId = p.UserId,
-                    SpeakerName = p.IsAI ? "AI Opponent" : (p.User?.FullName ?? "Unknown User"),
-                    IsAI = p.IsAI,
+                    SpeakerName = p.ParticipantType == ParticipantType.AI ? "AI Opponent" : (p.User?.FullName ?? "Unknown User"),
+                    IsAI = p.ParticipantType == ParticipantType.AI,
                     Side = p.Side,
                     JoinedAt = p.JoinedAt
                 }).ToList(),
-                CurrentTurn = activeTurn == null ? null : new TurnDto
+                CurrentTurn = currentRound == null ? null : new TurnDto
                 {
-                    TurnId = activeTurn.TurnId,
-                    Stage = activeTurn.Stage,
-                    Side = activeTurn.Side,
-                    TurnOrder = activeTurn.TurnOrder,
-                    TimeLimitSeconds = activeTurn.TimeLimitSeconds,
-                    Status = activeTurn.Status,
-                    StartedAt = activeTurn.StartedAt
+                    TurnId = currentRound.RoundId,
+                    Stage = MapRoundTypeToStage(currentRound.RoundType),
+                    Side = currentTurnSide,
+                    TurnOrder = currentRound.RoundNumber,
+                    TimeLimitSeconds = session.TurnTimeLimitSeconds > 0 ? session.TurnTimeLimitSeconds : (session.Format?.RoundDurationSeconds ?? 180),
+                    Status = TurnStatus.Active,
+                    StartedAt = currentRound.StartTime
                 }
             };
         }
