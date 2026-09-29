@@ -22,6 +22,13 @@ namespace SystemService.DAL.Context
         public DbSet<Entities.Competition.DebateFormat> DebateFormats { get; set; } = null!;
         public DbSet<Entities.Competition.CompetitionTeamRequest> CompetitionTeamRequests { get; set; } = null!;
 
+        public DbSet<Entities.Payment.Wallet> Wallets { get; set; } = null!;
+        public DbSet<Entities.Payment.WalletTransaction> WalletTransactions { get; set; } = null!;
+        public DbSet<Entities.Payment.CreditPackage> CreditPackages { get; set; } = null!;
+        public DbSet<Entities.Payment.PaymentTransaction> PaymentTransactions { get; set; } = null!;
+        public DbSet<Entities.Payment.CreditRule> CreditRules { get; set; } = null!;
+        public DbSet<Entities.Payment.RewardClaim> RewardClaims { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

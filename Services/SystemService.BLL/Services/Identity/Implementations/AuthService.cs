@@ -9,8 +9,10 @@ using System.Threading.Tasks;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.Identity.Auth;
 using SystemService.BLL.Services.Identity.Interfaces;
+using SystemService.BLL.Services.Payment.Interfaces;
 using SystemService.DAL.Entities.Identity;
 using SystemService.DAL.Repositories.Identity.Interfaces;
+using SystemService.DAL.Repositories.Payment.Interfaces;
 
 namespace SystemService.BLL.Services.Identity.Implementations
 {
@@ -21,19 +23,25 @@ namespace SystemService.BLL.Services.Identity.Implementations
         private readonly ITokenService _tokenService;
         private readonly IOtpService _otpService;
         private readonly IConfiguration _configuration;
+        private readonly IWalletRepository _walletRepository;
+        private readonly IRewardService _rewardService;
 
         public AuthService(
             IUserRepository userRepository,
             IRoleRepository roleRepository,
             ITokenService tokenService,
             IOtpService otpService,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IWalletRepository walletRepository,
+            IRewardService rewardService)
         {
             _userRepository = userRepository;
             _roleRepository = roleRepository;
             _tokenService = tokenService;
             _otpService = otpService;
             _configuration = configuration;
+            _walletRepository = walletRepository;
+            _rewardService = rewardService;
         }
 
         public async Task<ApiResponse<object>> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
@@ -101,6 +109,8 @@ namespace SystemService.BLL.Services.Identity.Implementations
             user.UpdatedAt = DateTime.UtcNow;
 
             await _userRepository.UpdateAsync(user, cancellationToken);
+            await _walletRepository.GetOrCreateWalletByUserIdAsync(user.UserId, cancellationToken);
+            await _rewardService.ClaimFirstLoginRewardAsync(user.UserId, cancellationToken);
 
             return ApiResponse<object>.SuccessResponse(new { }, "Email verified successfully.");
         }
@@ -129,6 +139,9 @@ namespace SystemService.BLL.Services.Identity.Implementations
             {
                 return ApiResponse<LoginResponse>.FailureResponse("Invalid email or password.");
             }
+
+            await _walletRepository.GetOrCreateWalletByUserIdAsync(user.UserId, cancellationToken);
+            await _rewardService.ClaimFirstLoginRewardAsync(user.UserId, cancellationToken);
 
             var userWithRoles = await _userRepository.GetUserWithRolesAsync(user.UserId, cancellationToken);
             var roles = userWithRoles?.UserRoles.Select(ur => ur.Role.RoleName).ToList() ?? new List<string>();
@@ -215,6 +228,9 @@ namespace SystemService.BLL.Services.Identity.Implementations
                 user.UpdatedAt = DateTime.UtcNow;
                 await _userRepository.UpdateAsync(user, cancellationToken);
             }
+
+            await _walletRepository.GetOrCreateWalletByUserIdAsync(user.UserId, cancellationToken);
+            await _rewardService.ClaimFirstLoginRewardAsync(user.UserId, cancellationToken);
 
             var userWithRoles = await _userRepository.GetUserWithRolesAsync(user.UserId, cancellationToken);
             var roles = userWithRoles?.UserRoles.Select(ur => ur.Role.RoleName).ToList() ?? new List<string>();

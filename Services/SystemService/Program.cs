@@ -19,6 +19,11 @@ using SystemService.DAL.Repositories.Competition.Implementations;
 using SystemService.DAL.Repositories.Competition.Interfaces;
 using SystemService.DAL.Repositories.Identity.Implementations;
 using SystemService.DAL.Repositories.Identity.Interfaces;
+using SystemService.DAL.Repositories.Payment.Implementations;
+using SystemService.DAL.Repositories.Payment.Interfaces;
+
+using SystemService.BLL.Services.Payment.Implementations;
+using SystemService.BLL.Services.Payment.Interfaces;
 
 using SystemService.Middleware;
 
@@ -41,6 +46,11 @@ builder.Services.AddScoped<ICompetitionTeamRequestRepository, CompetitionTeamReq
 builder.Services.AddScoped<ICompetitionJudgeRepository, CompetitionJudgeRepository>();
 builder.Services.AddScoped<IDebateFormatRepository, DebateFormatRepository>();
 
+builder.Services.AddScoped<IWalletRepository, WalletRepository>();
+builder.Services.AddScoped<ICreditPackageRepository, CreditPackageRepository>();
+builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+builder.Services.AddScoped<IRewardRepository, RewardRepository>();
+
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
@@ -52,6 +62,12 @@ builder.Services.AddScoped<ICompetitionRegistrationService, CompetitionRegistrat
 builder.Services.AddScoped<ICompetitionTeamService, CompetitionTeamService>();
 builder.Services.AddScoped<ICompetitionTeamRequestService, CompetitionTeamRequestService>();
 builder.Services.AddScoped<ICompetitionJudgeService, CompetitionJudgeService>();
+
+builder.Services.AddScoped<IPaymentGateway, PayOSPaymentGateway>();
+builder.Services.AddScoped<IWalletService, WalletService>();
+builder.Services.AddScoped<ICreditPackageService, CreditPackageService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IRewardService, RewardService>();
 
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "development-secret-key-super-secret-1234567890";
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AIDebatePlatform";
