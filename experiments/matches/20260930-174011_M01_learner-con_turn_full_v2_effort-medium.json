@@ -1,0 +1,194 @@
+{
+  "external_session_id": "try-match-M01-con-20260930-173838",
+  "motion_id": "M01",
+  "motion": "Nên cấm học sinh sử dụng điện thoại trong trường học",
+  "learner_side": "con",
+  "ai_side": "pro",
+  "difficulty": "medium",
+  "generator_version": "turn_full_v2",
+  "model": "openai/gpt-oss-120b",
+  "temperature": 0.5,
+  "reasoning_effort": "medium",
+  "turn_max_tokens": 6000,
+  "completed": false,
+  "failed_turn": 3,
+  "error": "LLMCallError: RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 3226, Requested 5323. Please try again in 4.1175s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+  "rate_limit_wait_ms": 55093,
+  "rate_limit_waits": 5,
+  "transcript": [
+    {
+      "turn_index": 1,
+      "round_type": "opening",
+      "speaker": "ai",
+      "mode": "opening_first",
+      "text": "Mình xin cảm ơn bạn đã dành thời gian lắng nghe. Trước hết, mình muốn làm rõ cách mình hiểu đề xuất. Đề xuất yêu cầu các trường học ở Việt Nam cấm học sinh mang và sử dụng điện thoại di động trong thời gian học, bao gồm giờ giảng và các hoạt động giáo dục chính, nhưng vẫn cho phép sử dụng trong giờ giải lao hoặc khi có sự cho phép của giáo viên. Đây là một quy định cố định, không mở rộng hay thu hẹp hơn. Với cách hiểu này, mình sẽ trình bày ba lý do chính ủng hộ việc cấm điện thoại trong lớp học. Thứ nhất, việc cấm điện thoại sẽ giảm đáng kể sự xao lạc và tăng mức độ tập trung của học sinh. Khi không có thông báo, tin nhắn hay mạng xã hội làm gián đoạn, học sinh buộc phải chú ý vào bài giảng và tài liệu do giáo viên cung cấp. Kết quả là thời gian học tập hiệu quả hơn và học sinh nắm bắt kiến thức sâu hơn. Thứ hai, cấm điện thoại sẽ giảm bạo lực qua tin nhắn và các hành vi bắt nạt trên mạng. Không có kênh giao tiếp nhanh và ẩn danh, học sinh sẽ phải đối mặt trực tiếp với nhau, giảm cơ hội lạm dụng và tổ chức hành vi tiêu cực qua tin nhắn. Điều này góp phần tạo môi trường học đường an toàn và lành mạnh hơn. Thứ ba, việc không có điện thoại sẽ khuyến khích học sinh phát triển kỹ năng xã hội trực tiếp. Khi không thể dựa vào màn hình để trò chuyện, học sinh sẽ tìm cách giao tiếp mặt đối mặt, tham gia thảo luận nhóm và các hoạt động tương tác. Nhờ đó, các kỹ năng lắng nghe, diễn đạt và hợp tác sẽ được rèn luyện một cách tự nhiên và hiệu quả. Mình cũng thừa nhận rằng điện thoại mang lại một số tiện ích cá nhân, chẳng hạn như liên lạc khẩn cấp. Tuy nhiên, những nhu cầu này có thể được đáp ứng qua các biện pháp thay thế như điện thoại cố định ở văn phòng giáo viên hoặc việc cho phép sử dụng trong giờ giải lao. Vì vậy, lợi ích của việc cấm điện thoại trong giờ học vẫn vượt trội so với những bất lợi tiềm tàng. Cuối cùng, mình mong rằng chúng ta cùng nhìn nhận rằng môi trường học tập không bị xao lạc, không có bạo lực qua tin nhắn và có nhiều cơ hội tương tác trực tiếp sẽ giúp học sinh phát triển toàn diện. Cảm ơn bạn đã lắng nghe.",
+      "word_count": 457,
+      "target_words": 400,
+      "latency_ms": 9048,
+      "tokens_in": 2767,
+      "tokens_out": 3538,
+      "learner_claims": [],
+      "premises": {
+        "explicit": [],
+        "implicit": []
+      },
+      "target_premise": null,
+      "ai_points": [
+        "Mình sẽ giải thích cách hiểu đề xuất cấm điện thoại trong thời gian học nhưng cho phép trong giờ giải lao hoặc khi có sự cho phép của giáo viên.",
+        "Mình sẽ chỉ ra rằng việc cấm điện thoại giảm xao lạc và tăng mức độ tập trung của học sinh.",
+        "Mình sẽ chứng minh rằng cấm điện thoại giảm bạo lực qua tin nhắn và các hành vi bắt nạt trên mạng.",
+        "Mình sẽ nhấn mạnh rằng việc không có điện thoại khuyến khích học sinh phát triển kỹ năng xã hội trực tiếp."
+      ],
+      "retries": [
+        {
+          "attempt": 1,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 3204, Requested 5074. Please try again in 2.085s. Need more tokens? Upgra",
+          "reviewer_verdict": null,
+          "retry_feedback": null,
+          "rate_limit_wait_ms": 4879,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null
+        }
+      ],
+      "reasoning_tokens": 1717,
+      "reviewer_verdict": "unclear",
+      "reviewer_detail": {
+        "positions": [
+          {
+            "id": "P1",
+            "reason": "Giải thích phạm vi đề xuất, không ủng hộ hay phản đối.",
+            "position": "khong_ro"
+          },
+          {
+            "id": "P2",
+            "reason": "Giảm xao lạc, tăng tập trung, ủng hộ cấm.",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "P3",
+            "reason": "Giảm bạo lực qua tin nhắn, ủng hộ cấm.",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "P4",
+            "reason": "Khuyến khích kỹ năng xã hội, ủng hộ cấm.",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "weighing",
+            "reason": "Tổng thể ủng hộ cấm điện thoại trong giờ học.",
+            "position": "ung_ho_kien_nghi"
+          }
+        ],
+        "flipped_ids": [],
+        "unclear_ids": [
+          "P1"
+        ],
+        "prompt_version": "stance_review_v1",
+        "reviewer_calls": 1,
+        "expected_position": "ung_ho_kien_nghi"
+      },
+      "vague_evidence": [],
+      "speech_checks": {
+        "em_pronoun": [],
+        "numbers_without_gia_su": []
+      }
+    },
+    {
+      "turn_index": 2,
+      "round_type": "opening",
+      "speaker": "learner",
+      "text": "Chào bạn và mọi người. Em thuộc phe phản đối, em nghĩ là không nên cấm học sinh dùng điện thoại trong trường.\n\nĐầu tiên, điện thoại là công cụ học tập rất tốt. Bây giờ nhiều thầy cô cho làm bài trên Quizizz, Google Classroom, hoặc cho tra từ mới tiếng Anh. Nếu cấm hẳn thì những hoạt động này sẽ khó làm hơn.\n\nThứ hai, điện thoại giúp học sinh liên lạc với gia đình. Nhiều bạn đi học xa, bố mẹ đi làm cả ngày, có chuyện gì như bị ốm hay phải ở lại học thêm thì cần gọi cho bố mẹ ngay. Không phải lúc nào cũng chạy lên phòng giám thị được.\n\nThứ ba, cấm không phải là cách giải quyết. Học sinh cần học cách dùng điện thoại có trách nhiệm, vì sau này ra đời ai cũng phải dùng. Nếu trường chỉ cấm thì các bạn sẽ lén dùng, và không học được gì về tự quản lý cả.\n\nBạn bên đề xuất có nói điện thoại gây mất tập trung, em công nhận là đúng một phần, nhưng đó là do cách quản lý chứ không phải do cái điện thoại. Trường có thể quy định cất điện thoại trong giờ học thay vì cấm cả ngày. Em xin hết.",
+      "word_count": 219
+    },
+    {
+      "turn_index": 3,
+      "round_type": "rebuttal",
+      "speaker": "ai",
+      "failed": true,
+      "error": "LLMCallError: RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 3226, Requested 5323. Please try again in 4.1175s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+      "calls": [
+        {
+          "attempt": 1,
+          "purpose": "turn",
+          "failure_kind": "schema_rejected",
+          "error": "BadRequestError: Error code: 400 - {'error': {'message': \"Generated JSON does not match the expected schema. Please adjust your prompt. See 'failed_generation' for more details. Error: jsonschema: '' does not validate with /type: expected object, but got array\", 'type': 'invalid_request_error', 'code': 'json_validate_failed', 'failed_generation': '[\\n{\"learner_claims\":[\"Điện thoại là công cụ học tập rất tốt, hỗ trợ các hoạt động như Quizizz, Google Classroom, tra từ mới\",\"Điện thoại giúp học sinh liên lạc với gia đình nhanh chóng, đặc biệt khi học xa nhà\",\"Cấm điện thoại không phải là cách giải quyết vì học sinh cần học cách dùng có trách nhiệm\",\"Cấm sẽ khiến học sinh lén dùng và không học được tự quản lý\",\"Sự mất tập trung là do cách quản lý chứ không phải do điện thoại; trường có thể quy định cất điện thoại thay vì cấm\"],\"premises\":{\"explicit\":[\"Điện thoại là công cụ học tập rất tốt, hỗ trợ các hoạt động như Quizizz, Google Classroom, tra từ mới\",\"Điện thoại giúp học sinh liên lạc với gia đình nhanh chóng, đặc biệt khi học xa nhà\",\"Cấm điện thoại không phải là cách giải quyết vì học sinh cần học cách dùng có trách nhiệm\",\"Cấm sẽ khiến học sinh lén dùng và không học được tự quản lý\",\"Sự mất tập trung là do cách quản lý chứ không phải do điện thoại; trường có thể quy định cất điện thoại thay vì cấm\"],\"implicit\":[\"Các hoạt động học tập hiện đại yêu cầu điện thoại cá nhân\",\"Gia đình cần liên lạc tức thời với học sinh trong giờ học\",\"Học sinh sẽ không học được tự quản lý nếu không được tự do sử dụng điện thoại\",\"Việc cất điện thoại trong lớp là khả thi và đủ để giảm xao lạc\",\"Quản lý tốt có thể ngăn thông báo gây xao lạc\"]}},\"target_premise\",\":\",\"Điện thoại là công cụ học tập không thể thiếu cho các hoạt động như Quizizz và Google Classroom\",\"ai_points\",\":\",[\"Trường có thể cung cấp thiết bị chung để chạy các ứng dụng học tập, giảm nhu cầu mang điện thoại cá nhân\",\"Cho phép điện thoại trong giờ học vẫn gây ra thông báo và mất tập trung, làm giảm hiệu quả giảng dạy\",\"Các biện pháp liên lạc khẩn cấp đã được thiết lập và cho phép sử dụng điện thoại chỉ trong giờ giải lao đáp ứng nhu cầu an toàn\"],\"speech_text\",\":\",\"Bạn đã nêu ba lý do chính để phản đối việc cấm điện thoại\", \"mình sẽ trả lời từng điểm. Đầu tiên\", \"việc cho rằng điện thoại là công cụ học tập không thể thiếu không phản ánh thực tế lớp học hiện đại. Các ứng dụng như Quizizz hay Google Classroom có thể chạy trên máy tính bảng hoặc máy tính để bàn mà trường đã cung cấp\", \"vì vậy học sinh không cần mang điện thoại cá nhân mới tham gia hoạt động. Khi trường cung cấp thiết bị chung\", \"mọi học sinh đều có quyền truy cập mà không gây ra sự phân biệt hay mất tập trung do thông báo cá nhân. Thứ hai\", \"lo ngại về việc liên lạc khẩn cấp được giải quyết bằng quy trình gọi điện qua nhân viên hoặc khu vực nhận tin khẩn\", \"và việc cho phép điện thoại chỉ trong giờ giải lao đã đáp ứng nhu cầu này. Không cần mở điện thoại trong giờ học để bảo đảm an toàn. Thứ ba\", \"việc cấm điện thoại không ngăn chặn việc học sinh học cách sử dụng có trách nhiệm\", \"mà ngược lại tạo môi trường buộc họ phải tôn trọng quy tắc và tập trung vào nội dung bài học. Khi không có điện thoại trong lớp\", \"học sinh học cách giao tiếp trực tiếp\", \"giải quyết vấn đề mà không dựa vào màn hình\", \"điều này củng cố kỹ năng xã hội và giảm nguy cơ bắt nạt qua tin nhắn\", \"điều này củng cố kỹ năng xã hội và giảm nguy cơ bắt nạt qua tin nhắn. Cuối cùng\", \"ngay cả khi điện thoại được dùng cho mục đích học\", \"những thông báo và cám dỗ trên mạng xã hội vẫn xuất hiện và phá vỡ sự tập trung\", \"làm giảm hiệu quả giảng dạy. Vì vậy\", \"cấm điện thoại trong thời gian học vẫn là giải pháp cân bằng nhất để bảo vệ môi trường học tập yên tĩnh\", \"an toàn và phát triển kỹ năng xã hội cho học sinh.\"\\n]'}}",
+          "reviewer_verdict": null,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null,
+          "rate_limit_wait_ms": null
+        },
+        {
+          "attempt": 2,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6372, Requested 2333. Please try again in 5.2875s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+          "reviewer_verdict": null,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null,
+          "rate_limit_wait_ms": 7213
+        },
+        {
+          "attempt": 3,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 5183, Requested 4394. Please try again in 11.8275s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+          "reviewer_verdict": null,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null,
+          "rate_limit_wait_ms": 13619
+        },
+        {
+          "attempt": 4,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 3125, Requested 5672. Please try again in 5.9775s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+          "reviewer_verdict": null,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null,
+          "rate_limit_wait_ms": 7288
+        },
+        {
+          "attempt": 5,
+          "purpose": "turn",
+          "failure_kind": "banned_phrase",
+          "error": "banned_phrase: 'Nghiên cứu thực tế cho thấy' (nghien_cuu_ket_luan)",
+          "reviewer_verdict": null,
+          "tokens_out": 3327,
+          "reasoning_tokens": 2350,
+          "finish_reason": "stop",
+          "rate_limit_wait_ms": null
+        },
+        {
+          "attempt": 6,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6283, Requested 4424. Please try again in 20.3025s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+          "reviewer_verdict": null,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null,
+          "rate_limit_wait_ms": 22094
+        },
+        {
+          "attempt": 7,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 3226, Requested 5323. Please try again in 4.1175s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+          "reviewer_verdict": null,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null,
+          "rate_limit_wait_ms": null
+        }
+      ]
+    }
+  ]
+}

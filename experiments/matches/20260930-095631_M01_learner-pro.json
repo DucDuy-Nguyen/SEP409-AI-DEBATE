@@ -1,0 +1,70 @@
+{
+  "external_session_id": "try-match-M01-pro-20260930-095605",
+  "motion_id": "M01",
+  "motion": "Nên cấm học sinh sử dụng điện thoại trong trường học",
+  "learner_side": "pro",
+  "ai_side": "con",
+  "difficulty": "medium",
+  "generator_version": "turn_baseline_v1",
+  "model": "openai/gpt-oss-120b",
+  "temperature": 0.5,
+  "transcript": [
+    {
+      "turn_index": 1,
+      "round_type": "opening",
+      "speaker": "learner",
+      "text": "Xin chào mọi người. Em xin đứng về phe đề xuất, tức là em đồng ý nên cấm học sinh sử dụng điện thoại trong trường học. Em có ba lý do chính.\n\nThứ nhất, điện thoại làm học sinh mất tập trung. Trong giờ học, chỉ cần một tin nhắn hay một thông báo Facebook là nhiều bạn đã không nghe giảng nữa rồi. Ở lớp em có bạn còn lén chơi game dưới gầm bàn, thầy cô nhắc mãi cũng không được.\n\nThứ hai, điện thoại làm giảm sự giao tiếp giữa các bạn. Giờ ra chơi đáng lẽ là lúc mọi người nói chuyện, chơi thể thao, nhưng bây giờ ai cũng cúi mặt vào màn hình. Như vậy thì tình bạn cũng không được gắn kết.\n\nThứ ba, điện thoại có thể gây ra bắt nạt trên mạng. Có bạn bị quay lén rồi bị đăng lên mạng để chế giễu, việc đó ảnh hưởng rất xấu tới tâm lý.\n\nCó người sẽ nói điện thoại giúp liên lạc với bố mẹ khi có chuyện gấp, nhưng trường đã có điện thoại ở phòng giám thị rồi, nên em nghĩ lý do đó không đủ mạnh. Vì vậy em nghĩ cấm điện thoại là cần thiết để học sinh học tốt hơn. Em xin cảm ơn.",
+      "word_count": 220
+    },
+    {
+      "turn_index": 2,
+      "round_type": "opening",
+      "speaker": "ai",
+      "mode": "opening_reply",
+      "text": "Chào em và các bạn, mình là người đứng về phía phản đối việc cấm học sinh mang điện thoại vào trường. Trước hết, mình muốn nhấn mạnh rằng điện thoại không phải là “kẻ thù” của giáo dục mà là một công cụ hỗ trợ học tập và an toàn, nếu được sử dụng đúng cách và có sự hướng dẫn hợp lý từ nhà trường và phụ huynh. Mình sẽ đưa ra ba luận điểm chính để chứng minh tại sao việc cấm hoàn toàn điện thoại lại không phải là giải pháp tối ưu.\n\nThứ nhất, điện thoại là một phương tiện học tập đa năng, không thể thay thế bằng bất kỳ thiết bị nào khác. Ngày nay, hầu hết các giáo trình, bài tập và tài liệu tham khảo đã được số hoá và lưu trữ trên các nền tảng trực tuyến. Khi giáo viên đưa ra một câu hỏi hoặc yêu cầu tra cứu thông tin nhanh, học sinh có thể mở ngay trên điện thoại để tìm đáp án, kiểm chứng kiến thức và học cách tự tìm hiểu. Nếu cấm điện thoại, chúng ta sẽ mất đi một kênh tiếp cận kiến thức phong phú, đồng thời làm giảm tính linh hoạt của lớp học hiện đại, nơi mà việc “học mọi lúc, mọi nơi” đang trở thành tiêu chuẩn. Thêm vào đó, nhiều trường đã triển khai các phần mềm quản lý lớp học, bài tập và giao tiếp giữa giáo viên – học sinh qua điện thoại; việc cấm sẽ làm gián đoạn toàn bộ hệ thống này và gây bất tiện cho cả hai phía.\n\nThứ hai, điện thoại là một công cụ an toàn thiết yếu cho học sinh và gia đình. Dù trường có điện thoại ở phòng giám thị, nhưng không phải lúc nào học sinh cũng có thể chạy tới đó kịp thời khi có tình huống khẩn cấp, như tai nạn, bệnh tật hay sự cố gia đình đột xuất. Khi có một cuộc gọi khẩn cấp, việc học sinh có thể ngay lập tức liên lạc với phụ huynh hoặc cơ quan chức năng sẽ giảm thiểu rủi ro và lo lắng cho cả nhà. Thực tế, nhiều vụ việc đã chứng minh rằng việc cấm điện thoại đã khiến phụ huynh không thể biết được con mình đang gặp khó khăn, dẫn đến hậu quả không lường trước được. Vì vậy, thay vì cấm, chúng ta nên thiết lập quy tắc rõ ràng về thời gian và cách sử dụng, đồng thời giáo dục học sinh biết cách xử lý tình huống khẩn cấp một cách có trách nhiệm.\n\nThứ ba, vấn đề mất tập trung và bắt nạt trên mạng không phải do điện thoại mà do cách giáo dục và giám sát. Thay vì đưa ra lệnh cấm, nhà trường nên đưa vào chương trình giảng dạy kỹ năng tự quản lý thời gian, kỹ năng giao tiếp xã hội và giáo dục về an toàn mạng. Khi học sinh được trang bị kiến thức và nhận thức đúng đắn, họ sẽ tự ngăn mình tránh những hành vi xấu như lén chơi game hay bắt nạt trực tuyến. Ngoài ra, việc áp dụng các phần mềm kiểm soát nội dung trên điện thoại có thể giúp giáo viên theo dõi và can thiệp kịp thời mà không cần phải tước bỏ hoàn toàn quyền sở hữu thiết bị. \n\nTóm lại, cấm điện thoại là một biện pháp quá khắc nghiệt và không thực tế. Thay vì loại bỏ, chúng ta cần hướng tới việc giáo dục cách sử dụng thông minh, xây dựng quy chế hợp lý và tận dụng tiềm năng công nghệ để nâng cao chất lượng giáo dục và bảo vệ an toàn cho học sinh. Cảm ơn mọi người đã lắng nghe.",
+      "word_count": 647,
+      "target_words": 400,
+      "latency_ms": 2442,
+      "tokens_in": 441,
+      "tokens_out": 900
+    },
+    {
+      "turn_index": 3,
+      "round_type": "rebuttal",
+      "speaker": "learner",
+      "text": "Cảm ơn bạn đã trình bày. Em xin phản bác lại một số ý của bạn.\n\nBạn nói điện thoại là công cụ học tập, có thể tra cứu thông tin. Nhưng thực tế thì nhiều bạn mở điện thoại lên để tra từ điển được một phút, sau đó là lướt TikTok luôn. Hơn nữa trường đã có phòng máy tính và thư viện, nếu cần tra cứu thì thầy cô có thể cho dùng máy của trường, không nhất thiết mỗi bạn phải cầm điện thoại riêng.\n\nBạn cũng nói là phải dạy học sinh tự quản lý bản thân chứ không nên cấm. Em đồng ý tự quản lý là quan trọng, nhưng học sinh vẫn đang ở tuổi dễ bị cám dỗ, mà các ứng dụng thì được thiết kế để người ta dùng mãi không dừng. Người lớn còn khó bỏ điện thoại thì sao bắt học sinh tự kiểm soát được.\n\nCòn chuyện liên lạc khẩn cấp, như em đã nói, phòng giám thị có điện thoại, và học sinh có thể gửi điện thoại lúc vào trường rồi nhận lại lúc về. Như vậy vẫn liên lạc được mà không ảnh hưởng việc học. Nên em vẫn giữ quan điểm là nên cấm.",
+      "word_count": 210
+    },
+    {
+      "turn_index": 4,
+      "round_type": "rebuttal",
+      "speaker": "ai",
+      "mode": "rebuttal",
+      "text": "Em ơi, mình hiểu rõ những lo ngại của em, nhưng mình vẫn cho rằng việc cấm hoàn toàn điện thoại lại không phải là giải pháp thực tế và thậm chí còn gây ra những bất lợi mới. Đầu tiên, việc học sinh dùng điện thoại để tra từ điển rồi “đổ” sang TikTok không phải là vấn đề của thiết bị mà là vấn đề của thói quen và môi trường giám sát. Nếu chỉ đưa ra lệnh cấm, trường sẽ phải thu giữ hàng trăm chiếc điện thoại mỗi ngày, gây phiền hà cho phụ huynh và tạo ra một “kho báu” bất hợp pháp mà học sinh có thể lén lấy ra vào giờ nghỉ. Thay vào đó, mình đề xuất một hệ thống “đặt khóa điện thoại” ở cổng vào: học sinh nộp điện thoại vào tủ khóa có mã số, nhận thẻ ra vào và chỉ được lấy lại sau giờ học. Khi điện thoại được giữ an toàn, học sinh không có cơ hội lướt TikTok trong giờ, nhưng vẫn có thể dùng chúng vào thời gian giải lao hoặc về nhà. Điều này còn giúp nhà trường tránh phải giám sát từng chiếc điện thoại, giảm tải cho giáo viên.\n\nThứ hai, việc nói rằng trường có phòng máy tính và thư viện thì mọi học sinh sẽ tự tới đó tra cứu là không thực tế. Các lớp học hiện nay thường chỉ có 30‑40 phút cho mỗi môn, không đủ thời gian để di chuyển, đăng ký máy, chờ đợi và mới bắt đầu tra cứu. Khi học sinh có điện thoại trong túi, họ có thể mở nhanh một trang web, một video ngắn hoặc một công cụ tính toán ngay tại bàn, tiết kiệm thời gian và duy trì nhịp độ học tập. Nếu cấm, chúng ta buộc học sinh phải phụ thuộc vào một số ít máy tính, gây tắc nghẽn và làm giảm hiệu quả học tập, nhất là trong các môn khoa học và ngôn ngữ cần tra cứu nhanh.\n\nVề khả năng tự quản lý, mình không phủ nhận rằng trẻ vị thành niên dễ bị cuốn vào các ứng dụng gây nghiện. Nhưng thay vì hy vọng họ tự “đánh bại” bản thân, chúng ta có thể dùng công nghệ để hỗ trợ: cài đặt phần mềm kiểm soát nội dung, giới hạn thời gian sử dụng trong giờ học, hoặc thiết lập “chế độ lớp học” tự động tắt thông báo. Những công cụ này đã được áp dụng ở nhiều trường quốc tế và cho thấy mức độ giảm đáng kể việc lướt mạng không liên quan. Nếu chỉ cấm, chúng ta bỏ qua một cơ hội giáo dục kỹ năng số và an toàn mạng, trong khi các phần mềm kiểm soát lại dạy học sinh cách thiết lập ranh giới cho bản thân.\n\nCuối cùng, về trường hợp khẩn cấp, việc giao điện thoại cho phòng giám thị chỉ giải quyết được một phần. Khi có tai nạn, bệnh tật hoặc tình huống gia đình đột xuất, học sinh cần liên lạc ngay, không thể chờ tới giờ ra về hay phải chạy tới phòng giám thị, nơi có thể đang bận. Một chiếc điện thoại trong túi là “đường dây sinh mạng” ngay tại chỗ, giúp học sinh gọi cấp cứu, thông báo cho phụ huynh hoặc cảnh sát trong vài giây. Thay vì cấm, chúng ta nên thiết lập quy tắc: điện thoại chỉ được bật âm thanh, không được dùng để chơi game hay lướt mạng trong giờ, và giáo viên có quyền thu lại nếu vi phạm. Như vậy, an toàn được bảo đảm, học tập không bị gián đoạn, và học sinh vẫn học cách chịu trách nhiệm với công cụ mình sở hữu.\n\nTóm lại, cấm điện thoại là biện pháp quá khắc nghiệt, gây ra nhiều phiền toái và không giải quyết gốc rễ vấn đề. Việc quản lý, giám sát và giáo dục cách sử dụng thông minh sẽ mang lại lợi ích lâu dài hơn, vừa bảo vệ môi trường học tập, vừa giữ vững an toàn và phát triển kỹ năng số cho học sinh. Cảm ơn em đã lắng nghe.",
+      "word_count": 712,
+      "target_words": 320,
+      "latency_ms": 3182,
+      "tokens_in": 1488,
+      "tokens_out": 1032
+    },
+    {
+      "turn_index": 5,
+      "round_type": "closing",
+      "speaker": "ai",
+      "mode": "closing",
+      "text": "Sau một hồi tranh luận, mình thấy hai phía đều có những lý lẽ đáng suy ngẫm, nhưng cuối cùng mình tin rằng quan điểm phản đối cấm điện thoại trong trường học là thuyết phục hơn. Đầu tiên, điện thoại không chỉ là công cụ giải trí mà còn là “cỗ máy học tập” đa năng: nó cho phép học sinh tra cứu nhanh, xem video hướng dẫn, tham gia các nền tảng học trực tuyến ngay tại bàn học, giúp tiết kiệm thời gian di chuyển tới phòng máy tính và giảm áp lực cho cơ sở vật chất của trường. Khi so sánh với việc phải chờ đợi máy tính chung, điện thoại thực sự nâng cao hiệu quả học tập.\n\nThứ hai, vấn đề an toàn không thể bỏ qua. Một cuộc khẩn cấp có thể xảy ra bất ngờ, và việc học sinh phải chạy tới phòng giám thị hay chờ đến giờ ra về mới được gọi điện sẽ làm mất đi những giây phút quyết định. Một chiếc điện thoại trong túi là “đường dây sinh mạng” ngay lập tức, giúp học sinh báo cáo tai nạn, gọi cấp cứu hoặc thông báo cho phụ huynh nhanh chóng. Đây là lợi thế mà bất kỳ thiết bị nào khác không thể thay thế.\n\nCuối cùng, việc cấm hoàn toàn không giải quyết được nguyên nhân gốc rễ là thói quen lạm dụng. Thay vì áp đặt lệnh cấm, chúng ta có thể dùng phần mềm kiểm soát, thiết lập “chế độ lớp học” tự động tắt thông báo, và giáo dục học sinh kỹ năng tự quản lý thời gian và an toàn mạng. Khi nhà trường đưa ra quy chế rõ ràng, giáo viên có quyền thu lại điện thoại khi vi phạm, học sinh sẽ học cách chịu trách nhiệm với công cụ mình sở hữu, đồng thời vẫn được hưởng lợi từ những tiện ích giáo dục và an toàn mà điện thoại mang lại.\n\nVì vậy, thay vì cấm, chúng ta nên hướng tới quản lý thông minh, giáo dục sử dụng có trách nhiệm và tận dụng tiềm năng công nghệ để nâng cao chất lượng học tập và bảo vệ an toàn cho học sinh. Nhờ vậy, phe phản đối cấm điện thoại thắng cuộc, vì nó bảo vệ cả nhu cầu học tập, an toàn và phát triển kỹ năng số của thế hệ trẻ.",
+      "word_count": 409,
+      "target_words": 260,
+      "latency_ms": 2464,
+      "tokens_in": 2406,
+      "tokens_out": 651
+    },
+    {
+      "turn_index": 6,
+      "round_type": "closing",
+      "speaker": "learner",
+      "text": "Cuối cùng em xin tổng kết lại. Trong cuộc tranh luận hôm nay, hai bên đều muốn học sinh học tập hiệu quả và an toàn. Điểm khác nhau là làm sao để đạt được điều đó.\n\nPhe bạn cho rằng điện thoại có ích cho việc học và giúp liên lạc. Nhưng em đã chỉ ra là những lợi ích đó đều có cách khác thay thế, như máy tính của trường, thư viện, điện thoại ở phòng giám thị. Còn tác hại của điện thoại thì rất rõ ràng: mất tập trung, ít giao tiếp, và bắt nạt trên mạng. Những tác hại này xảy ra hằng ngày chứ không phải thỉnh thoảng mới có.\n\nBạn nói nên dạy học sinh tự kiểm soát, em thấy ý đó hay, nhưng muốn dạy thì trước hết phải tạo môi trường tốt đã, không thể vừa để cám dỗ ngay trên bàn học vừa bảo các bạn tự giác.\n\nVì vậy em tin là phe đề xuất đã đưa ra lý lẽ thuyết phục hơn. Em xin hết.",
+      "word_count": 178
+    }
+  ]
+}

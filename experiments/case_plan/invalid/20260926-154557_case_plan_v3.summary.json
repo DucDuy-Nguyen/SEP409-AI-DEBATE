@@ -1,0 +1,17 @@
+{
+  "runs": 20,
+  "success": 11,
+  "final_status": {
+    "ready": 11,
+    "llm_error": 9
+  },
+  "side_flip_caught": 0,
+  "runs_with_side_flip": 0,
+  "final_unclear": 0,
+  "schema_rejected": 1,
+  "case_files_with_vague_evidence": 3,
+  "banned_phrase_rejected": 0,
+  "case_plan_attempts": 68,
+  "avg_retries": 0.05,
+  "avg_latency_ms": 11986
+}

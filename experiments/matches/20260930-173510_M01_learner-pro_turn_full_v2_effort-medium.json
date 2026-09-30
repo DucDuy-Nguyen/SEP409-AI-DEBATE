@@ -1,0 +1,19 @@
+{
+  "external_session_id": "try-match-M01-pro-20260930-173447",
+  "motion_id": "M01",
+  "motion": "Nên cấm học sinh sử dụng điện thoại trong trường học",
+  "learner_side": "pro",
+  "ai_side": "con",
+  "difficulty": "medium",
+  "generator_version": "turn_full_v2",
+  "model": "openai/gpt-oss-120b",
+  "temperature": 0.5,
+  "reasoning_effort": "medium",
+  "turn_max_tokens": 6000,
+  "completed": false,
+  "failed_turn": null,
+  "error": "Case Planning: LLMCallError: APIConnectionError: Connection error.",
+  "rate_limit_wait_ms": 0,
+  "rate_limit_waits": 0,
+  "transcript": []
+}

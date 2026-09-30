@@ -1,0 +1,23 @@
+{
+  "motion_id": "M01",
+  "motion": "Nên cấm học sinh sử dụng điện thoại trong trường học",
+  "learner_side": "con",
+  "note": "Bài nói learner viết sẵn (chất lượng trung bình, như học sinh), cố định — KHÔNG phản hồi nội dung cụ thể của AI; phần phản bác nhắm vào các luận điểm phổ biến của phe kia. Dùng bởi scripts/try_match.py.",
+  "speeches": [
+    {
+      "turn_index": 2,
+      "round_type": "opening",
+      "text": "Chào bạn và mọi người. Em thuộc phe phản đối, em nghĩ là không nên cấm học sinh dùng điện thoại trong trường.\n\nĐầu tiên, điện thoại là công cụ học tập rất tốt. Bây giờ nhiều thầy cô cho làm bài trên Quizizz, Google Classroom, hoặc cho tra từ mới tiếng Anh. Nếu cấm hẳn thì những hoạt động này sẽ khó làm hơn.\n\nThứ hai, điện thoại giúp học sinh liên lạc với gia đình. Nhiều bạn đi học xa, bố mẹ đi làm cả ngày, có chuyện gì như bị ốm hay phải ở lại học thêm thì cần gọi cho bố mẹ ngay. Không phải lúc nào cũng chạy lên phòng giám thị được.\n\nThứ ba, cấm không phải là cách giải quyết. Học sinh cần học cách dùng điện thoại có trách nhiệm, vì sau này ra đời ai cũng phải dùng. Nếu trường chỉ cấm thì các bạn sẽ lén dùng, và không học được gì về tự quản lý cả.\n\nBạn bên đề xuất có nói điện thoại gây mất tập trung, em công nhận là đúng một phần, nhưng đó là do cách quản lý chứ không phải do cái điện thoại. Trường có thể quy định cất điện thoại trong giờ học thay vì cấm cả ngày. Em xin hết."
+    },
+    {
+      "turn_index": 4,
+      "round_type": "rebuttal",
+      "text": "Em xin phản bác lại phần của bạn.\n\nBạn nói điện thoại làm học sinh mất tập trung và chơi game trong giờ. Nhưng trước khi có điện thoại thì học sinh cũng vẫn đọc truyện, nói chuyện riêng trong giờ đấy thôi. Vấn đề là ý thức và cách thầy cô quản lý lớp. Nếu thầy cô yêu cầu để điện thoại vào hộp đầu giờ thì vấn đề này giải quyết được mà không cần cấm hẳn.\n\nBạn cũng nói điện thoại làm học sinh ít giao tiếp. Em thấy không hẳn vậy, nhiều nhóm bạn còn dùng điện thoại để chơi game cùng nhau, chụp ảnh, làm video cho câu lạc bộ. Đó cũng là một kiểu giao tiếp mà.\n\nVề bắt nạt trên mạng, chuyện này có thể xảy ra ở nhà chứ không riêng gì ở trường. Cấm điện thoại ở trường không làm hết bắt nạt trên mạng được, cái cần là giáo dục học sinh và xử lý nghiêm những bạn đi bắt nạt.\n\nVì vậy em thấy các lý do của bạn chưa đủ để cấm hoàn toàn."
+    },
+    {
+      "turn_index": 5,
+      "round_type": "closing",
+      "text": "Em xin tổng kết phần của phe phản đối.\n\nHôm nay chúng ta tranh luận về việc có nên cấm điện thoại trong trường không. Em nghĩ hai bên đều muốn học sinh học tốt, nhưng phe em cho rằng cấm hoàn toàn là quá cứng nhắc.\n\nĐiện thoại có ích cho việc học, giúp liên lạc với gia đình khi cần, và quan trọng nhất là giúp học sinh tập dùng công nghệ có trách nhiệm. Những tác hại mà bên kia nêu ra như mất tập trung hay bắt nạt trên mạng là có thật, nhưng đều có thể giải quyết bằng quy định hợp lý, ví dụ cất điện thoại trong giờ học, chỉ dùng khi thầy cô cho phép.\n\nCấm hẳn thì dễ, nhưng nó giống như vì sợ ngã mà không cho trẻ con tập đi xe đạp vậy. Học sinh cần được hướng dẫn chứ không phải chỉ bị cấm.\n\nVì vậy em mong mọi người ủng hộ phe phản đối. Em cảm ơn."
+    }
+  ]
+}

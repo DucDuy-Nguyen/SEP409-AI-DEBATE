@@ -1,0 +1,326 @@
+{
+  "external_session_id": "try-match-M01-con-20260930-180346",
+  "motion_id": "M01",
+  "motion": "Nên cấm học sinh sử dụng điện thoại trong trường học",
+  "learner_side": "con",
+  "ai_side": "pro",
+  "difficulty": "medium",
+  "generator_version": "turn_full_v3",
+  "model": "openai/gpt-oss-120b",
+  "temperature": 0.5,
+  "reasoning_effort": "medium",
+  "turn_max_tokens": 6000,
+  "completed": true,
+  "failed_turn": null,
+  "error": null,
+  "rate_limit_wait_ms": 68069,
+  "rate_limit_waits": 4,
+  "transcript": [
+    {
+      "turn_index": 1,
+      "round_type": "opening",
+      "speaker": "ai",
+      "mode": "opening_first",
+      "text": "Bạn thân mến, mình muốn bắt đầu bằng cách làm rõ cách hiểu đề xuất mà chúng ta đang tranh luận. Đề xuất cố định yêu cầu tất cả các trường học ở Việt Nam cấm học sinh sử dụng điện thoại di động trong thời gian học và trong khuôn viên trường, trừ những trường hợp khẩn cấp được phép. Mục tiêu của mình là bảo vệ môi trường học tập tập trung, an toàn và phát triển toàn diện cho các em. Thứ nhất, việc cấm điện thoại sẽ giảm đáng kể sự phân tán chú ý của học sinh trong giờ học. Khi điện thoại luôn bật, thông báo, tin nhắn và các trò chơi liên tục xâm nhập vào không gian học, buộc các em phải chuyển đổi sự tập trung giữa bài giảng và màn hình. Kết quả là khả năng ghi nhớ và hiểu bài giảm sút, làm mất đi hiệu quả của thời gian học. Nếu không có điện thoại, các em sẽ có thể tập trung hoàn toàn vào nội dung giáo viên truyền đạt. Thứ hai, cấm điện thoại giúp ngăn ngừa bắt nạt qua mạng trong môi trường trường học. Điện thoại cho phép gửi tin nhắn, hình ảnh hoặc video một cách nhanh chóng và ẩn danh, tạo điều kiện cho hành vi bắt nạt, lan truyền nội dung không phù hợp và tin giả. Khi không có thiết bị này, cơ hội để các em thực hiện những hành vi gây hại giảm đi, môi trường học đường trở nên an toàn hơn cho mọi người. Thứ ba, việc loại bỏ điện thoại khuyến khích học sinh giao tiếp trực tiếp và tham gia các hoạt động thể chất. Khi không còn có thể ẩn mình trong thế giới ảo, các em sẽ tìm cách tương tác thực tế với bạn bè, tham gia các trò chơi, thể thao và các hoạt động ngoại khóa. Điều này không chỉ phát triển kỹ năng xã hội mà còn nâng cao sức khỏe thể chất của các em. Cuối cùng, mình thừa nhận rằng trong một số trường hợp khẩn cấp, việc liên lạc nhanh chóng là cần thiết, và đề xuất đã cho phép ngoại lệ cho những tình huống như vậy. Tuy nhiên, những ngoại lệ này được quy định rõ ràng và không làm suy yếu lợi ích chung của việc cấm điện thoại. Vì vậy, mình tin rằng đề xuất cấm điện thoại trong trường học là hướng đi thuyết phục và cần được thực hiện.",
+      "word_count": 430,
+      "target_words": 400,
+      "latency_ms": 9624,
+      "tokens_in": 2802,
+      "tokens_out": 2854,
+      "rate_limit_wait_ms": 0,
+      "learner_claims": [],
+      "premises": {
+        "explicit": [],
+        "implicit": []
+      },
+      "target_premise": null,
+      "ai_points": [
+        "Giới thiệu cách hiểu đề xuất cố định yêu cầu cấm điện thoại trong thời gian học và trong khuôn viên trường, ngoại trừ các trường hợp khẩn cấp.",
+        "Nêu lợi ích của việc cấm điện thoại trong việc giảm sự phân tán chú ý của học sinh trong giờ học.",
+        "Trình bày cách cấm điện thoại ngăn ngừa bắt nạt qua mạng và bảo vệ môi trường học đường an toàn.",
+        "Chỉ ra việc loại bỏ điện thoại khuyến khích giao tiếp trực tiếp và tham gia các hoạt động thể chất cho học sinh."
+      ],
+      "retries": [],
+      "reasoning_tokens": 1586,
+      "reviewer_verdict": "unclear",
+      "reviewer_detail": {
+        "positions": [
+          {
+            "id": "P1",
+            "reason": "Định nghĩa đề xuất không đưa ra lập luận có lợi hay bất lợi",
+            "position": "khong_ro"
+          },
+          {
+            "id": "P2",
+            "reason": "Giảm sự phân tán chú ý giúp học sinh tập trung hơn",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "P3",
+            "reason": "Ngăn ngừa bắt nạt qua mạng và tăng an toàn môi trường học đường",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "P4",
+            "reason": "Khuyến khích giao tiếp trực tiếp và tham gia hoạt động thể chất",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "weighing",
+            "reason": "Kết luận nhấn mạnh lợi ích giảm phân tán, ngăn ngừa bắt nạt và thúc đẩy giao tiếp, vì vậy ủng hộ cấm điện thoại",
+            "position": "ung_ho_kien_nghi"
+          }
+        ],
+        "flipped_ids": [],
+        "unclear_ids": [
+          "P1"
+        ],
+        "prompt_version": "stance_review_v1",
+        "reviewer_calls": 1,
+        "expected_position": "ung_ho_kien_nghi"
+      },
+      "vague_evidence": [],
+      "speech_checks": {
+        "em_pronoun": [
+          "Mục tiêu của mình là bảo vệ môi trường học tập tập trung, an toàn và phát triển toàn diện cho các em.",
+          "Khi điện thoại luôn bật, thông báo, tin nhắn và các trò chơi liên tục xâm nhập vào không gian học, buộc các em phải chuyển đổi sự tập trung giữa bài giảng và màn hình.",
+          "Nếu không có điện thoại, các em sẽ có thể tập trung hoàn toàn vào nội dung giáo viên truyền đạt.",
+          "Khi không có thiết bị này, cơ hội để các em thực hiện những hành vi gây hại giảm đi, môi trường học đường trở nên an toàn hơn cho mọi người.",
+          "Khi không còn có thể ẩn mình trong thế giới ảo, các em sẽ tìm cách tương tác thực tế với bạn bè, tham gia các trò chơi, thể thao và các hoạt động ngoại khóa.",
+          "Điều này không chỉ phát triển kỹ năng xã hội mà còn nâng cao sức khỏe thể chất của các em."
+        ],
+        "numbers_without_gia_su": []
+      }
+    },
+    {
+      "turn_index": 2,
+      "round_type": "opening",
+      "speaker": "learner",
+      "text": "Chào bạn và mọi người. Em thuộc phe phản đối, em nghĩ là không nên cấm học sinh dùng điện thoại trong trường.\n\nĐầu tiên, điện thoại là công cụ học tập rất tốt. Bây giờ nhiều thầy cô cho làm bài trên Quizizz, Google Classroom, hoặc cho tra từ mới tiếng Anh. Nếu cấm hẳn thì những hoạt động này sẽ khó làm hơn.\n\nThứ hai, điện thoại giúp học sinh liên lạc với gia đình. Nhiều bạn đi học xa, bố mẹ đi làm cả ngày, có chuyện gì như bị ốm hay phải ở lại học thêm thì cần gọi cho bố mẹ ngay. Không phải lúc nào cũng chạy lên phòng giám thị được.\n\nThứ ba, cấm không phải là cách giải quyết. Học sinh cần học cách dùng điện thoại có trách nhiệm, vì sau này ra đời ai cũng phải dùng. Nếu trường chỉ cấm thì các bạn sẽ lén dùng, và không học được gì về tự quản lý cả.\n\nBạn bên đề xuất có nói điện thoại gây mất tập trung, em công nhận là đúng một phần, nhưng đó là do cách quản lý chứ không phải do cái điện thoại. Trường có thể quy định cất điện thoại trong giờ học thay vì cấm cả ngày. Em xin hết.",
+      "word_count": 219
+    },
+    {
+      "turn_index": 3,
+      "round_type": "rebuttal",
+      "speaker": "ai",
+      "mode": "rebuttal",
+      "text": "Bạn đã nêu rằng điện thoại là công cụ học tập quan trọng vì các ứng dụng như Quizizz hay Google Classroom. Mình muốn chỉ ra rằng việc cấm điện thoại cá nhân không làm mất khả năng sử dụng những công cụ này, vì trường có thể trang bị máy tính bảng hoặc máy tính chung cho các hoạt động công nghệ, và học sinh sẽ tiếp cận tài nguyên trong thời gian được chỉ định. Thứ hai, ngay cả khi một số bài học dựa vào ứng dụng trên điện thoại, lợi ích của việc giảm thiểu sự phân tán chú ý vượt trội so với bất tiện tạm thời; khi không có thông báo liên tục, học sinh tập trung sâu hơn và kết quả học tập được cải thiện. Thứ ba, về việc liên lạc khẩn cấp, trường đã có hệ thống gọi điện nội bộ và có thể cho phép sử dụng điện thoại trong những trường hợp thực sự cần thiết, nên việc cấm toàn diện không gây cản trở cho việc liên lạc với gia đình. Cuối cùng, việc dạy học sinh sử dụng điện thoại có trách nhiệm không đòi hỏi cho phép tự do sử dụng suốt ngày; trường có thể tổ chức các buổi giáo dục kỹ năng số và đưa ra quy tắc rõ ràng, trong khi vẫn duy trì lệnh cấm để bảo vệ môi trường học tập. Vì vậy, lập luận rằng điện thoại là không thể thiếu cho việc học không đủ mạnh để phủ nhận những lợi ích to lớn của việc cấm chúng trong thời gian học và trong khuôn viên trường.",
+      "word_count": 278,
+      "target_words": 320,
+      "latency_ms": 20435,
+      "tokens_in": 5155,
+      "tokens_out": 7567,
+      "rate_limit_wait_ms": 28498,
+      "learner_claims": [
+        "Điện thoại là công cụ học tập rất tốt vì các giáo viên dùng Quizizz, Google Classroom và các bài tập từ vựng.",
+        "Điện thoại giúp học sinh liên lạc ngay với gia đình trong các tình huống khẩn cấp hoặc cần thiết.",
+        "Cấm điện thoại không phải cách giải quyết, học sinh cần học cách dùng có trách nhiệm và tự quản lý.",
+        "Sự phân tán chú ý là do cách quản lý chứ không phải do điện thoại; trường có thể yêu cầu cất điện thoại trong giờ học thay vì cấm cả ngày."
+      ],
+      "premises": {
+        "explicit": [
+          "Điện thoại được sử dụng cho các ứng dụng học tập như Quizizz, Google Classroom và các bài tập từ vựng.",
+          "Điện thoại cho phép học sinh liên lạc ngay với gia đình trong các tình huống khẩn cấp hoặc cần thiết.",
+          "Cấm điện thoại sẽ ngăn học sinh học cách sử dụng có trách nhiệm và tự quản lý.",
+          "Sự phân tán chú ý là do cách quản lý chứ không phải do điện thoại; việc cất điện thoại trong giờ học có thể giải quyết."
+        ],
+        "implicit": [
+          "Không có công cụ thay thế khác cho các hoạt động học tập trên điện thoại.",
+          "Mọi trường hợp cần liên lạc với phụ huynh đều xảy ra trong giờ học và cần điện thoại cá nhân.",
+          "Học sinh sẽ chỉ học được trách nhiệm khi được tự do sử dụng điện thoại suốt ngày.",
+          "Nếu điện thoại được cất, sự phân tán sẽ được loại bỏ mà không cần cấm toàn diện."
+        ]
+      },
+      "target_premise": "Điện thoại là công cụ thiết yếu cho các hoạt động học tập vì các giáo viên sử dụng ứng dụng như Quizizz và Google Classroom.",
+      "ai_points": [
+        "Trường có thể cung cấp thiết bị chung để sử dụng các ứng dụng học tập thay vì cho phép điện thoại cá nhân.",
+        "Việc giảm phân tán chú ý nhờ cấm điện thoại mang lại hiệu quả học tập vượt trội hơn bất tiện tạm thời.",
+        "Hệ thống liên lạc khẩn cấp của trường đáp ứng nhu cầu liên lạc với gia đình mà không cần điện thoại cá nhân.",
+        "Giáo dục kỹ năng số và quy tắc rõ ràng có thể dạy trách nhiệm sử dụng điện thoại mà vẫn duy trì lệnh cấm."
+      ],
+      "retries": [
+        {
+          "attempt": 1,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 5179, Requested 3853. Please try again in 7.74s. Need more tokens? Upgrad",
+          "reviewer_verdict": null,
+          "retry_feedback": null,
+          "rate_limit_wait_ms": 9142,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null
+        },
+        {
+          "attempt": 2,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 3854, Requested 4185. Please try again in 292.5ms. Need more tokens? Upgr",
+          "reviewer_verdict": null,
+          "retry_feedback": null,
+          "rate_limit_wait_ms": 2426,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null
+        },
+        {
+          "attempt": 3,
+          "purpose": "turn",
+          "failure_kind": "banned_phrase",
+          "error": "banned_phrase: 'nhiều trường đã chứng minh' (nhieu_chu_the_da)",
+          "reviewer_verdict": null,
+          "retry_feedback": "[PHẢN HỒI LẦN THỬ TRƯỚC] Output trước của bạn KHÔNG hợp lệ vì:\n- `speech_text` có lời viện dẫn bằng chứng mơ hồ \"nhiều trường đã chứng minh\" (khẳng định điều đã xảy ra với chủ thể chung chung, không kiểm chứng được) — bỏ đi, thay bằng lập luận dựa trên cơ chế hoặc tình huống 'Giả sử'.\nSửa ĐÚNG các điểm trên, giữ nguyên mọi yêu cầu khác, và trả lại TOÀN BỘ JSON (chỉ JSON, không thêm text nào khác).",
+          "rate_limit_wait_ms": null,
+          "tokens_out": 3017,
+          "reasoning_tokens": 2332,
+          "finish_reason": "stop"
+        },
+        {
+          "attempt": 4,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7490, Requested 2391. Please try again in 14.1075s. Need more tokens? Upg",
+          "reviewer_verdict": null,
+          "retry_feedback": null,
+          "rate_limit_wait_ms": 16930,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null
+        }
+      ],
+      "reasoning_tokens": 2480,
+      "reviewer_verdict": "pass",
+      "reviewer_detail": {
+        "positions": [
+          {
+            "id": "P1",
+            "reason": "Cung cấp thiết bị chung thay vì điện thoại cá nhân giúp thực hiện cấm.",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "P2",
+            "reason": "Giảm phân tán chú ý khi cấm điện thoại nâng cao hiệu quả học tập.",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "P3",
+            "reason": "Hệ thống liên lạc khẩn cấp của trường đủ để thay thế điện thoại cá nhân.",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "P4",
+            "reason": "Giáo dục kỹ năng số và quy tắc rõ ràng cho phép duy trì lệnh cấm.",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "weighing",
+            "reason": "Kết luận củng cố lợi ích của việc cấm điện thoại trong thời gian học.",
+            "position": "ung_ho_kien_nghi"
+          }
+        ],
+        "flipped_ids": [],
+        "unclear_ids": [],
+        "prompt_version": "stance_review_v1",
+        "reviewer_calls": 1,
+        "expected_position": "ung_ho_kien_nghi"
+      },
+      "vague_evidence": [],
+      "speech_checks": {
+        "em_pronoun": [],
+        "numbers_without_gia_su": []
+      }
+    },
+    {
+      "turn_index": 4,
+      "round_type": "rebuttal",
+      "speaker": "learner",
+      "text": "Em xin phản bác lại phần của bạn.\n\nBạn nói điện thoại làm học sinh mất tập trung và chơi game trong giờ. Nhưng trước khi có điện thoại thì học sinh cũng vẫn đọc truyện, nói chuyện riêng trong giờ đấy thôi. Vấn đề là ý thức và cách thầy cô quản lý lớp. Nếu thầy cô yêu cầu để điện thoại vào hộp đầu giờ thì vấn đề này giải quyết được mà không cần cấm hẳn.\n\nBạn cũng nói điện thoại làm học sinh ít giao tiếp. Em thấy không hẳn vậy, nhiều nhóm bạn còn dùng điện thoại để chơi game cùng nhau, chụp ảnh, làm video cho câu lạc bộ. Đó cũng là một kiểu giao tiếp mà.\n\nVề bắt nạt trên mạng, chuyện này có thể xảy ra ở nhà chứ không riêng gì ở trường. Cấm điện thoại ở trường không làm hết bắt nạt trên mạng được, cái cần là giáo dục học sinh và xử lý nghiêm những bạn đi bắt nạt.\n\nVì vậy em thấy các lý do của bạn chưa đủ để cấm hoàn toàn.",
+      "word_count": 186
+    },
+    {
+      "turn_index": 5,
+      "round_type": "closing",
+      "speaker": "learner",
+      "text": "Em xin tổng kết phần của phe phản đối.\n\nHôm nay chúng ta tranh luận về việc có nên cấm điện thoại trong trường không. Em nghĩ hai bên đều muốn học sinh học tốt, nhưng phe em cho rằng cấm hoàn toàn là quá cứng nhắc.\n\nĐiện thoại có ích cho việc học, giúp liên lạc với gia đình khi cần, và quan trọng nhất là giúp học sinh tập dùng công nghệ có trách nhiệm. Những tác hại mà bên kia nêu ra như mất tập trung hay bắt nạt trên mạng là có thật, nhưng đều có thể giải quyết bằng quy định hợp lý, ví dụ cất điện thoại trong giờ học, chỉ dùng khi thầy cô cho phép.\n\nCấm hẳn thì dễ, nhưng nó giống như vì sợ ngã mà không cho trẻ con tập đi xe đạp vậy. Học sinh cần được hướng dẫn chứ không phải chỉ bị cấm.\n\nVì vậy em mong mọi người ủng hộ phe phản đối. Em cảm ơn.",
+      "word_count": 170
+    },
+    {
+      "turn_index": 6,
+      "round_type": "closing",
+      "speaker": "ai",
+      "mode": "closing",
+      "text": "Bạn đã nêu rằng việc cấm điện thoại là quá cứng nhắc và rằng chỉ cần giáo dục và quy định cất điện thoại là đủ. Mình đồng ý rằng giáo dục kỹ năng số là cần thiết, nhưng nó không thay thế được việc loại bỏ nguồn gây mất tập trung ngay tại trường. Thứ nhất, ngay cả khi điện thoại được để trong hộp, chúng vẫn tồn tại trong môi trường học và học sinh dễ dàng lấy ra trong giờ giải lao, tạo ra tiếng ồn, ánh sáng và thông báo khiến sự tập trung của cả lớp bị gián đoạn. Thứ hai, những hoạt động nhóm sử dụng điện thoại, dù mang tính giải trí hay sáng tạo, vẫn khiến học sinh tập trung vào màn hình thay vì nội dung bài học và tạo ra khoảng cách giữa những người có thiết bị và những người không có, làm tăng bất bình đẳng. Thứ ba, nhu cầu liên lạc khẩn cấp có thể được đáp ứng bằng hệ thống nội bộ của trường, như điện thoại cố định hoặc thiết bị báo động, vì vậy việc cấm điện thoại không gây nguy hiểm cho an toàn của học sinh. Cuối cùng, việc cấm toàn diện tạo ra môi trường học tập yên tĩnh, giảm thiểu những xao lạc không cần thiết và giúp giáo viên tập trung vào giảng dạy, đồng thời khuyến khích học sinh phát triển kỹ năng giao tiếp trực tiếp và hoạt động thể chất. Vì vậy, đề xuất cấm điện thoại vẫn là lựa chọn thuyết phục nhất.",
+      "word_count": 268,
+      "target_words": 260,
+      "latency_ms": 9488,
+      "tokens_in": 3523,
+      "tokens_out": 2965,
+      "rate_limit_wait_ms": 39571,
+      "learner_claims": [
+        "Phones are essential learning tools and necessary for emergency contact.",
+        "Distraction can be solved by storing phones in a box rather than banning them.",
+        "Cyberbullying can be addressed through education and does not require a ban on phones."
+      ],
+      "premises": {
+        "explicit": [],
+        "implicit": []
+      },
+      "target_premise": null,
+      "ai_points": [
+        "Ngay cả khi điện thoại được cất trong hộp, chúng vẫn có thể bị lấy ra trong giờ giải lao và gây tiếng ồn, ánh sáng và thông báo làm gián đoạn lớp học.",
+        "Các hoạt động nhóm sử dụng điện thoại vẫn khiến học sinh tập trung vào màn hình thay vì nội dung bài học và tạo bất bình đẳng giữa những người có và không có thiết bị.",
+        "Nhu cầu liên lạc khẩn cấp có thể được đáp ứng bằng hệ thống nội bộ của trường, vì vậy cấm điện thoại không gây nguy hiểm cho an toàn học sinh."
+      ],
+      "retries": [
+        {
+          "attempt": 1,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7600, Requested 5383. Please try again in 37.372499999s. Need more tokens",
+          "reviewer_verdict": null,
+          "retry_feedback": null,
+          "rate_limit_wait_ms": 39571,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null
+        }
+      ],
+      "reasoning_tokens": 1622,
+      "reviewer_verdict": "pass",
+      "reviewer_detail": {
+        "positions": [
+          {
+            "id": "P1",
+            "reason": "Điện thoại gây tiếng ồn, ánh sáng và thông báo làm gián đoạn lớp học, vì vậy cấm là cần thiết.",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "P2",
+            "reason": "Sử dụng điện thoại làm học sinh tập trung vào màn hình, tạo bất bình đẳng, nên cấm.",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "P3",
+            "reason": "Hệ thống nội bộ của trường đủ đáp ứng nhu cầu khẩn cấp, cấm không làm giảm an toàn.",
+            "position": "ung_ho_kien_nghi"
+          },
+          {
+            "id": "weighing",
+            "reason": "Cấm điện thoại tạo môi trường học tập yên tĩnh và khuyến khích giao tiếp trực tiếp, vì vậy vẫn là lựa chọn thuyết phục.",
+            "position": "ung_ho_kien_nghi"
+          }
+        ],
+        "flipped_ids": [],
+        "unclear_ids": [],
+        "prompt_version": "stance_review_v1",
+        "reviewer_calls": 1,
+        "expected_position": "ung_ho_kien_nghi"
+      },
+      "vague_evidence": [],
+      "speech_checks": {
+        "em_pronoun": [],
+        "numbers_without_gia_su": []
+      }
+    }
+  ]
+}

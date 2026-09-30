@@ -1,0 +1,324 @@
+{
+  "external_session_id": "try-match-M01-pro-20260930-173549",
+  "motion_id": "M01",
+  "motion": "Nên cấm học sinh sử dụng điện thoại trong trường học",
+  "learner_side": "pro",
+  "ai_side": "con",
+  "difficulty": "medium",
+  "generator_version": "turn_full_v2",
+  "model": "openai/gpt-oss-120b",
+  "temperature": 0.5,
+  "reasoning_effort": "medium",
+  "turn_max_tokens": 6000,
+  "completed": true,
+  "failed_turn": null,
+  "error": null,
+  "rate_limit_wait_ms": 57782,
+  "rate_limit_waits": 4,
+  "transcript": [
+    {
+      "turn_index": 1,
+      "round_type": "opening",
+      "speaker": "learner",
+      "text": "Xin chào mọi người. Em xin đứng về phe đề xuất, tức là em đồng ý nên cấm học sinh sử dụng điện thoại trong trường học. Em có ba lý do chính.\n\nThứ nhất, điện thoại làm học sinh mất tập trung. Trong giờ học, chỉ cần một tin nhắn hay một thông báo Facebook là nhiều bạn đã không nghe giảng nữa rồi. Ở lớp em có bạn còn lén chơi game dưới gầm bàn, thầy cô nhắc mãi cũng không được.\n\nThứ hai, điện thoại làm giảm sự giao tiếp giữa các bạn. Giờ ra chơi đáng lẽ là lúc mọi người nói chuyện, chơi thể thao, nhưng bây giờ ai cũng cúi mặt vào màn hình. Như vậy thì tình bạn cũng không được gắn kết.\n\nThứ ba, điện thoại có thể gây ra bắt nạt trên mạng. Có bạn bị quay lén rồi bị đăng lên mạng để chế giễu, việc đó ảnh hưởng rất xấu tới tâm lý.\n\nCó người sẽ nói điện thoại giúp liên lạc với bố mẹ khi có chuyện gấp, nhưng trường đã có điện thoại ở phòng giám thị rồi, nên em nghĩ lý do đó không đủ mạnh. Vì vậy em nghĩ cấm điện thoại là cần thiết để học sinh học tốt hơn. Em xin cảm ơn.",
+      "word_count": 220
+    },
+    {
+      "turn_index": 2,
+      "round_type": "opening",
+      "speaker": "ai",
+      "mode": "opening_reply",
+      "text": "Mình cảm ơn bạn đã nêu ra những lo ngại về việc điện thoại gây mất tập trung, giảm giao tiếp và tạo ra bắt nạt trên mạng. Mình đồng ý rằng những vấn đề này cần được quan tâm, nhưng cách giải quyết cấm hoàn toàn lại không phải là hướng đi tốt nhất. Đầu tiên, điện thoại không chỉ là nguồn gây xao lạc mà còn là công cụ hỗ trợ học tập mạnh mẽ. Khi giáo viên hướng dẫn cách tìm kiếm thông tin, sử dụng ứng dụng học tập và kiểm soát nội dung, điện thoại có thể giúp học sinh nắm bắt kiến thức nhanh hơn và tăng cường sự tham gia trong lớp. Thứ hai, việc cấm hoàn toàn khiến học sinh phải giấu điện thoại và sử dụng trong những khoảng thời gian không được giám sát, điều này thực tế làm tăng nguy cơ mất tập trung vì họ sẽ cố gắng che giấu và sử dụng trong những lúc không phù hợp. Thứ ba, các quy tắc sử dụng có kiểm soát cho phép giáo viên quyết định thời điểm và cách thức sử dụng điện thoại, ví dụ chỉ cho phép tra cứu khi có câu hỏi hoặc thực hiện bài tập thực hành, nhờ đó môi trường học tập vẫn duy trì sự tập trung và đồng thời khai thác được lợi ích giáo dục. Thứ tư, cấm toàn diện không giải quyết nguyên nhân thực sự của sự mất tập trung, mà chỉ tạo ra hình thức ẩn danh và khó quản lý, khiến nhà trường mất khả năng giám sát và can thiệp kịp thời. Vì vậy, thay vì cấm, chúng ta nên xây dựng chính sách sử dụng có kiểm soát, kết hợp giáo dục kỹ năng số và giám sát chặt chẽ, để vừa bảo vệ học sinh khỏi những tác động tiêu cực vừa tận dụng tối đa tiềm năng học tập mà điện thoại mang lại.",
+      "word_count": 333,
+      "target_words": 400,
+      "latency_ms": 6009,
+      "tokens_in": 3040,
+      "tokens_out": 2416,
+      "learner_claims": [
+        "Điện thoại làm học sinh mất tập trung",
+        "Điện thoại làm giảm sự giao tiếp giữa các bạn",
+        "Điện thoại có thể gây ra bắt nạt trên mạng"
+      ],
+      "premises": {
+        "explicit": [
+          "Điện thoại làm học sinh mất tập trung",
+          "Trong giờ học, chỉ cần một tin nhắn hay một thông báo Facebook là nhiều bạn đã không nghe giảng nữa rồi",
+          "Điện thoại làm giảm sự giao tiếp giữa các bạn",
+          "Giờ ra chơi ai cũng cúi mặt vào màn hình",
+          "Điện thoại có thể gây ra bắt nạt trên mạng",
+          "Có bạn bị quay lén rồi bị đăng lên mạng để chế giễu, việc đó ảnh hưởng rất xấu tới tâm lý",
+          "Trường đã có điện thoại ở phòng giám thị, nên lý do liên lạc không đủ mạnh"
+        ],
+        "implicit": [
+          "Nếu học sinh mất tập trung thì kết quả học tập sẽ giảm sút",
+          "Nếu giao tiếp giảm thì tình bạn và kỹ năng xã hội sẽ yếu đi",
+          "Nếu có bắt nạt trên mạng thì tâm lý học sinh sẽ bị tổn thương",
+          "Cấm điện thoại sẽ loại bỏ các tác động tiêu cực này"
+        ]
+      },
+      "target_premise": "Điện thoại làm học sinh mất tập trung",
+      "ai_points": [
+        "Điện thoại không chỉ gây mất tập trung mà còn là công cụ hỗ trợ học tập khi được hướng dẫn sử dụng đúng cách",
+        "Việc cấm hoàn toàn khiến học sinh giấu điện thoại và sử dụng trong thời gian không được giám sát, làm tăng nguy cơ mất tập trung thay vì giảm",
+        "Các quy tắc sử dụng có kiểm soát cho phép giáo viên khai thác tính năng giáo dục của điện thoại, đồng thời duy trì môi trường tập trung",
+        "Cấm toàn diện không giải quyết nguyên nhân thực sự của sự mất tập trung mà chỉ tạo ra hình thức ẩn danh và khó quản lý"
+      ],
+      "retries": [],
+      "reasoning_tokens": 775,
+      "reviewer_verdict": "pass",
+      "reviewer_detail": {
+        "positions": [
+          {
+            "id": "P1",
+            "reason": "Điện thoại được coi là công cụ hỗ trợ học tập khi được hướng dẫn đúng cách, vì vậy không ủng hộ việc cấm hoàn toàn.",
+            "position": "phan_doi_kien_nghi"
+          },
+          {
+            "id": "P2",
+            "reason": "Việc cấm khiến học sinh giấu điện thoại và sử dụng trong thời gian không giám sát, tăng nguy cơ mất tập trung.",
+            "position": "phan_doi_kien_nghi"
+          },
+          {
+            "id": "P3",
+            "reason": "Quy tắc sử dụng kiểm soát cho phép khai thác tính năng giáo dục của điện thoại mà vẫn duy trì tập trung.",
+            "position": "phan_doi_kien_nghi"
+          },
+          {
+            "id": "P4",
+            "reason": "Cấm toàn diện không giải quyết nguyên nhân thực sự của mất tập trung và tạo ra khó quản lý.",
+            "position": "phan_doi_kien_nghi"
+          },
+          {
+            "id": "weighing",
+            "reason": "Kết luận đề xuất chính sách sử dụng có kiểm soát thay vì cấm hoàn toàn, vì vậy phản đối đề nghị cấm.",
+            "position": "phan_doi_kien_nghi"
+          }
+        ],
+        "flipped_ids": [],
+        "unclear_ids": [],
+        "prompt_version": "stance_review_v1",
+        "reviewer_calls": 1,
+        "expected_position": "phan_doi_kien_nghi"
+      },
+      "vague_evidence": [],
+      "speech_checks": {
+        "em_pronoun": [],
+        "numbers_without_gia_su": []
+      }
+    },
+    {
+      "turn_index": 3,
+      "round_type": "rebuttal",
+      "speaker": "learner",
+      "text": "Cảm ơn bạn đã trình bày. Em xin phản bác lại một số ý của bạn.\n\nBạn nói điện thoại là công cụ học tập, có thể tra cứu thông tin. Nhưng thực tế thì nhiều bạn mở điện thoại lên để tra từ điển được một phút, sau đó là lướt TikTok luôn. Hơn nữa trường đã có phòng máy tính và thư viện, nếu cần tra cứu thì thầy cô có thể cho dùng máy của trường, không nhất thiết mỗi bạn phải cầm điện thoại riêng.\n\nBạn cũng nói là phải dạy học sinh tự quản lý bản thân chứ không nên cấm. Em đồng ý tự quản lý là quan trọng, nhưng học sinh vẫn đang ở tuổi dễ bị cám dỗ, mà các ứng dụng thì được thiết kế để người ta dùng mãi không dừng. Người lớn còn khó bỏ điện thoại thì sao bắt học sinh tự kiểm soát được.\n\nCòn chuyện liên lạc khẩn cấp, như em đã nói, phòng giám thị có điện thoại, và học sinh có thể gửi điện thoại lúc vào trường rồi nhận lại lúc về. Như vậy vẫn liên lạc được mà không ảnh hưởng việc học. Nên em vẫn giữ quan điểm là nên cấm.",
+      "word_count": 210
+    },
+    {
+      "turn_index": 4,
+      "round_type": "rebuttal",
+      "speaker": "ai",
+      "mode": "rebuttal",
+      "text": "Bạn đưa ra rằng trường đã có phòng máy tính và thư viện, nên không cần để học sinh mang điện thoại. Thực tế, phòng máy tính thường chỉ mở trong những khung giờ nhất định và mỗi lớp chỉ có vài máy; khi học sinh đang ở trong giờ học, họ không thể rời bàn để dùng máy tính mà vẫn muốn tra cứu ngay. Điện thoại cho phép truy cập tức thời mà không làm gián đoạn bài học, vì học sinh có thể mở tài liệu trên màn hình nhỏ ngay trên chỗ ngồi. Thứ hai, nhiều nguồn học hiện nay chỉ có dạng ứng dụng di động hoặc website tối ưu cho thiết bị di động; sách điện tử, video giảng dạy, phần mềm mô phỏng thường không có phiên bản máy tính chung, vì vậy cấm điện thoại đồng nghĩa với việc tước bỏ một kênh học tập quan trọng. Thứ ba, việc dựa vào một chiếc điện thoại ở văn phòng giám thị để đáp ứng mọi nhu cầu khẩn cấp không thực tế; khi có sự cố, mỗi học sinh cần liên lạc ngay với gia đình, và việc phải chờ lấy lại điện thoại khi ra về sẽ làm mất thời gian quý báu. Điện thoại cá nhân cho phép mỗi học sinh gọi hoặc nhắn tin ngay lập tức, đồng thời trường vẫn có thể kiểm soát bằng cách thu giữ thiết bị trong giờ học và chỉ cho phép sử dụng trong các khoảng thời gian được quy định. Tôi đồng ý rằng một số ứng dụng gây nghiện, nhưng đó không phải là lý do để cấm hoàn toàn; thay vào đó chúng ta nên thiết lập quy tắc sử dụng có kiểm soát, giáo dục tự quản lý và giám sát chặt chẽ. Như vậy, việc cấm toàn diện không giải quyết vấn đề mà chỉ tạo ra việc giấu diếm và mất kiểm soát, trong khi cho phép sử dụng có kiểm soát sẽ khai thác lợi ích giáo dục và an toàn của điện thoại.",
+      "word_count": 349,
+      "target_words": 320,
+      "latency_ms": 23391,
+      "tokens_in": 3338,
+      "tokens_out": 5099,
+      "learner_claims": [
+        "Nhiều học sinh mở điện thoại để tra từ điển rồi nhanh chuyển sang TikTok, gây mất tập trung",
+        "Trường đã có phòng máy tính và thư viện, thầy cô có thể cung cấp thiết bị cho việc tra cứu, không cần học sinh mang điện thoại riêng",
+        "Học sinh ở độ tuổi dễ bị cám dỗ, các ứng dụng được thiết kế để người dùng không dừng, nên tự quản lý là không thực tế",
+        "Người lớn cũng khó bỏ điện thoại, vì vậy kỳ vọng học sinh tự kiểm soát là không hợp lý",
+        "Phòng giám thị có điện thoại và học sinh có thể nộp điện thoại vào trường rồi nhận lại khi về, nên không ảnh hưởng đến việc liên lạc khẩn cấp"
+      ],
+      "premises": {
+        "explicit": [
+          "Nhiều bạn mở điện thoại lên để tra từ điển một phút rồi lướt TikTok",
+          "Trường đã có phòng máy tính và thư viện, nếu cần tra cứu thầy cô có thể cho dùng máy của trường, không cần học sinh cầm điện thoại riêng",
+          "Học sinh đang ở tuổi dễ bị cám dỗ, các ứng dụng được thiết kế để người dùng không dừng",
+          "Người lớn cũng khó bỏ điện thoại, vì vậy học sinh không thể tự kiểm soát",
+          "Phòng giám thị có điện thoại và học sinh có thể gửi điện thoại vào trường rồi nhận lại lúc về, nên vẫn liên lạc được"
+        ],
+        "implicit": [
+          "Nếu học sinh dùng điện thoại để tra cứu, họ sẽ nhanh chóng chuyển sang TikTok và mất tập trung",
+          "Có sẵn máy tính và thư viện có thể thay thế hoàn toàn nhu cầu sử dụng điện thoại",
+          "Tính gây nghiện của ứng dụng khiến học sinh không thể tự quản lý",
+          "Một chiếc điện thoại ở văn phòng đủ để đáp ứng mọi nhu cầu khẩn cấp của học sinh",
+          "Việc thu giữ điện thoại khi vào trường không ảnh hưởng đến việc học"
+        ]
+      },
+      "target_premise": "Trường đã có phòng máy tính và thư viện, nếu cần tra cứu thầy cô có thể cho dùng máy của trường, không cần học sinh cầm điện thoại riêng",
+      "ai_points": [
+        "Phòng máy tính có thời gian mở hạn chế và số máy ít, không cho học sinh truy cập ngay trong giờ học",
+        "Nhiều nguồn học hiện đại chỉ có dạng ứng dụng di động hoặc website tối ưu cho điện thoại, vì vậy cấm điện thoại sẽ mất một kênh học tập quan trọng",
+        "Một chiếc điện thoại ở văn phòng không thể đáp ứng nhu cầu khẩn cấp cá nhân; điện thoại cá nhân cho phép liên lạc ngay lập tức"
+      ],
+      "retries": [
+        {
+          "attempt": 1,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 5177, Requested 3831. Please try again in 7.56s. Need more tokens? Upgrad",
+          "reviewer_verdict": null,
+          "retry_feedback": null,
+          "rate_limit_wait_ms": 9077,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null
+        },
+        {
+          "attempt": 2,
+          "purpose": "turn",
+          "failure_kind": "schema_rejected",
+          "error": "BadRequestError: Error code: 400 - {'error': {'message': \"Generated JSON does not match the expected schema. Please adjust your prompt. See 'failed_generation' for more details. Error: jsonschema: '' does not validate with /type: expected object, but got array\", 'type': 'invalid_request_error', 'cod",
+          "reviewer_verdict": null,
+          "retry_feedback": "[PHẢN HỒI LẦN THỬ TRƯỚC] Output trước của bạn KHÔNG hợp lệ vì:\n- Output bị nhà cung cấp từ chối vì không khớp JSON schema ('' does not validate with /type: expected object, but got array). Kiểm tra lại đúng 5 trường theo thứ tự, đúng kiểu, không thêm trường lạ.\nSửa ĐÚNG các điểm trên, giữ nguyên mọi yêu cầu khác, và trả lại TOÀN BỘ JSON (chỉ JSON, không thêm text nào khác).",
+          "rate_limit_wait_ms": null,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null
+        },
+        {
+          "attempt": 3,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6147, Requested 2413. Please try again in 4.2s. Need more tokens? Upgrade",
+          "reviewer_verdict": null,
+          "retry_feedback": null,
+          "rate_limit_wait_ms": 6938,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null
+        }
+      ],
+      "reasoning_tokens": 2729,
+      "reviewer_verdict": "pass",
+      "reviewer_detail": {
+        "positions": [
+          {
+            "id": "P1",
+            "reason": "Đề cập rằng máy tính hạn chế, vì vậy điện thoại cần thiết, phản đối cấm.",
+            "position": "phan_doi_kien_nghi"
+          },
+          {
+            "id": "P2",
+            "reason": "Nêu rằng nhiều tài nguyên chỉ có trên điện thoại, vì vậy cấm làm mất kênh học tập.",
+            "position": "phan_doi_kien_nghi"
+          },
+          {
+            "id": "P3",
+            "reason": "Lập luận điện thoại là cần thiết cho liên lạc khẩn cấp, nên cấm không hợp lý.",
+            "position": "phan_doi_kien_nghi"
+          },
+          {
+            "id": "weighing",
+            "reason": "Kết luận nhấn mạnh lợi ích giáo dục và an toàn của điện thoại, phản đối cấm toàn diện.",
+            "position": "phan_doi_kien_nghi"
+          }
+        ],
+        "flipped_ids": [],
+        "unclear_ids": [],
+        "prompt_version": "stance_review_v1",
+        "reviewer_calls": 1,
+        "expected_position": "phan_doi_kien_nghi"
+      },
+      "vague_evidence": [],
+      "speech_checks": {
+        "em_pronoun": [],
+        "numbers_without_gia_su": []
+      }
+    },
+    {
+      "turn_index": 5,
+      "round_type": "closing",
+      "speaker": "ai",
+      "mode": "closing",
+      "text": "Bạn đã nêu rằng điện thoại làm học sinh mất tập trung và gây ra các vấn đề như bắt nạt trực tuyến, và mình đồng ý rằng đây là thực tế. Tuy nhiên, cấm hoàn toàn không giải quyết nguyên nhân gốc rễ mà chỉ tạo ra hành vi giấu điện thoại và sử dụng trong thời gian không được giám sát, điều này làm tăng nguy cơ mất tập trung hơn. Thứ hai, điện thoại là công cụ hỗ trợ học tập quan trọng; nhiều tài liệu, ứng dụng và trang web chỉ được tối ưu cho thiết bị di động, và trường không thể cung cấp đủ máy tính cho mọi học sinh trong giờ học, vì vậy cấm sẽ mất một kênh học tập thiết yếu. Thứ ba, trong các tình huống khẩn cấp, điện thoại cá nhân cho phép học sinh liên lạc ngay với phụ huynh và lực lượng cứu trợ, trong khi việc nộp điện thoại vào trường không thể đáp ứng nhu cầu cá nhân và có thể làm chậm phản ứng. Các quy tắc sử dụng có kiểm soát cho phép giáo viên khai thác tính năng giáo dục của điện thoại đồng thời duy trì môi trường tập trung, trong khi lệnh cấm toàn diện không giải quyết vấn đề và thậm chí làm phức tạp hơn. Vì vậy, quan điểm của mình thắng ở ba điểm: cấm không giảm thiểu sự mất tập trung mà làm tăng hành vi ẩn danh, cấm mất công cụ học tập quan trọng, và cấm làm giảm khả năng phản ứng khẩn cấp. Như vậy, giải pháp quản lý và giáo dục sử dụng điện thoại là lựa chọn hợp lý hơn so với lệnh cấm toàn diện.",
+      "word_count": 295,
+      "target_words": 260,
+      "latency_ms": 10389,
+      "tokens_in": 3145,
+      "tokens_out": 2904,
+      "learner_claims": [],
+      "premises": {
+        "explicit": [],
+        "implicit": []
+      },
+      "target_premise": null,
+      "ai_points": [
+        "Điện thoại bị cấm sẽ khiến học sinh giấu và sử dụng trong thời gian không được giám sát, làm tăng mất tập trung.",
+        "Điện thoại là công cụ học tập thiết yếu mà trường không thể thay thế bằng máy tính hạn chế.",
+        "Trong tình huống khẩn cấp, điện thoại cá nhân cho phép liên lạc nhanh chóng, cấm sẽ làm chậm phản ứng."
+      ],
+      "retries": [
+        {
+          "attempt": 1,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 7634, Requested 3832. Please try again in 25.995s. Need more tokens? Upgr",
+          "reviewer_verdict": null,
+          "retry_feedback": null,
+          "rate_limit_wait_ms": 27989,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null
+        },
+        {
+          "attempt": 2,
+          "purpose": "turn",
+          "failure_kind": "rate_limited",
+          "error": "RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01ktd5rdkqekxa66tgsza1a9jf` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 3826, Requested 5696. Please try again in 11.415s. Need more tokens? Upgr",
+          "reviewer_verdict": null,
+          "retry_feedback": null,
+          "rate_limit_wait_ms": 13778,
+          "tokens_out": null,
+          "reasoning_tokens": null,
+          "finish_reason": null
+        }
+      ],
+      "reasoning_tokens": 1681,
+      "reviewer_verdict": "pass",
+      "reviewer_detail": {
+        "positions": [
+          {
+            "id": "P1",
+            "reason": "Banning phones leads to hidden use and increased distraction, undermining the goal.",
+            "position": "phan_doi_kien_nghi"
+          },
+          {
+            "id": "P2",
+            "reason": "Phones are essential learning tools that cannot be replaced by limited computers.",
+            "position": "phan_doi_kien_nghi"
+          },
+          {
+            "id": "P3",
+            "reason": "Banning phones would delay emergency communication, reducing safety.",
+            "position": "phan_doi_kien_nghi"
+          },
+          {
+            "id": "weighing",
+            "reason": "The conclusion argues that banning phones increases distraction, removes essential learning tools, and hampers emergency response, so it opposes the proposal.",
+            "position": "phan_doi_kien_nghi"
+          }
+        ],
+        "flipped_ids": [],
+        "unclear_ids": [],
+        "prompt_version": "stance_review_v1",
+        "reviewer_calls": 1,
+        "expected_position": "phan_doi_kien_nghi"
+      },
+      "vague_evidence": [],
+      "speech_checks": {
+        "em_pronoun": [],
+        "numbers_without_gia_su": []
+      }
+    },
+    {
+      "turn_index": 6,
+      "round_type": "closing",
+      "speaker": "learner",
+      "text": "Cuối cùng em xin tổng kết lại. Trong cuộc tranh luận hôm nay, hai bên đều muốn học sinh học tập hiệu quả và an toàn. Điểm khác nhau là làm sao để đạt được điều đó.\n\nPhe bạn cho rằng điện thoại có ích cho việc học và giúp liên lạc. Nhưng em đã chỉ ra là những lợi ích đó đều có cách khác thay thế, như máy tính của trường, thư viện, điện thoại ở phòng giám thị. Còn tác hại của điện thoại thì rất rõ ràng: mất tập trung, ít giao tiếp, và bắt nạt trên mạng. Những tác hại này xảy ra hằng ngày chứ không phải thỉnh thoảng mới có.\n\nBạn nói nên dạy học sinh tự kiểm soát, em thấy ý đó hay, nhưng muốn dạy thì trước hết phải tạo môi trường tốt đã, không thể vừa để cám dỗ ngay trên bàn học vừa bảo các bạn tự giác.\n\nVì vậy em tin là phe đề xuất đã đưa ra lý lẽ thuyết phục hơn. Em xin hết.",
+      "word_count": 178
+    }
+  ]
+}
