@@ -55,12 +55,15 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<ChallengeResponse>.FailureResponse("A pending challenge already exists between these users.");
             }
 
+            var topic = await _debateRepository.GetOrCreateTopicAsync(
+                request.Topic.Trim(), null, "Medium", challengerUserId, cancellationToken);
+
             var challenge = new DebateChallenge
             {
                 ChallengerUserId = challengerUserId,
                 ChallengedUserId = request.ChallengedUserId,
-                Topic = request.Topic.Trim(),
-                ChallengerPreferredSide = request.ChallengerPreferredSide,
+                TopicId = topic.TopicId,
+                PreferredSide = request.ChallengerPreferredSide,
                 TurnTimeLimitSeconds = request.TurnTimeLimitSeconds,
                 Status = ChallengeStatus.Pending,
                 CreatedAt = DateTime.UtcNow,
@@ -133,10 +136,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     return ApiResponse<ChallengeResponse>.FailureResponse($"Cannot accept challenge because it is currently '{challenge.Status}'.");
                 }
 
-                var challengedSide = challenge.ChallengerPreferredSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
-
-                var topic = await _debateRepository.GetOrCreateTopicAsync(
-                    challenge.Topic, null, "Medium", challenge.ChallengerUserId, cancellationToken);
+                var challengedSide = (challenge.PreferredSide == DebateSide.PRO || challenge.PreferredSide == DebateSide.Affirmative)
+                    ? DebateSide.CON : DebateSide.PRO;
 
                 var format = await _debateRepository.GetFormatByNameAsync("1 vs 1", cancellationToken)
                     ?? await _debateRepository.GetFormatByIdAsync(2, cancellationToken)
@@ -144,7 +145,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
                 var session = new DebateSession
                 {
-                    TopicId = topic.TopicId,
+                    TopicId = challenge.TopicId,
                     FormatId = format.FormatId,
                     Status = SessionStatus.InProgress,
                     CreatedBy = challenge.ChallengerUserId,
@@ -156,7 +157,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 {
                     UserId = challenge.ChallengerUserId,
                     ParticipantType = ParticipantType.USER,
-                    Side = challenge.ChallengerPreferredSide,
+                    Side = challenge.PreferredSide,
                     JoinedAt = DateTime.UtcNow
                 });
 
@@ -299,8 +300,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     FullName = c.ChallengedUser?.FullName ?? "User " + c.ChallengedUserId,
                     Email = c.ChallengedUser?.Email ?? string.Empty
                 },
-                Topic = c.Topic,
-                ChallengerPreferredSide = c.ChallengerPreferredSide,
+                Topic = c.Topic?.Title ?? string.Empty,
+                ChallengerPreferredSide = c.PreferredSide,
                 TurnTimeLimitSeconds = c.TurnTimeLimitSeconds,
                 Status = c.Status,
                 DebateSessionId = c.DebateSessionId,

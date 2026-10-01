@@ -14,9 +14,10 @@ namespace SystemService.DAL.Entities.Debate
         public int ChallengedUserId { get; set; }
         public virtual User ChallengedUser { get; set; } = null!;
 
-        public string Topic { get; set; } = string.Empty;
+        public int TopicId { get; set; }
+        public virtual Topic Topic { get; set; } = null!;
 
-        public DebateSide ChallengerPreferredSide { get; set; }
+        public DebateSide PreferredSide { get; set; }
 
         public int TurnTimeLimitSeconds { get; set; } = 180;
 

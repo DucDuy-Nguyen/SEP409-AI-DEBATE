@@ -37,6 +37,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             return await _context.DebateChallenges
                 .Include(c => c.ChallengerUser)
                 .Include(c => c.ChallengedUser)
+                .Include(c => c.Topic)
                 .Include(c => c.DebateSession)
                 .FirstOrDefaultAsync(c => c.ChallengeId == challengeId, cancellationToken);
         }
@@ -45,6 +46,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
         {
             return await _context.DebateChallenges
                 .Include(c => c.ChallengedUser)
+                .Include(c => c.Topic)
                 .Include(c => c.DebateSession)
                 .Where(c => c.ChallengerUserId == userId)
                 .OrderByDescending(c => c.CreatedAt)
@@ -55,6 +57,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
         {
             return await _context.DebateChallenges
                 .Include(c => c.ChallengerUser)
+                .Include(c => c.Topic)
                 .Include(c => c.DebateSession)
                 .Where(c => c.ChallengedUserId == userId)
                 .OrderByDescending(c => c.CreatedAt)
