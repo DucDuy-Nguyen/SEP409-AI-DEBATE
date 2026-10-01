@@ -1,0 +1,5 @@
+sample_id,source_path,run_index,attempt,motion_id,item_id,human_label,labeled_at
+20260927-092737_case_plan_v3.jsonl:10:1,experiments\case_plan\20260927-092737_case_plan_v3.jsonl,10,1,M06,A1,u,2026-09-27T10:21:53
+20260927-092737_case_plan_v3.jsonl:10:1,experiments\case_plan\20260927-092737_case_plan_v3.jsonl,10,1,M06,A2,p,2026-09-27T10:21:53
+20260927-092737_case_plan_v3.jsonl:10:1,experiments\case_plan\20260927-092737_case_plan_v3.jsonl,10,1,M06,A3,k,2026-09-27T10:21:53
+20260927-092737_case_plan_v3.jsonl:10:1,experiments\case_plan\20260927-092737_case_plan_v3.jsonl,10,1,M06,weighing,k,2026-09-27T10:21:53

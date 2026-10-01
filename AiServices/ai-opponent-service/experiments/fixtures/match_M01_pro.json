@@ -1,0 +1,23 @@
+{
+  "motion_id": "M01",
+  "motion": "Nên cấm học sinh sử dụng điện thoại trong trường học",
+  "learner_side": "pro",
+  "note": "Bài nói learner viết sẵn (chất lượng trung bình, như học sinh), cố định — KHÔNG phản hồi nội dung cụ thể của AI; phần phản bác nhắm vào các luận điểm phổ biến của phe kia. Dùng bởi scripts/try_match.py.",
+  "speeches": [
+    {
+      "turn_index": 1,
+      "round_type": "opening",
+      "text": "Xin chào mọi người. Em xin đứng về phe đề xuất, tức là em đồng ý nên cấm học sinh sử dụng điện thoại trong trường học. Em có ba lý do chính.\n\nThứ nhất, điện thoại làm học sinh mất tập trung. Trong giờ học, chỉ cần một tin nhắn hay một thông báo Facebook là nhiều bạn đã không nghe giảng nữa rồi. Ở lớp em có bạn còn lén chơi game dưới gầm bàn, thầy cô nhắc mãi cũng không được.\n\nThứ hai, điện thoại làm giảm sự giao tiếp giữa các bạn. Giờ ra chơi đáng lẽ là lúc mọi người nói chuyện, chơi thể thao, nhưng bây giờ ai cũng cúi mặt vào màn hình. Như vậy thì tình bạn cũng không được gắn kết.\n\nThứ ba, điện thoại có thể gây ra bắt nạt trên mạng. Có bạn bị quay lén rồi bị đăng lên mạng để chế giễu, việc đó ảnh hưởng rất xấu tới tâm lý.\n\nCó người sẽ nói điện thoại giúp liên lạc với bố mẹ khi có chuyện gấp, nhưng trường đã có điện thoại ở phòng giám thị rồi, nên em nghĩ lý do đó không đủ mạnh. Vì vậy em nghĩ cấm điện thoại là cần thiết để học sinh học tốt hơn. Em xin cảm ơn."
+    },
+    {
+      "turn_index": 3,
+      "round_type": "rebuttal",
+      "text": "Cảm ơn bạn đã trình bày. Em xin phản bác lại một số ý của bạn.\n\nBạn nói điện thoại là công cụ học tập, có thể tra cứu thông tin. Nhưng thực tế thì nhiều bạn mở điện thoại lên để tra từ điển được một phút, sau đó là lướt TikTok luôn. Hơn nữa trường đã có phòng máy tính và thư viện, nếu cần tra cứu thì thầy cô có thể cho dùng máy của trường, không nhất thiết mỗi bạn phải cầm điện thoại riêng.\n\nBạn cũng nói là phải dạy học sinh tự quản lý bản thân chứ không nên cấm. Em đồng ý tự quản lý là quan trọng, nhưng học sinh vẫn đang ở tuổi dễ bị cám dỗ, mà các ứng dụng thì được thiết kế để người ta dùng mãi không dừng. Người lớn còn khó bỏ điện thoại thì sao bắt học sinh tự kiểm soát được.\n\nCòn chuyện liên lạc khẩn cấp, như em đã nói, phòng giám thị có điện thoại, và học sinh có thể gửi điện thoại lúc vào trường rồi nhận lại lúc về. Như vậy vẫn liên lạc được mà không ảnh hưởng việc học. Nên em vẫn giữ quan điểm là nên cấm."
+    },
+    {
+      "turn_index": 6,
+      "round_type": "closing",
+      "text": "Cuối cùng em xin tổng kết lại. Trong cuộc tranh luận hôm nay, hai bên đều muốn học sinh học tập hiệu quả và an toàn. Điểm khác nhau là làm sao để đạt được điều đó.\n\nPhe bạn cho rằng điện thoại có ích cho việc học và giúp liên lạc. Nhưng em đã chỉ ra là những lợi ích đó đều có cách khác thay thế, như máy tính của trường, thư viện, điện thoại ở phòng giám thị. Còn tác hại của điện thoại thì rất rõ ràng: mất tập trung, ít giao tiếp, và bắt nạt trên mạng. Những tác hại này xảy ra hằng ngày chứ không phải thỉnh thoảng mới có.\n\nBạn nói nên dạy học sinh tự kiểm soát, em thấy ý đó hay, nhưng muốn dạy thì trước hết phải tạo môi trường tốt đã, không thể vừa để cám dỗ ngay trên bàn học vừa bảo các bạn tự giác.\n\nVì vậy em tin là phe đề xuất đã đưa ra lý lẽ thuyết phục hơn. Em xin hết."
+    }
+  ]
+}

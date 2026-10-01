@@ -1,0 +1,8 @@
+sample_id,source_path,run_index,attempt,motion_id,item_id,human_label,labeled_at
+20260927-094713_case_plan_v4.jsonl:14:1,experiments\case_plan\20260927-094713_case_plan_v4.jsonl,14,1,M08,A1,u,2026-09-29T11:36:27
+20260927-094713_case_plan_v4.jsonl:14:1,experiments\case_plan\20260927-094713_case_plan_v4.jsonl,14,1,M08,A2,u,2026-09-29T11:36:27
+20260927-094713_case_plan_v4.jsonl:14:1,experiments\case_plan\20260927-094713_case_plan_v4.jsonl,14,1,M08,A3,u,2026-09-29T11:36:27
+20260927-094713_case_plan_v4.jsonl:14:1,experiments\case_plan\20260927-094713_case_plan_v4.jsonl,14,1,M08,weighing,u,2026-09-29T11:36:27
+20260927-092737_case_plan_v3.jsonl:15:1,experiments\case_plan\20260927-092737_case_plan_v3.jsonl,15,1,M08,A1,p,2026-09-29T11:37:36
+20260927-092737_case_plan_v3.jsonl:15:1,experiments\case_plan\20260927-092737_case_plan_v3.jsonl,15,1,M08,A2,p,2026-09-29T11:37:36
+20260927-092737_case_plan_v3.jsonl:15:1,experiments\case_plan\20260927-092737_case_plan_v3.jsonl,15,1,M08,weighing,p,2026-09-29T11:37:36

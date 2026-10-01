@@ -28,3 +28,11 @@ Thumbs.db
 # Environment / secrets
 .env
 .env.*
+# Python / AI Services
+AiServices/**/venv/
+AiServices/**/__pycache__/
+AiServices/**/.pytest_cache/
+AiServices/**/.env
+AiServices/**/.env.*
+AiServices/**/experiments/matches/
+AiServices/**/experiments/case_plan/
