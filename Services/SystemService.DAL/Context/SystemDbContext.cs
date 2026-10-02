@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SystemService.DAL.Entities.Identity;
+using SystemService.DAL.Entities.Debate;
 
 namespace SystemService.DAL.Context
 {
@@ -19,8 +20,15 @@ namespace SystemService.DAL.Context
         public DbSet<Entities.Competition.CompetitionTeam> CompetitionTeams { get; set; } = null!;
         public DbSet<Entities.Competition.CompetitionTeamMember> CompetitionTeamMembers { get; set; } = null!;
         public DbSet<Entities.Competition.CompetitionJudge> CompetitionJudges { get; set; } = null!;
-        public DbSet<Entities.Competition.DebateFormat> DebateFormats { get; set; } = null!;
         public DbSet<Entities.Competition.CompetitionTeamRequest> CompetitionTeamRequests { get; set; } = null!;
+
+        public DbSet<Topic> Topics { get; set; } = null!;
+        public DbSet<DebateFormat> DebateFormats { get; set; } = null!;
+        public DbSet<DebateSession> DebateSessions { get; set; } = null!;
+        public DbSet<DebateParticipant> DebateParticipants { get; set; } = null!;
+        public DbSet<DebateRound> DebateRounds { get; set; } = null!;
+        public DbSet<Argument> Arguments { get; set; } = null!;
+        public DbSet<DebateChallenge> DebateChallenges { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

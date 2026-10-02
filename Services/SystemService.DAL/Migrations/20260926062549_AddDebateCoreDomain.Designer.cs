@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SystemService.DAL.Context;
 
@@ -11,9 +12,11 @@ using SystemService.DAL.Context;
 namespace SystemService.DAL.Migrations
 {
     [DbContext(typeof(SystemDbContext))]
-    partial class SystemDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260926062549_AddDebateCoreDomain")]
+    partial class AddDebateCoreDomain
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -47,65 +50,9 @@ namespace SystemService.DAL.Migrations
 
                     b.HasIndex("ParticipantId");
 
-                    b.HasIndex("TurnId")
-                        .IsUnique();
+                    b.HasIndex("TurnId");
 
                     b.ToTable("DebateArguments", (string)null);
-                });
-
-            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateChallenge", b =>
-                {
-                    b.Property<int>("ChallengeId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ChallengeId"));
-
-                    b.Property<int>("ChallengedUserId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ChallengerPreferredSide")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("ChallengerUserId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("DebateSessionId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("RespondedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("Topic")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("TurnTimeLimitSeconds")
-                        .HasColumnType("int");
-
-                    b.HasKey("ChallengeId");
-
-                    b.HasIndex("ChallengedUserId");
-
-                    b.HasIndex("DebateSessionId");
-
-                    b.HasIndex("ChallengerUserId", "ChallengedUserId", "Status");
-
-                    b.ToTable("DebateChallenges", (string)null);
                 });
 
             modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateParticipant", b =>
@@ -135,14 +82,9 @@ namespace SystemService.DAL.Migrations
 
                     b.HasKey("ParticipantId");
 
+                    b.HasIndex("SessionId");
+
                     b.HasIndex("UserId");
-
-                    b.HasIndex("SessionId", "Side")
-                        .IsUnique();
-
-                    b.HasIndex("SessionId", "UserId")
-                        .IsUnique()
-                        .HasFilter("[UserId] IS NOT NULL");
 
                     b.ToTable("DebateParticipants", (string)null);
                 });
@@ -248,8 +190,7 @@ namespace SystemService.DAL.Migrations
 
                     b.HasKey("TurnId");
 
-                    b.HasIndex("SessionId", "TurnOrder")
-                        .IsUnique();
+                    b.HasIndex("SessionId");
 
                     b.ToTable("DebateTurns", (string)null);
                 });
@@ -419,32 +360,6 @@ namespace SystemService.DAL.Migrations
                     b.Navigation("Participant");
 
                     b.Navigation("Turn");
-                });
-
-            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateChallenge", b =>
-                {
-                    b.HasOne("SystemService.DAL.Entities.Identity.User", "ChallengedUser")
-                        .WithMany()
-                        .HasForeignKey("ChallengedUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SystemService.DAL.Entities.Identity.User", "ChallengerUser")
-                        .WithMany()
-                        .HasForeignKey("ChallengerUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("SystemService.DAL.Entities.Debate.DebateSession", "DebateSession")
-                        .WithMany()
-                        .HasForeignKey("DebateSessionId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("ChallengedUser");
-
-                    b.Navigation("ChallengerUser");
-
-                    b.Navigation("DebateSession");
                 });
 
             modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateParticipant", b =>

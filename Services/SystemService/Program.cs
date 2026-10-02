@@ -11,12 +11,16 @@ using System.Text;
 
 using SystemService.BLL.Services.Competition.Implementations;
 using SystemService.BLL.Services.Competition.Interfaces;
+using SystemService.BLL.Services.Debate.Implementations;
+using SystemService.BLL.Services.Debate.Interfaces;
 using SystemService.BLL.Services.Identity.Implementations;
 using SystemService.BLL.Services.Identity.Interfaces;
 
 using SystemService.DAL.Context;
 using SystemService.DAL.Repositories.Competition.Implementations;
 using SystemService.DAL.Repositories.Competition.Interfaces;
+using SystemService.DAL.Repositories.Debate.Implementations;
+using SystemService.DAL.Repositories.Debate.Interfaces;
 using SystemService.DAL.Repositories.Identity.Implementations;
 using SystemService.DAL.Repositories.Identity.Interfaces;
 
@@ -48,7 +52,7 @@ else
 }
 builder.Services.AddSingleton<IOtpCacheService, OtpCacheService>();
 
-// 4. Repositories (Identity & Competition)
+// 4. Repositories (Identity, Competition & Debate)
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
@@ -60,7 +64,10 @@ builder.Services.AddScoped<ICompetitionTeamRequestRepository, CompetitionTeamReq
 builder.Services.AddScoped<ICompetitionJudgeRepository, CompetitionJudgeRepository>();
 builder.Services.AddScoped<IDebateFormatRepository, DebateFormatRepository>();
 
-// 5. Services (Identity & Competition)
+builder.Services.AddScoped<IDebateRepository, DebateRepository>();
+builder.Services.AddScoped<IDebateChallengeRepository, DebateChallengeRepository>();
+
+// 5. Services (Identity, Competition & Debate)
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
@@ -72,6 +79,9 @@ builder.Services.AddScoped<ICompetitionRegistrationService, CompetitionRegistrat
 builder.Services.AddScoped<ICompetitionTeamService, CompetitionTeamService>();
 builder.Services.AddScoped<ICompetitionTeamRequestService, CompetitionTeamRequestService>();
 builder.Services.AddScoped<ICompetitionJudgeService, CompetitionJudgeService>();
+
+builder.Services.AddScoped<IDebateService, DebateService>();
+builder.Services.AddScoped<IDebateChallengeService, DebateChallengeService>();
 
 // 6. Authentication & JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "development-secret-key-super-secret-1234567890";
@@ -108,7 +118,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "System Service API - AI Debate Practice Platform",
         Version = "v1",
-        Description = "Central Business Service handling Identity & Competition Modules."
+        Description = "Central Business Service handling Identity, Competition & Debate Modules."
     });
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
