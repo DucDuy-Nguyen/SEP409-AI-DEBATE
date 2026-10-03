@@ -34,6 +34,106 @@ namespace SystemService.BLL.DTOs.Payment
         public long BonusCredit { get; set; }
     }
 
+    public class CreditPackageAdminResponse
+    {
+        public int PackageId { get; set; }
+        public string PackageCode { get; set; } = null!;
+        public string PackageName { get; set; } = null!;
+        public decimal Price { get; set; }
+        public string Currency { get; set; } = "VND";
+        public long CreditAmount { get; set; }
+        public long BonusCredit { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+    }
+
+    public class CreateCreditPackageRequest
+    {
+        public string PackageCode { get; set; } = null!;
+        public string PackageName { get; set; } = null!;
+        public decimal Price { get; set; }
+        public string Currency { get; set; } = "VND";
+        public long CreditAmount { get; set; }
+        public long BonusCredit { get; set; } = 0;
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class PatchCreditPackageRequest
+    {
+        private string? _packageCode;
+        private bool _hasPackageCode;
+        public string? PackageCode
+        {
+            get => _packageCode;
+            set { _packageCode = value; _hasPackageCode = true; }
+        }
+        public bool HasPackageCode => _hasPackageCode;
+
+        private string? _packageName;
+        private bool _hasPackageName;
+        public string? PackageName
+        {
+            get => _packageName;
+            set { _packageName = value; _hasPackageName = true; }
+        }
+        public bool HasPackageName => _hasPackageName;
+
+        private decimal? _price;
+        private bool _hasPrice;
+        public decimal? Price
+        {
+            get => _price;
+            set { _price = value; _hasPrice = true; }
+        }
+        public bool HasPrice => _hasPrice;
+
+        private string? _currency;
+        private bool _hasCurrency;
+        public string? Currency
+        {
+            get => _currency;
+            set { _currency = value; _hasCurrency = true; }
+        }
+        public bool HasCurrency => _hasCurrency;
+
+        private long? _creditAmount;
+        private bool _hasCreditAmount;
+        public long? CreditAmount
+        {
+            get => _creditAmount;
+            set { _creditAmount = value; _hasCreditAmount = true; }
+        }
+        public bool HasCreditAmount => _hasCreditAmount;
+
+        private long? _bonusCredit;
+        private bool _hasBonusCredit;
+        public long? BonusCredit
+        {
+            get => _bonusCredit;
+            set { _bonusCredit = value; _hasBonusCredit = true; }
+        }
+        public bool HasBonusCredit => _hasBonusCredit;
+
+        private bool? _isActive;
+        private bool _hasIsActive;
+        public bool? IsActive
+        {
+            get => _isActive;
+            set { _isActive = value; _hasIsActive = true; }
+        }
+        public bool HasIsActive => _hasIsActive;
+
+        public bool IsEmpty() =>
+            !_hasPackageCode &&
+            !_hasPackageName &&
+            !_hasPrice &&
+            !_hasCurrency &&
+            !_hasCreditAmount &&
+            !_hasBonusCredit &&
+            !_hasIsActive;
+    }
+
     public class TopUpRequest
     {
         public int PackageId { get; set; }
