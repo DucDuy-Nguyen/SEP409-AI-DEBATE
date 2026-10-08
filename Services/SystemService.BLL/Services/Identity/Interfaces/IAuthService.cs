@@ -15,5 +15,7 @@ namespace SystemService.BLL.Services.Identity.Interfaces
         Task<ApiResponse<object>> VerifyOtpAsync(VerifyOtpRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<object>> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<object>> ChangePasswordAsync(int userId, ChangePasswordRequest request, CancellationToken cancellationToken = default);
+        Task<ApiResponse<LoginResponse>> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default);
+        Task<ApiResponse<object>> RevokeTokenAsync(string token, CancellationToken cancellationToken = default);
     }
 }

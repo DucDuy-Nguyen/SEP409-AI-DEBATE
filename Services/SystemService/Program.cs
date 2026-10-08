@@ -11,12 +11,16 @@ using System.Text;
 
 using SystemService.BLL.Services.Competition.Implementations;
 using SystemService.BLL.Services.Competition.Interfaces;
+using SystemService.BLL.Services.Debate.Implementations;
+using SystemService.BLL.Services.Debate.Interfaces;
 using SystemService.BLL.Services.Identity.Implementations;
 using SystemService.BLL.Services.Identity.Interfaces;
 
 using SystemService.DAL.Context;
 using SystemService.DAL.Repositories.Competition.Implementations;
 using SystemService.DAL.Repositories.Competition.Interfaces;
+using SystemService.DAL.Repositories.Debate.Implementations;
+using SystemService.DAL.Repositories.Debate.Interfaces;
 using SystemService.DAL.Repositories.Identity.Implementations;
 using SystemService.DAL.Repositories.Identity.Interfaces;
 using SystemService.DAL.Repositories.Payment.Implementations;
@@ -29,15 +33,34 @@ using SystemService.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 1. Controllers
 builder.Services.AddControllers();
 
+// 2. DbContext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<SystemDbContext>(options =>
     options.UseSqlServer(connectionString));
 
+// 3. Cache & Distributed Cache
+var redisConnectionString = builder.Configuration.GetConnectionString("Redis");
+if (!string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redisConnectionString;
+        options.InstanceName = "AIDebate_";
+    });
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
+builder.Services.AddSingleton<IOtpCacheService, OtpCacheService>();
+
+// 4. Repositories (Identity, Competition & Debate)
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
-builder.Services.AddScoped<IOtpRepository, OtpRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
 builder.Services.AddScoped<ICompetitionRepository, CompetitionRepository>();
 builder.Services.AddScoped<ICompetitionRegistrationRepository, CompetitionRegistrationRepository>();
@@ -50,6 +73,9 @@ builder.Services.AddScoped<IWalletRepository, WalletRepository>();
 builder.Services.AddScoped<ICreditPackageRepository, CreditPackageRepository>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IRewardRepository, RewardRepository>();
+
+builder.Services.AddScoped<IDebateRepository, DebateRepository>();
+builder.Services.AddScoped<IDebateChallengeRepository, DebateChallengeRepository>();
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -69,6 +95,10 @@ builder.Services.AddScoped<ICreditPackageService, CreditPackageService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IRewardService, RewardService>();
 
+builder.Services.AddScoped<IDebateService, DebateService>();
+builder.Services.AddScoped<IDebateChallengeService, DebateChallengeService>();
+
+// 6. Authentication & JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "development-secret-key-super-secret-1234567890";
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AIDebatePlatform";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AIDebatePlatform";
@@ -95,6 +125,7 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+// 7. Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -102,7 +133,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "System Service API - AI Debate Practice Platform",
         Version = "v1",
-        Description = "Central Business Service handling Identity Module (Authentication, Authorization, User Profile, Roles)."
+        Description = "Central Business Service handling Identity, Competition & Debate Modules."
     });
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -132,6 +163,14 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+// Ensure Database is created
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<SystemDbContext>();
+    context.Database.EnsureCreated();
+}
+
+// Middleware pipeline
 app.UseMiddleware<ExceptionMiddleware>();
 
 if (app.Environment.IsDevelopment())

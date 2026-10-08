@@ -7,5 +7,6 @@ namespace SystemService.BLL.Services.Identity.Interfaces
     public interface ITokenService
     {
         (string Token, DateTime ExpiresAt) GenerateToken(User user, IEnumerable<string> roles);
+        (string Token, DateTime ExpiresAt) GenerateRefreshToken();
     }
 }

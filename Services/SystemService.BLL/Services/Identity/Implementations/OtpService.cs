@@ -4,23 +4,22 @@ using System.Threading;
 using System.Threading.Tasks;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.Services.Identity.Interfaces;
-using SystemService.DAL.Entities.Identity;
 using SystemService.DAL.Repositories.Identity.Interfaces;
 
 namespace SystemService.BLL.Services.Identity.Implementations
 {
     public class OtpService : IOtpService
     {
-        private readonly IOtpRepository _otpRepository;
+        private readonly IOtpCacheService _otpCacheService;
         private readonly IUserRepository _userRepository;
         private readonly IEmailService _emailService;
 
         public OtpService(
-            IOtpRepository otpRepository,
+            IOtpCacheService otpCacheService,
             IUserRepository userRepository,
             IEmailService emailService)
         {
-            _otpRepository = otpRepository;
+            _otpCacheService = otpCacheService;
             _userRepository = userRepository;
             _emailService = emailService;
         }
@@ -51,22 +50,11 @@ namespace SystemService.BLL.Services.Identity.Implementations
                 return ApiResponse<object>.FailureResponse("Invalid OTP type. Allowed types are Registration and ForgotPassword.");
             }
 
-            await _otpRepository.InvalidatePreviousOtpsAsync(normalizedEmail, normalizedType, cancellationToken);
-
             var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString("D6");
-            var expiresAt = DateTime.UtcNow.AddMinutes(5);
+            var expiry = TimeSpan.FromMinutes(5);
 
-            var otpCode = new OtpCode
-            {
-                Email = normalizedEmail,
-                Code = code,
-                Type = normalizedType,
-                ExpiresAt = expiresAt,
-                IsUsed = false,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            await _otpRepository.AddAsync(otpCode, cancellationToken);
+            // Lưu trực tiếp vào Cache với TTL 5 phút (ghi đè và tự động hủy mã cũ)
+            await _otpCacheService.SaveOtpAsync(normalizedEmail, code, normalizedType, expiry, cancellationToken);
 
             var purposeDisplay = normalizedType.Equals("Registration", StringComparison.OrdinalIgnoreCase)
                 ? "Đăng ký tài khoản"
@@ -79,8 +67,8 @@ namespace SystemService.BLL.Services.Identity.Implementations
 
         public async Task<ApiResponse<object>> VerifyOtpAsync(string email, string code, string type, CancellationToken cancellationToken = default)
         {
-            var otp = await _otpRepository.GetLatestValidOtpAsync(email, code, type, cancellationToken);
-            if (otp == null)
+            var cachedOtp = await _otpCacheService.GetOtpAsync(email, type, cancellationToken);
+            if (cachedOtp == null || !string.Equals(cachedOtp.Code, code.Trim(), StringComparison.Ordinal))
             {
                 return ApiResponse<object>.FailureResponse("Invalid or expired OTP code.");
             }
@@ -90,13 +78,14 @@ namespace SystemService.BLL.Services.Identity.Implementations
 
         public async Task<bool> ValidateAndConsumeOtpAsync(string email, string code, string type, CancellationToken cancellationToken = default)
         {
-            var otp = await _otpRepository.GetLatestValidOtpAsync(email, code, type, cancellationToken);
-            if (otp == null)
+            var cachedOtp = await _otpCacheService.GetOtpAsync(email, type, cancellationToken);
+            if (cachedOtp == null || !string.Equals(cachedOtp.Code, code.Trim(), StringComparison.Ordinal))
             {
                 return false;
             }
 
-            await _otpRepository.MarkAsUsedAsync(otp, cancellationToken);
+            // Xóa OTP khỏi cache ngay khi sử dụng để tránh replay
+            await _otpCacheService.RemoveOtpAsync(email, type, cancellationToken);
             return true;
         }
     }

@@ -1,0 +1,16 @@
+{
+  "version": "motions_v1",
+  "description": "10 kiến nghị bối cảnh Việt Nam cho batch Case Planning. Mỗi motion chạy 2 lần (ai_side = pro, con).",
+  "motions": [
+    {"id": "M01", "motion": "Nên cấm học sinh sử dụng điện thoại trong trường học"},
+    {"id": "M02", "motion": "Nên bỏ kỳ thi tốt nghiệp THPT"},
+    {"id": "M03", "motion": "Mạng xã hội gây hại nhiều hơn có lợi cho giới trẻ"},
+    {"id": "M04", "motion": "Nên cấm dạy thêm, học thêm"},
+    {"id": "M05", "motion": "Sinh viên nên đi làm thêm trong thời gian học đại học"},
+    {"id": "M06", "motion": "Nên áp dụng tuần làm việc 4 ngày"},
+    {"id": "M07", "motion": "Nên cấm xe máy ở nội thành các thành phố lớn"},
+    {"id": "M08", "motion": "Nên sử dụng trí tuệ nhân tạo để chấm bài thi"},
+    {"id": "M09", "motion": "Người trẻ nên ở lại quê hương lập nghiệp thay vì lên thành phố"},
+    {"id": "M10", "motion": "Nên đánh thuế cao đối với đồ uống có đường"}
+  ]
+}

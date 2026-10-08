@@ -126,5 +126,28 @@ namespace SystemService.Controllers.Identity
             }
             return Ok(result);
         }
+
+        [HttpPost("refresh-token")]
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _authService.RefreshTokenAsync(request, cancellationToken);
+            if (!result.Success)
+            {
+                return Unauthorized(result);
+            }
+            return Ok(result);
+        }
+
+        [Authorize]
+        [HttpPost("revoke-token")]
+        public async Task<IActionResult> RevokeToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _authService.RevokeTokenAsync(request.RefreshToken, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
     }
 }

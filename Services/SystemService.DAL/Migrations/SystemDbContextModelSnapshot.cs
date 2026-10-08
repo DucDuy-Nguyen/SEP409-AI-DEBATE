@@ -22,6 +22,238 @@ namespace SystemService.DAL.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateArgument", b =>
+                {
+                    b.Property<int>("ArgumentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ArgumentId"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ParticipantId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TurnId")
+                        .HasColumnType("int");
+
+                    b.HasKey("ArgumentId");
+
+                    b.HasIndex("ParticipantId");
+
+                    b.HasIndex("TurnId")
+                        .IsUnique();
+
+                    b.ToTable("DebateArguments", (string)null);
+                });
+
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateChallenge", b =>
+                {
+                    b.Property<int>("ChallengeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ChallengeId"));
+
+                    b.Property<int>("ChallengedUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ChallengerPreferredSide")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("ChallengerUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DebateSessionId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RespondedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("TurnTimeLimitSeconds")
+                        .HasColumnType("int");
+
+                    b.HasKey("ChallengeId");
+
+                    b.HasIndex("ChallengedUserId");
+
+                    b.HasIndex("DebateSessionId");
+
+                    b.HasIndex("ChallengerUserId", "ChallengedUserId", "Status");
+
+                    b.ToTable("DebateChallenges", (string)null);
+                });
+
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateParticipant", b =>
+                {
+                    b.Property<int>("ParticipantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ParticipantId"));
+
+                    b.Property<bool>("IsAI")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("SessionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Side")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("ParticipantId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("SessionId", "Side")
+                        .IsUnique();
+
+                    b.HasIndex("SessionId", "UserId")
+                        .IsUnique()
+                        .HasFilter("[UserId] IS NOT NULL");
+
+                    b.ToTable("DebateParticipants", (string)null);
+                });
+
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateSession", b =>
+                {
+                    b.Property<int>("SessionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("SessionId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CurrentStage")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("CurrentTurnSide")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("DebateType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Difficulty")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("SessionId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.ToTable("DebateSessions", (string)null);
+                });
+
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateTurn", b =>
+                {
+                    b.Property<int>("TurnId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TurnId"));
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("SessionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Side")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("TimeLimitSeconds")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TurnOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("TurnId");
+
+                    b.HasIndex("SessionId", "TurnOrder")
+                        .IsUnique();
+
+                    b.ToTable("DebateTurns", (string)null);
+                });
+
             modelBuilder.Entity("SystemService.DAL.Entities.Identity.OtpCode", b =>
                 {
                     b.Property<int>("Id")
@@ -170,6 +402,91 @@ namespace SystemService.DAL.Migrations
                     b.ToTable("UserRoles", (string)null);
                 });
 
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateArgument", b =>
+                {
+                    b.HasOne("SystemService.DAL.Entities.Debate.DebateParticipant", "Participant")
+                        .WithMany("Arguments")
+                        .HasForeignKey("ParticipantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SystemService.DAL.Entities.Debate.DebateTurn", "Turn")
+                        .WithMany("Arguments")
+                        .HasForeignKey("TurnId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Participant");
+
+                    b.Navigation("Turn");
+                });
+
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateChallenge", b =>
+                {
+                    b.HasOne("SystemService.DAL.Entities.Identity.User", "ChallengedUser")
+                        .WithMany()
+                        .HasForeignKey("ChallengedUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SystemService.DAL.Entities.Identity.User", "ChallengerUser")
+                        .WithMany()
+                        .HasForeignKey("ChallengerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("SystemService.DAL.Entities.Debate.DebateSession", "DebateSession")
+                        .WithMany()
+                        .HasForeignKey("DebateSessionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ChallengedUser");
+
+                    b.Navigation("ChallengerUser");
+
+                    b.Navigation("DebateSession");
+                });
+
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateParticipant", b =>
+                {
+                    b.HasOne("SystemService.DAL.Entities.Debate.DebateSession", "Session")
+                        .WithMany("Participants")
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SystemService.DAL.Entities.Identity.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Session");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateSession", b =>
+                {
+                    b.HasOne("SystemService.DAL.Entities.Identity.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateTurn", b =>
+                {
+                    b.HasOne("SystemService.DAL.Entities.Debate.DebateSession", "Session")
+                        .WithMany("Turns")
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Session");
+                });
+
             modelBuilder.Entity("SystemService.DAL.Entities.Identity.UserRole", b =>
                 {
                     b.HasOne("SystemService.DAL.Entities.Identity.Role", "Role")
@@ -187,6 +504,23 @@ namespace SystemService.DAL.Migrations
                     b.Navigation("Role");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateParticipant", b =>
+                {
+                    b.Navigation("Arguments");
+                });
+
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateSession", b =>
+                {
+                    b.Navigation("Participants");
+
+                    b.Navigation("Turns");
+                });
+
+            modelBuilder.Entity("SystemService.DAL.Entities.Debate.DebateTurn", b =>
+                {
+                    b.Navigation("Arguments");
                 });
 
             modelBuilder.Entity("SystemService.DAL.Entities.Identity.Role", b =>

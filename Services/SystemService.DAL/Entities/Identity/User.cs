@@ -19,5 +19,6 @@ namespace SystemService.DAL.Entities.Identity
         public DateTime? UpdatedAt { get; set; }
 
         public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
+        public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     }
 }

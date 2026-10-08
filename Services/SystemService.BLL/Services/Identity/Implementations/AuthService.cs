@@ -20,6 +20,7 @@ namespace SystemService.BLL.Services.Identity.Implementations
     {
         private readonly IUserRepository _userRepository;
         private readonly IRoleRepository _roleRepository;
+        private readonly IRefreshTokenRepository _refreshTokenRepository;
         private readonly ITokenService _tokenService;
         private readonly IOtpService _otpService;
         private readonly IConfiguration _configuration;
@@ -29,6 +30,7 @@ namespace SystemService.BLL.Services.Identity.Implementations
         public AuthService(
             IUserRepository userRepository,
             IRoleRepository roleRepository,
+            IRefreshTokenRepository refreshTokenRepository,
             ITokenService tokenService,
             IOtpService otpService,
             IConfiguration configuration,
@@ -37,6 +39,7 @@ namespace SystemService.BLL.Services.Identity.Implementations
         {
             _userRepository = userRepository;
             _roleRepository = roleRepository;
+            _refreshTokenRepository = refreshTokenRepository;
             _tokenService = tokenService;
             _otpService = otpService;
             _configuration = configuration;
@@ -147,11 +150,22 @@ namespace SystemService.BLL.Services.Identity.Implementations
             var roles = userWithRoles?.UserRoles.Select(ur => ur.Role.RoleName).ToList() ?? new List<string>();
 
             var (token, expiresAt) = _tokenService.GenerateToken(user, roles);
+            var (refreshToken, refreshTokenExpiresAt) = _tokenService.GenerateRefreshToken();
+
+            await _refreshTokenRepository.AddAsync(new RefreshToken
+            {
+                UserId = user.UserId,
+                Token = refreshToken,
+                ExpiresAt = refreshTokenExpiresAt,
+                CreatedAt = DateTime.UtcNow
+            }, cancellationToken);
 
             var response = new LoginResponse
             {
                 AccessToken = token,
                 ExpiresAt = expiresAt,
+                RefreshToken = refreshToken,
+                RefreshTokenExpiresAt = refreshTokenExpiresAt,
                 User = new UserInfoDto
                 {
                     UserId = user.UserId,
@@ -236,11 +250,22 @@ namespace SystemService.BLL.Services.Identity.Implementations
             var roles = userWithRoles?.UserRoles.Select(ur => ur.Role.RoleName).ToList() ?? new List<string>();
 
             var (token, expiresAt) = _tokenService.GenerateToken(user, roles);
+            var (refreshToken, refreshTokenExpiresAt) = _tokenService.GenerateRefreshToken();
+
+            await _refreshTokenRepository.AddAsync(new RefreshToken
+            {
+                UserId = user.UserId,
+                Token = refreshToken,
+                ExpiresAt = refreshTokenExpiresAt,
+                CreatedAt = DateTime.UtcNow
+            }, cancellationToken);
 
             var response = new LoginResponse
             {
                 AccessToken = token,
                 ExpiresAt = expiresAt,
+                RefreshToken = refreshToken,
+                RefreshTokenExpiresAt = refreshTokenExpiresAt,
                 User = new UserInfoDto
                 {
                     UserId = user.UserId,
@@ -306,6 +331,92 @@ namespace SystemService.BLL.Services.Identity.Implementations
             await _userRepository.UpdateAsync(user, cancellationToken);
 
             return ApiResponse<object>.SuccessResponse(new { }, "Password changed successfully.");
+        }
+
+        public async Task<ApiResponse<LoginResponse>> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken cancellationToken = default)
+        {
+            var storedToken = await _refreshTokenRepository.GetByTokenAsync(request.RefreshToken.Trim(), cancellationToken);
+            if (storedToken == null)
+            {
+                return ApiResponse<LoginResponse>.FailureResponse("Invalid refresh token.");
+            }
+
+            if (storedToken.IsRevoked)
+            {
+                return ApiResponse<LoginResponse>.FailureResponse("Refresh token has been revoked.");
+            }
+
+            if (storedToken.ExpiresAt <= DateTime.UtcNow)
+            {
+                return ApiResponse<LoginResponse>.FailureResponse("Refresh token has expired. Please log in again.");
+            }
+
+            var user = storedToken.User;
+            if (user == null)
+            {
+                user = await _userRepository.GetByIdAsync(storedToken.UserId, cancellationToken);
+            }
+
+            if (user == null || !user.IsActive)
+            {
+                return ApiResponse<LoginResponse>.FailureResponse("User account is inactive or not found.");
+            }
+
+            var userWithRoles = await _userRepository.GetUserWithRolesAsync(user.UserId, cancellationToken);
+            var roles = userWithRoles?.UserRoles.Select(ur => ur.Role.RoleName).ToList() ?? new List<string>();
+
+            var (newAccessToken, accessExpiresAt) = _tokenService.GenerateToken(user, roles);
+            var (newRefreshToken, refreshExpiresAt) = _tokenService.GenerateRefreshToken();
+
+            // Revoke old token and rotate
+            storedToken.IsRevoked = true;
+            storedToken.ReplacedByToken = newRefreshToken;
+            await _refreshTokenRepository.UpdateAsync(storedToken, cancellationToken);
+
+            // Add new refresh token
+            await _refreshTokenRepository.AddAsync(new RefreshToken
+            {
+                UserId = user.UserId,
+                Token = newRefreshToken,
+                ExpiresAt = refreshExpiresAt,
+                CreatedAt = DateTime.UtcNow
+            }, cancellationToken);
+
+            var response = new LoginResponse
+            {
+                AccessToken = newAccessToken,
+                ExpiresAt = accessExpiresAt,
+                RefreshToken = newRefreshToken,
+                RefreshTokenExpiresAt = refreshExpiresAt,
+                User = new UserInfoDto
+                {
+                    UserId = user.UserId,
+                    FullName = user.FullName,
+                    Email = user.Email,
+                    Roles = roles
+                }
+            };
+
+            return ApiResponse<LoginResponse>.SuccessResponse(response, "Token refreshed successfully.");
+        }
+
+        public async Task<ApiResponse<object>> RevokeTokenAsync(string token, CancellationToken cancellationToken = default)
+        {
+            var storedToken = await _refreshTokenRepository.GetByTokenAsync(token.Trim(), cancellationToken);
+            if (storedToken == null)
+            {
+                return ApiResponse<object>.FailureResponse("Token not found.");
+            }
+
+            if (storedToken.IsRevoked)
+            {
+                return ApiResponse<object>.SuccessResponse(new { }, "Token is already revoked.");
+            }
+
+            storedToken.IsRevoked = true;
+            await _refreshTokenRepository.UpdateAsync(storedToken, cancellationToken);
+
+            return ApiResponse<object>.SuccessResponse(new { }, "Token revoked successfully.");
         }
     }
 }
