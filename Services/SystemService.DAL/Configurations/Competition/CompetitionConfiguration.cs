@@ -22,6 +22,11 @@ namespace SystemService.DAL.Configurations.Competition
                 .WithMany()
                 .HasForeignKey(e => e.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(e => e.Format)
+                .WithMany()
+                .HasForeignKey(e => e.FormatId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

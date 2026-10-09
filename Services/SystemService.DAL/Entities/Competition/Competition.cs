@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using SystemService.DAL.Entities.Identity;
+using SystemService.DAL.Entities.Debate;
 
 namespace SystemService.DAL.Entities.Competition
 {
@@ -23,6 +24,7 @@ namespace SystemService.DAL.Entities.Competition
         public DateTime? UpdatedAt { get; set; }
 
         public User Creator { get; set; } = null!;
+        public DebateFormat? Format { get; set; }
         public ICollection<CompetitionRegistration> Registrations { get; set; } = new List<CompetitionRegistration>();
         public ICollection<CompetitionTeam> Teams { get; set; } = new List<CompetitionTeam>();
         public ICollection<CompetitionJudge> Judges { get; set; } = new List<CompetitionJudge>();
