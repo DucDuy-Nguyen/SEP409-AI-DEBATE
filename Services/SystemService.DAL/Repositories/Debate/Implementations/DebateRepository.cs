@@ -70,6 +70,12 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        public async Task UpdateParticipantAsync(DebateParticipant participant, CancellationToken cancellationToken = default)
+        {
+            _context.DebateParticipants.Update(participant);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         public async Task<DebateParticipant?> GetParticipantByUserAsync(int debateSessionId, int userId, CancellationToken cancellationToken = default)
         {
             return await _context.DebateParticipants
@@ -143,6 +149,29 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
         public async Task<DebateFormat?> GetFormatByNameAsync(string formatName, CancellationToken cancellationToken = default)
         {
             return await _context.DebateFormats.FirstOrDefaultAsync(f => f.FormatName.ToLower() == formatName.ToLower(), cancellationToken);
+        }
+
+        public async Task<DebateFormat> GetOrCreateFormatAsync(string formatName, int maxParticipants, int totalRounds = 3, int roundDurationSeconds = 180, CancellationToken cancellationToken = default)
+        {
+            var format = await _context.DebateFormats.FirstOrDefaultAsync(f => f.FormatName.ToLower() == formatName.ToLower(), cancellationToken);
+            if (format != null)
+            {
+                return format;
+            }
+
+            var newFormat = new DebateFormat
+            {
+                FormatName = formatName,
+                MaxParticipants = maxParticipants,
+                TotalRounds = totalRounds,
+                RoundDurationSeconds = roundDurationSeconds,
+                IsActive = true,
+                CreatedAt = System.DateTime.UtcNow
+            };
+
+            await _context.DebateFormats.AddAsync(newFormat, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+            return newFormat;
         }
     }
 }

@@ -14,6 +14,7 @@ namespace SystemService.DAL.Repositories.Debate.Interfaces
         Task<List<DebateSession>> GetUserSessionsAsync(int userId, CancellationToken cancellationToken = default);
         Task UpdateSessionAsync(DebateSession session, CancellationToken cancellationToken = default);
         Task AddParticipantAsync(DebateParticipant participant, CancellationToken cancellationToken = default);
+        Task UpdateParticipantAsync(DebateParticipant participant, CancellationToken cancellationToken = default);
         Task<DebateParticipant?> GetParticipantByUserAsync(int debateSessionId, int userId, CancellationToken cancellationToken = default);
         Task<DebateParticipant?> GetParticipantBySideAsync(int debateSessionId, DebateSide side, CancellationToken cancellationToken = default);
         Task AddArgumentAsync(Argument argument, CancellationToken cancellationToken = default);
@@ -24,5 +25,6 @@ namespace SystemService.DAL.Repositories.Debate.Interfaces
         Task<Topic> GetOrCreateTopicAsync(string title, string? description, string difficulty, int createdBy, CancellationToken cancellationToken = default);
         Task<DebateFormat?> GetFormatByIdAsync(int formatId, CancellationToken cancellationToken = default);
         Task<DebateFormat?> GetFormatByNameAsync(string formatName, CancellationToken cancellationToken = default);
+        Task<DebateFormat> GetOrCreateFormatAsync(string formatName, int maxParticipants, int totalRounds = 3, int roundDurationSeconds = 180, CancellationToken cancellationToken = default);
     }
 }

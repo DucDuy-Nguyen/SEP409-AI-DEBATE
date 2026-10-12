@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -16,6 +17,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
 {
     public class DebateService : IDebateService
     {
+        private static readonly ConcurrentDictionary<string, SideSwapRequestModel> _pendingSwapRequests = new();
+
         private readonly IDebateRepository _debateRepository;
         private readonly IUserRepository _userRepository;
 
@@ -59,8 +62,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 FormatId = format.FormatId,
                 CreatedBy = userId,
                 TurnTimeLimitSeconds = timeLimit,
-                Status = isAi ? SessionStatus.InProgress : SessionStatus.Waiting,
-                StartTime = isAi ? DateTime.UtcNow : null,
+                Status = SessionStatus.Waiting,
+                StartTime = null,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -89,7 +92,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             await _debateRepository.AddSessionAsync(session, cancellationToken);
 
             var fullSession = await _debateRepository.GetSessionWithDetailsAsync(session.DebateSessionId, cancellationToken);
-            var message = isAi ? "AI practice debate session created successfully." : "P2P debate session created. Waiting for opponent to join.";
+            var message = isAi ? "AI practice debate session created. Waiting to start." : "P2P debate session created. Waiting for opponent to join.";
             return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(fullSession!, userId), message);
         }
 
@@ -125,8 +128,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 FormatId = format.FormatId,
                 CreatedBy = userId,
                 TurnTimeLimitSeconds = timeLimit,
-                Status = isAi ? SessionStatus.InProgress : SessionStatus.Waiting,
-                StartTime = isAi ? DateTime.UtcNow : null,
+                Status = SessionStatus.Waiting,
+                StartTime = null,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -155,7 +158,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             await _debateRepository.AddSessionAsync(session, cancellationToken);
 
             var fullSession = await _debateRepository.GetSessionWithDetailsAsync(session.DebateSessionId, cancellationToken);
-            var message = isAi ? "Debate session created with AI opponent." : "P2P debate session created. Waiting for opponent to join.";
+            var message = isAi ? "Debate session created with AI opponent. Waiting to start." : "P2P debate session created. Waiting for opponent to join.";
             return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(fullSession!, userId), message);
         }
 
@@ -208,15 +211,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             await _debateRepository.AddParticipantAsync(newParticipant, cancellationToken);
 
-            session.Status = SessionStatus.InProgress;
-            session.StartTime = DateTime.UtcNow;
-
-            var firstRound = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == 1);
-            if (firstRound != null)
-            {
-                firstRound.StartTime = DateTime.UtcNow;
-            }
-
+            // Session remains in Waiting status until the room creator starts it.
             await _debateRepository.UpdateSessionAsync(session, cancellationToken);
 
             var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
@@ -257,9 +252,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     return ApiResponse<DebateSessionResponse>.FailureResponse("You are not a participant in this debate session.");
                 }
 
+                int maxArgsPerRound = session.Format?.MaxParticipants > 0 ? session.Format.MaxParticipants : 2;
+
                 var currentRound = session.DebateRounds
                     .OrderBy(r => r.RoundNumber)
-                    .FirstOrDefault(r => r.Arguments.Count < 2);
+                    .FirstOrDefault(r => r.Arguments.Count < maxArgsPerRound);
 
                 if (currentRound == null)
                 {
@@ -273,8 +270,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 var expectedTurnSide = DebateSide.PRO;
                 if (currentRound.Arguments.Any())
                 {
-                    var firstSubmittedSide = currentRound.Arguments.First().Participant.Side;
-                    expectedTurnSide = firstSubmittedSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+                    var lastSubmittedSide = currentRound.Arguments.Last().Participant.Side;
+                    expectedTurnSide = lastSubmittedSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
                 }
 
                 if (participant.Side != expectedTurnSide)
@@ -308,7 +305,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
                 await _debateRepository.AddArgumentAsync(argument, cancellationToken);
 
-                if (currentRound.Arguments.Count + 1 >= 2)
+                if (currentRound.Arguments.Count + 1 >= maxArgsPerRound)
                 {
                     currentRound.EndTime = DateTime.UtcNow;
                     await _debateRepository.UpdateRoundAsync(currentRound, cancellationToken);
@@ -342,6 +339,151 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 await transaction.RollbackAsync(cancellationToken);
                 return ApiResponse<DebateSessionResponse>.FailureResponse($"Failed to submit argument: {ex.Message}");
             }
+        }
+
+        public async Task<ApiResponse<DebateSessionResponse>> Create2v2SessionAsync(
+            int userId, Create2v2SessionRequest request, CancellationToken cancellationToken = default)
+        {
+            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+            if (user == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
+            }
+
+            var topic = await _debateRepository.GetOrCreateTopicAsync(
+                request.Title.Trim(), request.Topic.Trim(), "Medium", userId, cancellationToken);
+
+            var formatName = "2 vs 2";
+            var format = await _debateRepository.GetOrCreateFormatAsync(
+                formatName, maxParticipants: 4, totalRounds: 3, roundDurationSeconds: request.TurnTimeLimitSeconds, cancellationToken);
+
+            int timeLimit = request.TurnTimeLimitSeconds;
+            if (timeLimit < 30 || timeLimit > 360)
+            {
+                timeLimit = 180;
+            }
+
+            var isAi = request.IsAI;
+
+            var session = new DebateSession
+            {
+                TopicId = topic.TopicId,
+                FormatId = format.FormatId,
+                CreatedBy = userId,
+                TurnTimeLimitSeconds = timeLimit,
+                Status = SessionStatus.Waiting,
+                StartTime = null,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            session.Participants.Add(new DebateParticipant
+            {
+                UserId = userId,
+                ParticipantType = ParticipantType.USER,
+                Side = request.UserSide,
+                JoinedAt = DateTime.UtcNow
+            });
+
+            if (isAi)
+            {
+                var opponentSide = request.UserSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+
+                session.Participants.Add(new DebateParticipant
+                {
+                    UserId = null,
+                    ParticipantType = ParticipantType.AI,
+                    Side = opponentSide,
+                    JoinedAt = DateTime.UtcNow
+                });
+
+                session.Participants.Add(new DebateParticipant
+                {
+                    UserId = null,
+                    ParticipantType = ParticipantType.AI,
+                    Side = opponentSide,
+                    JoinedAt = DateTime.UtcNow
+                });
+            }
+
+            CreateStandardRounds(session);
+
+            await _debateRepository.AddSessionAsync(session, cancellationToken);
+
+            var fullSession = await _debateRepository.GetSessionWithDetailsAsync(session.DebateSessionId, cancellationToken);
+            var message = isAi ? "2v2 AI debate session created. Waiting for human teammate to join or start." : "2v2 P2P debate session created. Waiting for other participants to join.";
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(fullSession!, userId), message);
+        }
+
+        public async Task<ApiResponse<DebateSessionResponse>> Join2v2SessionAsync(
+            int userId, int sessionId, Join2v2SessionRequest request, CancellationToken cancellationToken = default)
+        {
+            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+            if (user == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
+            }
+
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.");
+            }
+
+            if (session.Status != SessionStatus.Waiting)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse($"Debate session is not open for joining (Status: {session.Status}).");
+            }
+
+            int maxParticipants = 4;
+            if (session.Format != null && session.Format.MaxParticipants > 0 && !session.Format.FormatName.Contains("Solo"))
+            {
+                maxParticipants = Math.Max(4, session.Format.MaxParticipants);
+            }
+
+            if (session.Participants.Count >= maxParticipants)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session is already full.");
+            }
+
+            if (session.Participants.Any(p => p.UserId == userId))
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("User is already a participant in this session.");
+            }
+
+            var proCount = session.Participants.Count(p => p.Side == DebateSide.PRO);
+            var conCount = session.Participants.Count(p => p.Side == DebateSide.CON);
+
+            DebateSide assignedSide;
+            if (request.PreferredSide.HasValue)
+            {
+                if (request.PreferredSide.Value == DebateSide.PRO && proCount < 2)
+                    assignedSide = DebateSide.PRO;
+                else if (request.PreferredSide.Value == DebateSide.CON && conCount < 2)
+                    assignedSide = DebateSide.CON;
+                else
+                    assignedSide = proCount <= conCount ? DebateSide.PRO : DebateSide.CON;
+            }
+            else
+            {
+                assignedSide = proCount <= conCount ? DebateSide.PRO : DebateSide.CON;
+            }
+
+            var newParticipant = new DebateParticipant
+            {
+                DebateSessionId = sessionId,
+                UserId = userId,
+                ParticipantType = ParticipantType.USER,
+                Side = assignedSide,
+                JoinedAt = DateTime.UtcNow
+            };
+
+            await _debateRepository.AddParticipantAsync(newParticipant, cancellationToken);
+
+            // Session remains in Waiting status until the room creator starts it.
+            await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+
+            var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Joined 2v2 debate session successfully.");
         }
 
         public async Task<ApiResponse<DebateTranscriptResponse>> GetTranscriptAsync(int userId, int sessionId, CancellationToken cancellationToken = default)
@@ -432,13 +574,14 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
         private DebateSessionResponse MapToSessionResponse(DebateSession session, int currentUserId)
         {
-            var currentRound = session.DebateRounds.OrderBy(r => r.RoundNumber).FirstOrDefault(r => r.Arguments.Count < 2);
+            int maxArgs = session.Format?.MaxParticipants > 0 ? session.Format.MaxParticipants : 2;
+            var currentRound = session.DebateRounds.OrderBy(r => r.RoundNumber).FirstOrDefault(r => r.Arguments.Count < maxArgs);
 
             var currentTurnSide = DebateSide.PRO;
             if (currentRound != null && currentRound.Arguments.Any())
             {
-                var firstArgumentParticipantSide = currentRound.Arguments.First().Participant.Side;
-                currentTurnSide = firstArgumentParticipantSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+                var lastSubmittedSide = currentRound.Arguments.Last().Participant.Side;
+                currentTurnSide = lastSubmittedSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
             }
 
             return new DebateSessionResponse
@@ -471,12 +614,320 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     Side = currentTurnSide,
                     TurnOrder = currentRound.RoundNumber,
                     TimeLimitSeconds = session.TurnTimeLimitSeconds > 0 ? session.TurnTimeLimitSeconds : (session.Format?.RoundDurationSeconds ?? 180),
-                    Status = TurnStatus.Active,
+                    Status = session.Status == SessionStatus.InProgress ? TurnStatus.Active : TurnStatus.Pending,
                     StartedAt = currentRound.StartTime
                 }
             };
         }
 
         #endregion
+
+        #region 2v2 Side Switching & Swap Requests
+
+        public async Task<ApiResponse<DebateSessionResponse>> SwitchSideAsync(int userId, int sessionId, CancellationToken cancellationToken = default)
+        {
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.");
+            }
+
+            if (session.Status == SessionStatus.Completed || session.Status == SessionStatus.Cancelled)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Cannot switch sides in a completed or cancelled debate.");
+            }
+
+            bool hasArguments = session.DebateRounds.Any(r => r.Arguments.Any());
+            if (hasArguments)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Cannot switch sides once the debate has started submitting arguments.");
+            }
+
+            var participant = session.Participants.FirstOrDefault(p => p.UserId == userId);
+            if (participant == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("You are not a participant in this debate session.");
+            }
+
+            var currentSide = participant.Side;
+            var targetSide = (currentSide == DebateSide.PRO || currentSide == DebateSide.Affirmative) ? DebateSide.CON : DebateSide.PRO;
+
+            int maxPerSide = (session.Format?.MaxParticipants > 0 ? session.Format.MaxParticipants : 4) / 2;
+            var targetSideCount = session.Participants.Count(p => p.Side == targetSide);
+            if (targetSideCount >= maxPerSide)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse($"Phe đối diện ({targetSide}) đã đủ {maxPerSide} người. Vui lòng gửi yêu cầu tráo phe (swap request) với một người chơi bên phe đó.");
+            }
+
+            participant.Side = targetSide;
+            await _debateRepository.UpdateParticipantAsync(participant, cancellationToken);
+
+            var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession ?? session, userId), $"Đổi phe sang {targetSide} thành công.");
+        }
+
+        public async Task<ApiResponse<bool>> SendSwapSideRequestAsync(int userId, int sessionId, SendSwapSideRequest request, CancellationToken cancellationToken = default)
+        {
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<bool>.FailureResponse("Debate session not found.");
+            }
+
+            if (session.Status == SessionStatus.Completed || session.Status == SessionStatus.Cancelled)
+            {
+                return ApiResponse<bool>.FailureResponse("Cannot swap sides in a completed or cancelled debate.");
+            }
+
+            bool hasArguments = session.DebateRounds.Any(r => r.Arguments.Any());
+            if (hasArguments)
+            {
+                return ApiResponse<bool>.FailureResponse("Cannot swap sides once the debate has started submitting arguments.");
+            }
+
+            if (userId == request.TargetUserId)
+            {
+                return ApiResponse<bool>.FailureResponse("Cannot send swap request to yourself.");
+            }
+
+            var requesterParticipant = session.Participants.FirstOrDefault(p => p.UserId == userId);
+            if (requesterParticipant == null)
+            {
+                return ApiResponse<bool>.FailureResponse("You are not a participant in this debate session.");
+            }
+
+            var targetParticipant = session.Participants.FirstOrDefault(p => p.UserId == request.TargetUserId);
+            if (targetParticipant == null)
+            {
+                return ApiResponse<bool>.FailureResponse("Target user is not a participant in this debate session.");
+            }
+
+            if (targetParticipant.ParticipantType == ParticipantType.AI)
+            {
+                return ApiResponse<bool>.FailureResponse("Cannot send swap request to an AI participant.");
+            }
+
+            bool isRequesterPro = requesterParticipant.Side == DebateSide.PRO || requesterParticipant.Side == DebateSide.Affirmative;
+            bool isTargetPro = targetParticipant.Side == DebateSide.PRO || targetParticipant.Side == DebateSide.Affirmative;
+
+            if (isRequesterPro == isTargetPro)
+            {
+                return ApiResponse<bool>.FailureResponse("You can only swap sides with a participant on the opposite side.");
+            }
+
+            string key = $"{sessionId}_{userId}_{request.TargetUserId}";
+            var swapModel = new SideSwapRequestModel
+            {
+                SessionId = sessionId,
+                RequesterUserId = userId,
+                RequesterName = requesterParticipant.User?.FullName ?? $"User {userId}",
+                RequesterSide = requesterParticipant.Side,
+                TargetUserId = request.TargetUserId,
+                TargetName = targetParticipant.User?.FullName ?? $"User {request.TargetUserId}",
+                TargetSide = targetParticipant.Side,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _pendingSwapRequests[key] = swapModel;
+            return ApiResponse<bool>.SuccessResponse(true, "Yêu cầu đổi phe đã được gửi tới đối phương. Đang chờ phản hồi.");
+        }
+
+        public async Task<ApiResponse<DebateSessionResponse>> RespondSwapSideRequestAsync(int userId, int sessionId, RespondSwapSideRequest request, CancellationToken cancellationToken = default)
+        {
+            string key = $"{sessionId}_{request.RequesterUserId}_{userId}";
+            if (!_pendingSwapRequests.TryGetValue(key, out var swapModel))
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Không tìm thấy yêu cầu đổi phe nào từ người chơi này hoặc yêu cầu đã hết hạn.");
+            }
+
+            if ((DateTime.UtcNow - swapModel.CreatedAt).TotalSeconds > 60)
+            {
+                _pendingSwapRequests.TryRemove(key, out _);
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Yêu cầu đổi phe đã hết hạn (quá 60 giây).");
+            }
+
+            _pendingSwapRequests.TryRemove(key, out _);
+
+            if (!request.Accept)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Bạn đã từ chối yêu cầu đổi phe.");
+            }
+
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.");
+            }
+
+            bool hasArguments = session.DebateRounds.Any(r => r.Arguments.Any());
+            if (hasArguments)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Cannot swap sides once the debate has started submitting arguments.");
+            }
+
+            var requesterParticipant = session.Participants.FirstOrDefault(p => p.UserId == request.RequesterUserId);
+            var targetParticipant = session.Participants.FirstOrDefault(p => p.UserId == userId);
+
+            if (requesterParticipant == null || targetParticipant == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("One of the participants is no longer in this session.");
+            }
+
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var tempSide = requesterParticipant.Side;
+                requesterParticipant.Side = targetParticipant.Side;
+                targetParticipant.Side = tempSide;
+
+                await _debateRepository.UpdateParticipantAsync(requesterParticipant, cancellationToken);
+                await _debateRepository.UpdateParticipantAsync(targetParticipant, cancellationToken);
+
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
+
+            var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession ?? session, userId), "Đổi phe giữa 2 người chơi thành công!");
+        }
+
+        public async Task<ApiResponse<List<SideSwapRequestResponse>>> GetPendingSwapRequestsAsync(int userId, int sessionId, CancellationToken cancellationToken = default)
+        {
+            var activeRequests = _pendingSwapRequests.Values
+                .Where(r => r.SessionId == sessionId && r.TargetUserId == userId && (DateTime.UtcNow - r.CreatedAt).TotalSeconds <= 60)
+                .Select(r => new SideSwapRequestResponse
+                {
+                    SessionId = r.SessionId,
+                    RequesterUserId = r.RequesterUserId,
+                    RequesterName = r.RequesterName,
+                    RequesterSide = r.RequesterSide.ToString(),
+                    TargetUserId = r.TargetUserId,
+                    TargetName = r.TargetName,
+                    TargetSide = r.TargetSide.ToString(),
+                    CreatedAt = r.CreatedAt,
+                    ExpiresInSeconds = Math.Max(0, 60 - (int)(DateTime.UtcNow - r.CreatedAt).TotalSeconds)
+                })
+                .ToList();
+
+            return await Task.FromResult(ApiResponse<List<SideSwapRequestResponse>>.SuccessResponse(activeRequests, "Active swap requests retrieved."));
+        }
+
+        public async Task<ApiResponse<DebateSessionResponse>> StartDebateSessionAsync(
+            int userId, int sessionId, CancellationToken cancellationToken = default)
+        {
+            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+            if (user == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
+            }
+
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.");
+            }
+
+            if (session.CreatedBy != userId)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Chỉ chủ phòng mới có quyền bắt đầu cuộc tranh biện.");
+            }
+
+            if (session.Status == SessionStatus.InProgress)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Cuộc tranh biện đã bắt đầu từ trước.");
+            }
+
+            if (session.Status == SessionStatus.Completed || session.Status == SessionStatus.Cancelled)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse($"Không thể bắt đầu cuộc tranh biện đã kết thúc hoặc bị hủy.");
+            }
+
+            var formatName = session.Format?.FormatName?.ToLower() ?? string.Empty;
+            int requiredParticipants = session.Format?.MaxParticipants > 0 ? session.Format.MaxParticipants : 2;
+            if (formatName.Contains("2 vs 2") || formatName.Contains("2v2"))
+            {
+                requiredParticipants = 4;
+            }
+
+            var hasAi = session.Participants.Any(p => p.ParticipantType == ParticipantType.AI);
+
+            // If 2v2 with AI has only 1 human and 2 AI (3 participants), and host starts:
+            // automatically backfill the 4th slot with an AI teammate
+            if (hasAi && requiredParticipants == 4 && session.Participants.Count == 3)
+            {
+                var proCount = session.Participants.Count(p => p.Side == DebateSide.PRO);
+                var emptySide = proCount < 2 ? DebateSide.PRO : DebateSide.CON;
+
+                var aiTeammate = new DebateParticipant
+                {
+                    DebateSessionId = sessionId,
+                    UserId = null,
+                    ParticipantType = ParticipantType.AI,
+                    Side = emptySide,
+                    JoinedAt = DateTime.UtcNow
+                };
+                await _debateRepository.AddParticipantAsync(aiTeammate, cancellationToken);
+                session.Participants.Add(aiTeammate);
+            }
+
+            if (session.Participants.Count < requiredParticipants)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse(
+                    $"Chưa đủ người tham gia ({session.Participants.Count}/{requiredParticipants}). Vui lòng chờ thêm người chơi tham gia để bắt đầu.");
+            }
+
+            if (requiredParticipants == 4)
+            {
+                var proCount = session.Participants.Count(p => p.Side == DebateSide.PRO);
+                var conCount = session.Participants.Count(p => p.Side == DebateSide.CON);
+                if (proCount != 2 || conCount != 2)
+                {
+                    return ApiResponse<DebateSessionResponse>.FailureResponse(
+                        $"Hai phe chưa đủ người cân bằng (PRO: {proCount}/2, CON: {conCount}/2).");
+                }
+            }
+            else if (requiredParticipants == 2)
+            {
+                var proCount = session.Participants.Count(p => p.Side == DebateSide.PRO);
+                var conCount = session.Participants.Count(p => p.Side == DebateSide.CON);
+                if (proCount < 1 || conCount < 1)
+                {
+                    return ApiResponse<DebateSessionResponse>.FailureResponse(
+                        $"Cần ít nhất 1 người bên PRO và 1 người bên CON để bắt đầu.");
+                }
+            }
+
+            session.Status = SessionStatus.InProgress;
+            session.StartTime = DateTime.UtcNow;
+
+            var firstRound = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == 1);
+            if (firstRound != null)
+            {
+                firstRound.StartTime = DateTime.UtcNow;
+            }
+
+            await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+
+            var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Bắt đầu cuộc tranh biện thành công.");
+        }
+
+        #endregion
+    }
+
+    internal class SideSwapRequestModel
+    {
+        public int SessionId { get; set; }
+        public int RequesterUserId { get; set; }
+        public string? RequesterName { get; set; }
+        public DebateSide RequesterSide { get; set; }
+        public int TargetUserId { get; set; }
+        public string? TargetName { get; set; }
+        public DebateSide TargetSide { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 }

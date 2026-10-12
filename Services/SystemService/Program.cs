@@ -76,6 +76,7 @@ builder.Services.AddScoped<IRewardRepository, RewardRepository>();
 
 builder.Services.AddScoped<IDebateRepository, DebateRepository>();
 builder.Services.AddScoped<IDebateChallengeRepository, DebateChallengeRepository>();
+builder.Services.AddScoped<ITopicRepository, TopicRepository>();
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -97,6 +98,7 @@ builder.Services.AddScoped<IRewardService, RewardService>();
 
 builder.Services.AddScoped<IDebateService, DebateService>();
 builder.Services.AddScoped<IDebateChallengeService, DebateChallengeService>();
+builder.Services.AddScoped<ITopicService, TopicService>();
 
 // 6. Authentication & JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "development-secret-key-super-secret-1234567890";

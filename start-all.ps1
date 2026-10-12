@@ -15,15 +15,15 @@ if ($pgStatus -ne "true") {
 
 # 2. Khoi dong AI Opponent Service (Port 8002)
 Write-Host "`n[2/4] Khoi dong AI Opponent Service (Port 8002)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd 'D:\AI-Debate\AiServices\ai-opponent-service'; if (Test-Path 'venv\Scripts\activate.ps1') { .\venv\Scripts\activate }; python -m uvicorn app.main:app --port 8002 --reload"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\AiServices\ai-opponent-service'; if (Test-Path 'venv\Scripts\activate.ps1') { .\venv\Scripts\activate }; python -m uvicorn app.main:app --port 8002 --reload"
 
 # 3. Khoi dong AI Evaluator Service (Port 8000)
 Write-Host "`n[3/4] Khoi dong AI Evaluator Service (Port 8000)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd 'D:\AI-Debate\AiServices\ai-evaluator-service'; if (Test-Path 'venv\Scripts\activate.ps1') { .\venv\Scripts\activate }; python -m uvicorn app.main:app --port 8000 --reload"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\AiServices\ai-evaluator-service'; if (Test-Path 'venv\Scripts\activate.ps1') { .\venv\Scripts\activate }; python -m uvicorn app.main:app --port 8000 --reload"
 
 # 4. Khoi dong YARP API Gateway (Port 5000)
 Write-Host "`n[4/4] Khoi dong YARP API Gateway (.NET 8, Port 5000)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd 'D:\AI-Debate\Gateway'; dotnet run"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\Gateway'; dotnet run"
 
 Write-Host "`n==========================================================" -ForegroundColor Green
 Write-Host "Da khoi dong cac tien trinh thanh cong!" -ForegroundColor Green
