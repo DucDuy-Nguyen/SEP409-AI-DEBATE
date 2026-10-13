@@ -8,7 +8,7 @@ regex parse sai khi LLM tra loi khong dung dinh dang tuyet doi.
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class DebateSide(str, Enum):
@@ -189,3 +189,97 @@ class SessionEvaluationResult(BaseModel):
     overall_weaknesses: list[str] = Field(default_factory=list)
     overall_suggestions: list[str] = Field(default_factory=list)
     raw_model_output: Optional[str] = None
+
+
+# ============================================================================
+# COACHING (Argument-level + Round-level): goi y SAU KHI da cham — phuong phap
+# cai thien theo tieu chi yeu + huong phat trien chinh y cua learner. KHONG
+# cham lai, KHONG viet lai bai thay learner.
+# ============================================================================
+
+# Khong import RUBRIC tu app.prompts de tranh import vong (evaluator_prompt.py
+# import schemas.py) — 5 = so tieu chi trong RUBRIC.
+_RUBRIC_CRITERIA_COUNT = 5
+
+
+def _check_all_criteria(criteria: list[CriterionScore], source_endpoint: str) -> None:
+    if len(criteria) != _RUBRIC_CRITERIA_COUNT:
+        raise ValueError(
+            f"evaluation.criteria phai co du {_RUBRIC_CRITERIA_COUNT} tieu chi "
+            f"(nhan duoc {len(criteria)}) — hay truyen nguyen ket qua tu {source_endpoint}"
+        )
+
+
+class ArgumentCoachingRequest(BaseModel):
+    """
+    Input: bai goc + ket qua /evaluate DA CO, truyen lai nguyen ven (giong cach
+    /evaluate/session nhan lai ket qua Round) — khong cham lai, chi 1 lan goi LLM
+    va nhat quan voi diem learner da thay.
+    """
+
+    request: ArgumentEvaluationRequest
+    evaluation: ArgumentEvaluationResult
+
+    @field_validator("evaluation")
+    @classmethod
+    def must_have_all_criteria(cls, v: ArgumentEvaluationResult) -> ArgumentEvaluationResult:
+        _check_all_criteria(v.criteria, "/evaluate")
+        return v
+
+
+class RoundCoachingRequest(BaseModel):
+    """Input: round goc + ket qua /evaluate/round DA CO, truyen lai nguyen ven."""
+
+    request: RoundEvaluationRequest
+    evaluation: RoundEvaluationResult
+
+    @field_validator("evaluation")
+    @classmethod
+    def must_have_all_criteria(cls, v: RoundEvaluationResult) -> RoundEvaluationResult:
+        _check_all_criteria(v.criteria, "/evaluate/round")
+        return v
+
+    @model_validator(mode="after")
+    def stage_must_match(self) -> "RoundCoachingRequest":
+        # Chan ghep nham ket qua cua round khac (vi du request opening + evaluation rebuttal).
+        if self.request.stage != self.evaluation.stage:
+            raise ValueError(
+                f"request.stage ({self.request.stage.value}) khac evaluation.stage "
+                f"({self.evaluation.stage.value}) — evaluation phai la ket qua cham cua chinh round nay"
+            )
+        return self
+
+
+class CriterionCoaching(BaseModel):
+    """Goi y cai thien cho 1 tieu chi yeu."""
+
+    name: str
+    current_score: int = Field(
+        ..., ge=1, le=5, description="Lay tu ket qua cham da co, KHONG doc tu gia tri LLM tu tra ve"
+    )
+    diagnosis: str = Field(..., description="Van de cu the cua tieu chi nay trong chinh bai nay")
+    methods: list[str] = Field(..., min_length=1, description="2-3 ky thuat cu the de cai thien")
+    application: str = Field(
+        ..., description="Cach ap dung vao chinh bai nay — goi y huong, KHONG viet lai bai thay learner"
+    )
+
+
+class IdeaDevelopment(BaseModel):
+    """Goi y phat trien chinh luan diem learner da neu."""
+
+    core_claim: str = Field(..., description="Tom tat luan diem chinh learner da neu")
+    directions: list[str] = Field(..., min_length=1, description="2-4 huong dao sau luan diem")
+    evidence_to_look_for: list[str] = Field(
+        default_factory=list,
+        description="LOAI dan chung nen tim — mo ta loai, KHONG phai so lieu/nguon cu the (tranh bia)",
+    )
+
+
+class CoachingResult(BaseModel):
+    """Output: goi y sau khi cham — dung chung cho ca cap Argument va Round."""
+
+    focus_criteria: list[CriterionCoaching]
+    idea_development: IdeaDevelopment
+    raw_model_output: Optional[str] = Field(
+        default=None, description="Output tho tu LLM — luu de debug / audit, khong hien thi cho learner"
+    )

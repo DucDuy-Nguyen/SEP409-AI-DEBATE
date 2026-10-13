@@ -16,6 +16,8 @@
 | Argument | `POST /evaluate` | 1 lượt nói + lượt đối thủ gần nhất | Điểm 5 tiêu chí, thang 10 | `app/services/evaluator.py` |
 | Round | `POST /evaluate/round` | Toàn bộ lượt nói qua lại trong 1 giai đoạn | Điểm round + đánh giá tính nhất quán | `app/services/round_evaluator.py` |
 | Session | `POST /evaluate/session` | Danh sách Round đã chấm | Điểm tổng (tính toán học) + báo cáo tổng hợp (LLM) | `app/services/session_evaluator.py` |
+| Coaching (Argument) | `POST /coaching/argument` | Bài gốc + kết quả `/evaluate` đã có | Phương pháp cải thiện tiêu chí yếu + hướng phát triển chính ý (xem 2.8) | `app/services/coaching.py` |
+| Coaching (Round) | `POST /coaching/round` | Round gốc + kết quả `/evaluate/round` đã có | Như trên, xét trên toàn bộ lượt nói của learner trong round (xem 2.8) | `app/services/coaching.py` |
 
 Session KHÔNG gọi LLM để tính điểm — `overall_score` và `stage_breakdown` được
 tính trung bình cộng từ các `round_score` đã có sẵn (minh bạch, kiểm chứng được,
@@ -138,6 +140,56 @@ Da thong nhat: goi API 2 lan doc lap (1 lan/nguoi, dao vai `speaker` learner/
 opponent), Backend tu so sanh 2 ket qua de xac dinh thang-thua. AI Evaluator
 KHONG can them logic pairwise-comparison rieng — giu nguyen tac 2 service
 (AI Debater / AI Evaluator) doc lap, khong biet ve nhau.
+
+### 2.8. Coaching — goi y SAU KHI cham (2026-10, cap Argument + Round)
+
+Van de: ket qua cham chi co `suggestions` 1-2 cau chung chung. Learner biet
+minh yeu o dau nhung chua biet LAM THE NAO de sua, va chua duoc goi y phat
+trien chinh y cua minh. Them endpoint rieng `POST /coaching/argument`, tra ve:
+(1) phuong phap cai thien cho cac tieu chi yeu (diagnosis + methods +
+application), (2) huong phat trien chinh luan diem learner da neu (core_claim
++ directions + LOAI dan chung nen tim).
+
+Quyet dinh + ly do:
+- **Nhan lai ket qua /evaluate, KHONG cham lai** (giong /evaluate/session
+  nhan lai ket qua Round): 1 lan goi LLM thay vi 2, va nhat quan voi diem
+  learner da thay (neu cham lai, diem co the khac do dao dong da biet o 3.8).
+- **Code chon tieu chi can goi y, khong de LLM chon**: tieu chi <= 3 diem, thap
+  nhat truoc, hoa diem theo thu tu RUBRIC, toi da 3; bai da tot (moi tieu chi
+  >= 4) thi lay 1 tieu chi thap nhat. `current_score` luon lay tu ket qua cham,
+  bo qua so LLM tu dua — cung nguyen tac 3.8. LLM tra sai/thieu ten tieu chi
+  -> coi la loi dinh dang -> retry.
+- **KHONG viet lai bai thay learner**: giu nguyen tac "khong bai mau chuan"
+  (DEBO/Themis) — tranh learner chep nguyen van.
+- **KHONG dua so lieu/nguon cu the, chi mo ta LOAI dan chung**: khop 2.5 (khong
+  fact-check) va lich su hallucination 3.4. Khi chay that lan dau, AI van neu
+  ten thanh pho cu the lam vi du "da ap dung lenh cam xe may" (khang dinh co
+  the sai) -> da siet prompt cam neu ten quoc gia/thanh pho/su kien nhu vi du
+  "da xay ra"; chay lai khong con xuat hien (moi kiem 1 lan, chua phai bang
+  chung chac chan vi LLM co tinh ngau nhien).
+- **Tai su dung ArgumentContext (SOLO/INTERACTIVE)**: bai khong co doi phuong
+  thi mo ta tieu chi khong nhac "phan bien doi phuong".
+
+**Mo rong sang Round (2026-10):** them `POST /coaching/round`, dung chung
+system prompt, cach chon tieu chi va kieu ket qua (`CoachingResult`) voi cap
+Argument. Khac: xet tren tat ca luot noi cua learner; context SOLO/INTERACTIVE
+suy tu `turns` (tai su dung infer_round_context); round INTERACTIVE them yeu
+cau goi y cach phan hoi luot cua doi phuong; `request.stage` phai trung
+`evaluation.stage` (chan ghep nham ket qua round khac).
+
+**2 loi phat hien khi chay that cap Round (S01 rebuttal), da sua:**
+- AI van bia so lieu khi lach bang nhan "vi du" ("vi du: ty le tang 30% tram
+  cam o nguoi dung Facebook tren 2 gio/ngay"). Siet prompt: cam ca trong vi du
+  minh hoa, de trong con so (X%) hoac mo ta dinh tinh, chi duoc nhac lai so
+  CO SAN trong bai learner. Chay lai 2 lan + quet tu dong moi con so khong co
+  trong bai goc: chi con so thu tu luot noi ("luot 3 cua doi phuong"), khong
+  con so lieu bia.
+- Groq JSON mode tu choi output JSON hong phia server -> `400
+  json_validate_failed` -> lot ra loi 500 (khong thuoc loai loi
+  call_llm_with_retry bat). Loi CO SAN o GroqClient, anh huong MOI endpoint,
+  khong rieng coaching. Sua: GroqClient doi loi nay thanh EvaluationParseError
+  de duoc retry nhu loi dinh dang thuong; loi 400 khac van giu nguyen.
+  Test: tests/test_llm_client.py.
 
 ---
 
@@ -436,6 +488,49 @@ scripts/run_session_batch_eval.py tren toan bo 8 session (bao gom
 S02_declining, session da gay loi truoc do) — KHONG CON xuat hien dong loi
 ValidationError nao, ca 8/8 session chay het.
 
+## 3.9. Thi nghiem: viet lai mo ta bac diem theo tung tieu chi (anchors) — KHONG DAT, da revert (2026-10)
+
+**Gia thuyet:** diem tung tieu chi don thap (3.3) mot phan do 5 cau chung
+`GRADING_TIERS`, dac biet bac 5 "dap ung nghiem ngat moi tieu chi" (nghi tu
+3.6, chua tung kiem tra o cap tieu chi). Thay bang mo ta HANH VI cu the cho muc
+1/3/5 cua TUNG tieu chi (behavioral anchors) se giam lech don thap.
+
+**Cach do:** `scripts/run_dagstuhl_agreement_eval.py --n 30 --runs 2 --seed 42`,
+chay baseline TRUOC khi sua prompt, roi chay lai CUNG mau sau khi sua. Them chi
+so `mean_bias` (= TB AI - TB nguoi, co dau) vi Pearson r KHONG nhay voi lech
+don (AI thap deu hon nguoi van co r cao) va `avg_ai_range` (dao dong giua cac
+lan cham). Tieu chi quyet dinh chot TRUOC khi xem so: giu neu |mean_bias| co lai
+o da so 6 cap, r Overall khong giam qua ~0.1, range khong tang ro.
+
+| Cap | \|bias\| truoc -> sau | r truoc -> sau |
+|---|---|---|
+| Overall | 0.86 -> 1.13 (xau hon) | 0.605 -> 0.525 |
+| Logic vs Cogency | 0.82 -> 0.69 (tot hon) | 0.370 -> 0.273 |
+| Evidence vs LocalSufficiency | 1.88 -> 2.00 (xau hon) | 0.259 -> 0.194 |
+| Relevance vs GlobalRelevance | 0.71 -> 1.67 (xau hon) | 0.610 -> 0.483 |
+| Structure vs Arrangement | 1.95 -> 1.11 (tot hon) | 0.724 -> 0.513 |
+| Persuasiveness vs Effectiveness | 0.51 -> 0.64 (xau hon) | 0.392 -> 0.232 |
+
+**Ket qua: KHONG DAT** — bias chi co lai o 2/6 cap, va r GIAM o CA 6 cap (giam
+nhieu nhat o Structure, 0.21). Theo tieu chi da chot -> da revert prompt ve
+`GRADING_TIERS` cu. Giu lai phan chi so moi trong script (mean_bias,
+avg_ai_range, `--output`) vi van huu ich cho cac thi nghiem sau.
+
+**Nhan xet:**
+- Lech KHONG mot chieu nhu gia dinh ban dau: o baseline, Overall (+0.86) va
+  Relevance (+0.71) AI cham CAO hon nguoi; chi Evidence (-1.88) va Structure
+  (-1.95) moi la don thap ro. Anchors noi long Structure duoc, nhung day
+  Relevance va Overall lech them.
+- Evidence sau khi sua bi cham ~1/5 gan nhu moi bai (range = 0): anchor muc 5
+  doi "so lieu, nghien cuu, truong hop that" co the lai khat khe hon voi kieu
+  argument ngan tren dien dan cua Dagstuhl.
+- Luu y khi doc so Overall: diem tong theo cong thuc (tong/25*10) co san la 2.0,
+  con diem tieu chi quy doi (score-1)/4*10 co san la 0 — 2 thang lech nhau, nen
+  bias Overall khong so truc tiep voi bias tung tieu chi duoc.
+- Han che: n=30, 1 lan thu, 1 bo anchors. Ket luan chi la "bo anchors NAY khong
+  tot hon", chua phai "anchors noi chung vo ich". Neu thu lai: sua rieng tung
+  tieu chi don thap (Evidence, Structure) thay vi doi ca 5 cung luc.
+
 ---
 
 ## 4. Viec con treo (chua lam / dang cho)
@@ -475,3 +570,10 @@ ValidationError nao, ca 8/8 session chay het.
   hallucination (TC12).
 - Batch test 5 session / 14 round -> phat hien 1 hallucination nua (S01, S03
   closing) + gia thuyet "round 1 luot bi bat loi".
+- 2026-10: Them endpoint Coaching cap Argument (`POST /coaching/argument`) —
+  goi y sau khi cham, khong cham lai, khong viet lai bai (xem 2.8).
+- 2026-10: Them `POST /coaching/round`; sua GroqClient retry khi Groq tra
+  `400 json_validate_failed` (truoc day thanh loi 500) — xem 2.8.
+- 2026-10: Thi nghiem anchors theo tung tieu chi (Dagstuhl n=30, do truoc/sau)
+  -> KHONG DAT, da revert prompt; giu chi so mean_bias/avg_ai_range trong
+  script do — xem 3.9.

@@ -17,6 +17,11 @@ backend chính. Frontend / backend khác gọi sang service này qua HTTP.
 | **Round** | `POST /evaluate/round` | Chấm **cả 1 giai đoạn** (opening / rebuttal / closing) gồm nhiều lượt qua lại, có đánh giá thêm **tính nhất quán** của learner xuyên suốt giai đoạn | `round_score` (0–10) |
 | **Session** | `POST /evaluate/session` | Tổng hợp **cả phiên** từ các kết quả Round đã chấm, ra báo cáo cuối phiên | `overall_score` (0–10) + điểm từng giai đoạn |
 
+Ngoài 3 cấp chấm điểm còn có **Coaching** (`POST /coaching/argument` và
+`POST /coaching/round`): gọi **sau** khi đã chấm 1 lượt nói hoặc 1 round, trả
+về phương pháp cải thiện cho các tiêu chí yếu và hướng phát triển chính luận
+điểm của learner — xem mục 4.4 và 4.5.
+
 ### Rubric 5 tiêu chí
 
 `Logic`, `Evidence`, `Relevance`, `Structure`, `Persuasiveness` — mỗi tiêu chí
@@ -66,14 +71,17 @@ app/
     evaluator_prompt.py    # rubric + prompt cấp Argument, logic SOLO/INTERACTIVE
     round_prompt.py        # prompt cấp Round (tái sử dụng rubric ở trên)
     session_prompt.py      # prompt tổng hợp nhận xét cấp Session
+    coaching_prompt.py     # prompt gợi ý sau khi chấm (Coaching, cấp Argument + Round)
   services/
     llm_client.py          # 1 interface chung cho 4 provider LLM
     json_utils.py          # parse JSON từ output LLM + retry dùng chung
     evaluator.py           # service cấp Argument
     round_evaluator.py     # service cấp Round
     session_evaluator.py   # service cấp Session
+    coaching.py            # service Coaching (chọn tiêu chí yếu + gọi LLM gợi ý)
   routers/
-    evaluate.py            # 3 endpoint POST
+    evaluate.py            # 3 endpoint POST /evaluate...
+    coaching.py            # POST /coaching/argument, /coaching/round
 tests/                     # unit test chạy offline (không cần API key)
 scripts/                   # công cụ nghiên cứu/validate (tốn API thật) — xem mục 6
 docs/
@@ -148,7 +156,7 @@ uvicorn app.main:app --reload
 Service chạy ở `http://localhost:8000` (cổng mặc định của uvicorn; đổi bằng
 `--port`). Các trang có sẵn:
 
-- `http://localhost:8000/docs` — **Swagger UI**, gửi thử request cho cả 3 endpoint.
+- `http://localhost:8000/docs` — **Swagger UI**, gửi thử request cho tất cả endpoint.
 - `http://localhost:8000/demo` — trang HTML đơn giản để thử `/evaluate` bằng giao diện.
 - `http://localhost:8000/health` — kiểm tra service sống và đang dùng provider nào.
 
@@ -265,6 +273,99 @@ Response gồm `overall_score` (trung bình các `round_score`, ở ví dụ tr�
 "rebuttal": 8.0}`), `progress_trend`, `overall_strengths`,
 `overall_weaknesses`, `overall_suggestions`.
 
+### 4.4. `POST /coaching/argument` — gợi ý sau khi chấm
+
+Gọi **sau** `/evaluate`, truyền lại **bài gốc** (`request`, đúng body đã gửi
+cho `/evaluate`) và **kết quả chấm đã nhận** (`evaluation`, nguyên vẹn).
+Không chấm lại — điểm learner đã thấy giữ nguyên.
+
+```json
+{
+  "request": {
+    "motion": "THBT mạng xã hội gây hại nhiều hơn lợi",
+    "side": "pro",
+    "stage": "rebuttal",
+    "argument_text": "Mạng xã hội làm giảm thời gian tương tác trực tiếp giữa con người, dẫn đến suy giảm kỹ năng giao tiếp xã hội ở giới trẻ.",
+    "opponent_argument_text": "Mạng xã hội giúp kết nối người ở xa nhau."
+  },
+  "evaluation": {
+    "overall_score": 6.4,
+    "overall_reasoning": "Lập luận đúng đề tài nhưng thiếu bằng chứng cụ thể.",
+    "criteria": [
+      {"name": "Logic", "score": 4, "reasoning": "..."},
+      {"name": "Evidence", "score": 2, "reasoning": "..."},
+      {"name": "Relevance", "score": 4, "reasoning": "..."},
+      {"name": "Structure", "score": 3, "reasoning": "..."},
+      {"name": "Persuasiveness", "score": 3, "reasoning": "..."}
+    ],
+    "strengths": ["..."],
+    "weaknesses": ["..."],
+    "suggestions": ["..."]
+  }
+}
+```
+
+Response:
+
+- `focus_criteria` — gợi ý cho các tiêu chí **yếu nhất**: các tiêu chí
+  ≤ 3 điểm, thấp nhất trước, tối đa 3 (nếu mọi tiêu chí ≥ 4 thì lấy 1 tiêu chí
+  thấp nhất để nâng cao). Việc chọn do **code** quyết định, không để AI tự chọn.
+  Mỗi phần tử gồm `name`, `current_score` (lấy từ kết quả chấm), `diagnosis`
+  (vấn đề cụ thể trong bài), `methods` (2–3 kỹ thuật), `application` (áp dụng
+  vào chính bài này).
+- `idea_development` — `core_claim` (luận điểm chính learner đã nêu),
+  `directions` (2–4 hướng đào sâu), `evidence_to_look_for` (các **loại** dẫn
+  chứng nên tìm).
+
+Coaching **không viết lại bài** thay learner và **không đưa số liệu/nguồn cụ
+thể** (chỉ mô tả loại dẫn chứng) — để learner tự viết và tự kiểm chứng, tránh
+AI bịa dẫn chứng. Không có `opponent_argument_text` thì không gợi ý "phản biện
+đối phương". `evaluation.criteria` phải đủ 5 tiêu chí, nếu không sẽ trả 422.
+
+### 4.5. `POST /coaching/round` — gợi ý sau khi chấm cả 1 round
+
+Giống 4.4 nhưng cho cấp Round: truyền lại **round gốc** (`request`, đúng body
+đã gửi cho `/evaluate/round`) và **kết quả `/evaluate/round` đã nhận**
+(`evaluation`). Gợi ý xét trên **tất cả lượt nói** của learner trong round.
+
+```json
+{
+  "request": {
+    "motion": "THBT mạng xã hội gây hại nhiều hơn lợi",
+    "side": "pro",
+    "stage": "rebuttal",
+    "turns": [
+      {"speaker": "opponent", "text": "Mạng xã hội giúp kết nối người ở xa nhau."},
+      {"speaker": "learner", "text": "Kết nối số lượng không đồng nghĩa chất lượng — 500 bạn Facebook không cứu được ai khỏi cô đơn lúc nửa đêm."}
+    ]
+  },
+  "evaluation": {
+    "stage": "rebuttal",
+    "round_score": 6.0,
+    "criteria": [
+      {"name": "Logic", "score": 3, "reasoning": "..."},
+      {"name": "Evidence", "score": 2, "reasoning": "..."},
+      {"name": "Relevance", "score": 4, "reasoning": "..."},
+      {"name": "Structure", "score": 3, "reasoning": "..."},
+      {"name": "Persuasiveness", "score": 3, "reasoning": "..."}
+    ],
+    "consistency_note": "Giữ vững lập trường nhưng chưa có dẫn chứng.",
+    "strengths": ["..."],
+    "weaknesses": ["..."],
+    "suggestions": ["..."]
+  }
+}
+```
+
+Response có **cùng cấu trúc** với `/coaching/argument` (`focus_criteria` +
+`idea_development`). Khác biệt:
+
+- Round **có** lượt `opponent` → phần `application` có thể chỉ ra learner nên
+  phản hồi lượt nào của đối phương tốt hơn. Round chỉ có lượt `learner` → không
+  nhắc gì đến đối phương.
+- `request.stage` phải trùng `evaluation.stage` (chặn ghép nhầm kết quả của
+  round khác), nếu không sẽ trả 422.
+
 ### Mã lỗi
 
 - `422` — request sai schema (thiếu field, giá trị `side`/`stage` không hợp
@@ -282,8 +383,8 @@ Response gồm `overall_score` (trung bình các `round_score`, ở ví dụ tr�
 python -m pytest tests/ -v
 ```
 
-Hiện có **32 test** (4 test API, 15 test cấp Argument, 8 test cấp Round, 5 test
-cấp Session). Tất cả chạy **offline** bằng `FakeLLMClient` (giả lập câu trả lời
+Hiện có **48 test** (4 test API, 15 test cấp Argument, 8 test cấp Round, 5 test
+cấp Session, 13 test Coaching, 3 test xử lý lỗi của Groq client). Tất cả chạy **offline** bằng `FakeLLMClient` (giả lập câu trả lời
 của LLM) — **không cần API key, không tốn tiền**. Nên chạy lại mỗi khi sửa code.
 
 > Trên Windows / PowerShell, dùng `python -m pytest` thay vì gọi `pytest` trực tiếp.
@@ -327,7 +428,7 @@ lại cách tính điểm tổng, xử lý hallucination, kết quả so với n
 ## 8. Tích hợp với Frontend / Backend khác
 
 Service này chạy trên cổng riêng (mặc định `8000`). Bên gọi gửi HTTP `POST`
-với body JSON tới 3 endpoint ở mục 4 và nhận lại JSON.
+với body JSON tới các endpoint ở mục 4 và nhận lại JSON.
 
 **Chưa có, cần bổ sung trước khi lên production thật** (không phải việc cần
 làm ngay):

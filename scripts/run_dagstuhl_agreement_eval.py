@@ -362,33 +362,47 @@ def run_batch(df: pd.DataFrame, settings, client, n_runs: int, rows: list) -> No
 
 
 def compute_agreement_metrics(rows: list[dict]) -> dict[str, dict]:
-    """Pearson r, p-value, MAE cho TUNG cap trong COMPARISON_PAIRS rieng biet."""
+    """
+    Cho TUNG cap trong COMPARISON_PAIRS: Pearson r, p-value, MAE, cung voi
+    ai_mean / human_mean / mean_bias (AI - nguoi, co dau) va avg_ai_range.
+    Pearson r KHONG nhay voi do lech don (AI thap deu hon nguoi van co r cao),
+    nen can mean_bias de do truc tiep hien tuong "diem don thap"; avg_ai_range
+    (TB max-min giua cac lan cham) do dao dong.
+    """
     from scipy import stats
 
     metrics = {}
     for label, ai_field, dim_key in COMPARISON_PAIRS:
         pairs = []
+        ranges = []
         for r in rows:
             human_val = r.get("human_scores_10", {}).get(dim_key)
             ai_val = r.get("ai_avg", {}).get(ai_field)
             if human_val is not None and ai_val is not None:
                 pairs.append((human_val, ai_val))
+                ai_range = r.get("ai_range", {}).get(ai_field)
+                if ai_range is not None:
+                    ranges.append(ai_range)
 
-        if len(pairs) < 2:
-            metrics[label] = {"n": len(pairs), "pearson_r": None, "p_value": None, "mae": None}
-            continue
-
-        human_scores = [p[0] for p in pairs]
-        ai_scores = [p[1] for p in pairs]
-        pearson_r, p_value = stats.pearsonr(human_scores, ai_scores)
-        mae = sum(abs(h - a) for h, a in pairs) / len(pairs)
-
-        metrics[label] = {
-            "n": len(pairs),
-            "pearson_r": round(pearson_r, 3),
-            "p_value": round(p_value, 4),
-            "mae": round(mae, 2),
+        metric = {
+            "n": len(pairs), "pearson_r": None, "p_value": None, "mae": None,
+            "ai_mean": None, "human_mean": None, "mean_bias": None,
+            "avg_ai_range": round(sum(ranges) / len(ranges), 2) if ranges else None,
         }
+        if pairs:
+            human_mean = sum(p[0] for p in pairs) / len(pairs)
+            ai_mean = sum(p[1] for p in pairs) / len(pairs)
+            metric.update({
+                "ai_mean": round(ai_mean, 2),
+                "human_mean": round(human_mean, 2),
+                "mean_bias": round(ai_mean - human_mean, 2),
+                "mae": round(sum(abs(h - a) for h, a in pairs) / len(pairs), 2),
+            })
+        if len(pairs) >= 2:
+            pearson_r, p_value = stats.pearsonr([p[0] for p in pairs], [p[1] for p in pairs])
+            metric.update({"pearson_r": round(pearson_r, 3), "p_value": round(p_value, 4)})
+
+        metrics[label] = metric
     return metrics
 
 
@@ -460,7 +474,12 @@ def export_to_excel(rows: list[dict], metrics: dict, path: Path):
     ws2["A1"] = "Agreement Rate — AI vs Human (Dagstuhl-15512-ArgQuality corpus, 6 cap so sanh)"
     ws2["A1"].font = Font(name=FONT, size=13, bold=True)
 
-    metrics_headers = ["Comparison", "N", "Pearson r", "p-value", "MAE (0-10)"]
+    metric_columns = [
+        ("N", "n"), ("Pearson r", "pearson_r"), ("p-value", "p_value"), ("MAE (0-10)", "mae"),
+        ("AI mean", "ai_mean"), ("Human mean", "human_mean"),
+        ("Mean bias (AI - nguoi)", "mean_bias"), ("Avg AI range", "avg_ai_range"),
+    ]
+    metrics_headers = ["Comparison"] + [h for h, _ in metric_columns]
     for col, h in enumerate(metrics_headers, start=1):
         cell = ws2.cell(row=3, column=col, value=h)
         cell.font = HEADER_FONT
@@ -470,11 +489,9 @@ def export_to_excel(rows: list[dict], metrics: dict, path: Path):
     for i, (label, ai_field, dim_key) in enumerate(COMPARISON_PAIRS, start=4):
         m = metrics.get(label, {})
         ws2.cell(row=i, column=1, value=label)
-        ws2.cell(row=i, column=2, value=m.get("n"))
-        ws2.cell(row=i, column=3, value=m.get("pearson_r"))
-        ws2.cell(row=i, column=4, value=m.get("p_value"))
-        ws2.cell(row=i, column=5, value=m.get("mae"))
-        for c in range(1, 6):
+        for col, (_, key) in enumerate(metric_columns, start=2):
+            ws2.cell(row=i, column=col, value=m.get(key))
+        for c in range(1, len(metrics_headers) + 1):
             ws2.cell(row=i, column=c).border = BORDER
 
     note_row = 4 + len(COMPARISON_PAIRS) + 1
@@ -513,7 +530,12 @@ def main():
     parser.add_argument("--n", type=int, default=20, help="So luong argument lay mau de test")
     parser.add_argument("--seed", type=int, default=42, help="Random seed de lay mau on dinh, lap lai duoc")
     parser.add_argument("--runs", type=int, default=2, help="So lan cham MOI argument (de do dao dong)")
+    parser.add_argument(
+        "--output", type=str, default=OUTPUT_PATH.name,
+        help="Ten file xlsx ket qua (o thu muc goc project) — dat khac nhau de so sanh truoc/sau",
+    )
     args = parser.parse_args()
+    output_path = OUTPUT_PATH.parent / args.output
 
     build_processed_cache_if_needed()
 
@@ -539,7 +561,7 @@ def main():
             metrics = compute_agreement_metrics(rows)
             print("\n=== KET QUA AGREEMENT (6 CAP SO SANH, tren so argument da cham xong) ===")
             print(json.dumps(metrics, indent=2, ensure_ascii=False))
-            export_to_excel(rows, metrics, OUTPUT_PATH)
+            export_to_excel(rows, metrics, output_path)
         else:
             print("\nChua cham duoc argument nao, khong co gi de xuat.")
 
