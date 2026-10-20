@@ -28,5 +28,7 @@ namespace SystemService.DAL.Entities.Competition
         public ICollection<CompetitionRegistration> Registrations { get; set; } = new List<CompetitionRegistration>();
         public ICollection<CompetitionTeam> Teams { get; set; } = new List<CompetitionTeam>();
         public ICollection<CompetitionJudge> Judges { get; set; } = new List<CompetitionJudge>();
+        public ICollection<CompetitionRound> Rounds { get; set; } = new List<CompetitionRound>();
+        public ICollection<CompetitionMatch> Matches { get; set; } = new List<CompetitionMatch>();
     }
 }

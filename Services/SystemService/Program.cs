@@ -89,6 +89,7 @@ builder.Services.AddScoped<ICompetitionRegistrationService, CompetitionRegistrat
 builder.Services.AddScoped<ICompetitionTeamService, CompetitionTeamService>();
 builder.Services.AddScoped<ICompetitionTeamRequestService, CompetitionTeamRequestService>();
 builder.Services.AddScoped<ICompetitionJudgeService, CompetitionJudgeService>();
+builder.Services.AddScoped<ICompetitionDebateBridgeService, CompetitionDebateBridgeService>();
 
 builder.Services.AddScoped<IPaymentGateway, PayOSPaymentGateway>();
 builder.Services.AddScoped<IWalletService, WalletService>();
@@ -164,13 +165,6 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
-
-// Ensure Database is created
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<SystemDbContext>();
-    context.Database.EnsureCreated();
-}
 
 // Middleware pipeline
 app.UseMiddleware<ExceptionMiddleware>();
