@@ -25,3 +25,22 @@ data/_dagstuhl_raw/
 
 # --- File tam cua script batch / kiem tra thu cong ---
 scratch_*.txt
+data/dagstuhl_processed_vi.csv
+data/_dagstuhl_vi_partial.json
+data/dagstuhl_processed_vi_sample.csv
+*.jsonl
+data/_dagstuhl_issue_vi.json
+data/_dagstuhl_vi_sample50.json
+vi_variance_report.txt
+variance_report_*.txt
+data/_raw_dump_top.txt
+data/_raw_dump_top.jsonl
+data/_dagstuhl_issue_motion_en.json
+variance_report_replicates.txt
+variance_report_adaptive.txt
+ceiling_hypotheses_report.txt
+data/_h3_audit.txt
+data/high_quality_args.json
+weights_report.txt
+v2_check_report.txt
+confirm_report.txt

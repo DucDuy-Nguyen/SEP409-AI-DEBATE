@@ -263,8 +263,18 @@ def build_processed_cache_if_needed(force: bool = False) -> None:
     )
 
 
-def load_dagstuhl_sample(n: int, seed: int = 42) -> pd.DataFrame:
-    df = pd.read_csv(PROCESSED_CACHE_PATH)
+def load_dagstuhl_sample(
+    n: int, seed: int = 42, path: Path = PROCESSED_CACHE_PATH, text_column: str = "text"
+) -> pd.DataFrame:
+    """Lay mau n bai. text_column != "text" (vd "text_vi" trong
+    data/dagstuhl_processed_vi.csv): noi dung can cham duoc DAT vao cot "text" —
+    nhung cho con lai cua script chi doc "text", va Excel hien dung noi dung da
+    cham. Hai file cung thu tu dong + cung seed -> cung tap bai, so sanh cap duoc."""
+    df = pd.read_csv(path)
+    if text_column != "text":
+        if text_column not in df.columns:
+            raise SystemExit(f"Khong co cot '{text_column}' trong {path} (cot co san: {list(df.columns)})")
+        df["text"] = df[text_column]
     n = min(n, len(df))
     return df.sample(n=n, random_state=seed).reset_index(drop=True)
 
@@ -534,6 +544,14 @@ def main():
         "--output", type=str, default=OUTPUT_PATH.name,
         help="Ten file xlsx ket qua (o thu muc goc project) — dat khac nhau de so sanh truoc/sau",
     )
+    parser.add_argument(
+        "--input", type=str, default=PROCESSED_CACHE_PATH.name,
+        help="Ten file csv trong data/ (vd dagstuhl_processed_vi.csv de cham ban tieng Viet)",
+    )
+    parser.add_argument(
+        "--text-column", type=str, default="text",
+        help="Cot chua noi dung can cham (vd text_vi)",
+    )
     args = parser.parse_args()
     output_path = OUTPUT_PATH.parent / args.output
 
@@ -542,7 +560,10 @@ def main():
     settings = get_settings()
     client = get_llm_client(settings)
 
-    df = load_dagstuhl_sample(n=args.n, seed=args.seed)
+    df = load_dagstuhl_sample(
+        n=args.n, seed=args.seed,
+        path=PROCESSED_CACHE_PATH.parent / args.input, text_column=args.text_column,
+    )
     print(
         f"\nDang cham {len(df)} argument tu Dagstuhl-15512-ArgQuality x {args.runs} lan/bai "
         f"voi provider = {settings.llm_provider} ...\n"
