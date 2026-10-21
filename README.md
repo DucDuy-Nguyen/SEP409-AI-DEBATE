@@ -400,7 +400,7 @@ Response có **cùng cấu trúc** với `/coaching/argument` (`focus_criteria` 
 python -m pytest tests/ -v
 ```
 
-Hiện có **61 test** (4 test API, 19 test cấp Argument, 10 test cấp Round, 5 test
+Hiện có **68 test** (4 test API, 23 test cấp Argument, 11 test cấp Round, 7 test
 cấp Session, 14 test Coaching, 6 test công thức điểm tổng, 3 test xử lý lỗi của Groq client). Tất cả chạy **offline** bằng `FakeLLMClient` (giả lập câu trả lời
 của LLM) — **không cần API key, không tốn tiền**. Nên chạy lại mỗi khi sửa code.
 
