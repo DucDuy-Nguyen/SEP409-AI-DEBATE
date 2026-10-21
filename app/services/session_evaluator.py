@@ -34,7 +34,7 @@ def _compute_overall_score(req: SessionEvaluationRequest) -> float:
 
 
 def _build_session_result(
-    parsed: dict, raw_text: str, overall_score: float, stage_breakdown: dict[str, float]
+    parsed: dict, raw_text: str, overall_score: float, stage_breakdown: dict[str, float], scoring_version: str
 ) -> SessionEvaluationResult:
     progress_trend = parsed.get("progress_trend")
     if not progress_trend:
@@ -48,6 +48,7 @@ def _build_session_result(
         overall_weaknesses=parsed.get("overall_weaknesses", []),
         overall_suggestions=parsed.get("overall_suggestions", []),
         raw_model_output=raw_text,
+        scoring_version=scoring_version,
     )
 
 
@@ -69,6 +70,6 @@ def evaluate_session(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         build_result_fn=lambda parsed, raw: _build_session_result(
-            parsed, raw, overall_score, stage_breakdown
+            parsed, raw, overall_score, stage_breakdown, req.rounds[0].scoring_version
         ),
     )

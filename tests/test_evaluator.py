@@ -19,9 +19,9 @@ VALID_CRITERIA = [
     {"name": "Structure", "score": 4, "reasoning": "Co claim-reasoning-example ro rang."},
     {"name": "Persuasiveness", "score": 4, "reasoning": "Thuyet phuc, con thieu impact ro rang."},
 ]
-# overall_score LUON duoc TINH BANG CONG THUC tu 5 tieu chi con (da dao nguoc
-# lai tu thiet ke holistic doc lap — xem app/prompts/evaluator_prompt.py va
-# docs/AI_DEVELOPMENT_LOG.md): (4+3+5+4+4)/25*10 = 8.0
+# overall_score LUON duoc TINH BANG CONG THUC theo trong so RUBRIC (4 tieu chi x 25%,
+# Persuasiveness 0% — xem app/services/scoring.py, docs/AI_DEVELOPMENT_LOG.md muc 3.14):
+# 2 x 0.25 x (4+3+5+4) = 8.0 (Persuasiveness=4 KHONG anh huong)
 EXPECTED_OVERALL = 8.0
 
 EXPECTED_OVERALL_REASONING = (
@@ -87,7 +87,7 @@ def test_markdown_fenced_json_is_stripped():
 
 def test_overall_score_always_computed_via_formula():
     """
-    overall_score LUON duoc tinh bang cong thuc (tong 5 tieu chi / 25) * 10 tu
+    overall_score LUON duoc tinh bang cong thuc (2 x Sum(trong so x diem), 4 tieu chi x 25%) tu
     "criteria" — KHONG con la field bat buoc trong JSON LLM tra ve (khac voi
     thiet ke holistic doc lap truoc day). VALID_PAYLOAD khong co "overall_score"
     va van phai cho ra ket qua dung.
@@ -106,7 +106,7 @@ def test_overall_score_ignores_ai_provided_value():
     Neu LLM van tra ve 1 field "overall_score" rieng (du khong duoc yeu cau),
     gia tri do PHAI bi BO QUA hoan toan — ket qua cuoi cung LUON la gia tri tinh
     tu cong thuc, khong bao gio la gia tri AI tu dua ra. Dung criteria khac
-    VALID_CRITERIA (tat ca deu 3/5 -> formula = 15/25*10 = 6.0) de dam bao gia
+    VALID_CRITERIA (tat ca deu 3/5 -> formula = 2 x 0.25 x (3+3+3+3) = 6.0) de dam bao gia
     tri "AI tu cham" (9.9) khac han gia tri cong thuc, tranh trung hop ngau nhien.
     """
     criteria_all_average = [
@@ -126,7 +126,7 @@ def test_overall_score_ignores_ai_provided_value():
 
     result = evaluate_argument(_sample_request(), llm_client=client)
 
-    assert result.overall_score == 6.0  # (3+3+3+3+3)/25*10 = 6.0, KHONG PHAI 9.9
+    assert result.overall_score == 6.0  # 2 x 0.25 x (3+3+3+3) = 6.0, KHONG PHAI 9.9
 
 
 def test_missing_overall_reasoning_triggers_retry_then_raises():
@@ -281,3 +281,86 @@ def test_system_prompt_includes_opponent_rebuttal_when_opponent_present():
     system_prompt, _ = build_evaluation_prompt(req)
 
     assert "phan bien" in system_prompt.lower() and "doi phuong" in system_prompt.lower()
+
+
+def _payload_with_persuasiveness(score: int) -> dict:
+    criteria = [dict(c) for c in VALID_CRITERIA]
+    criteria[-1]["score"] = score
+    return {**VALID_PAYLOAD, "criteria": criteria}
+
+
+def test_persuasiveness_does_not_affect_overall_score():
+    """Persuasiveness van duoc tra ve trong criteria nhung trong so 0: doi no 1 -> 5 khong doi diem tong."""
+    results = []
+    for score in (1, 5):
+        client = FakeLLMClient([json.dumps(_payload_with_persuasiveness(score))])
+        results.append(evaluate_argument(_sample_request(), llm_client=client))
+
+    assert results[0].overall_score == results[1].overall_score == EXPECTED_OVERALL
+    assert [c.score for c in results[0].criteria][-1] == 1 and [c.score for c in results[1].criteria][-1] == 5
+    assert results[0].criteria[-1].name == "Persuasiveness"
+
+
+def test_rubric_weights_are_four_criteria_25_percent_and_persuasiveness_zero():
+    from app.prompts.evaluator_prompt import RUBRIC
+
+    weights = {c["name"]: c["weight"] for c in RUBRIC}
+
+    assert weights == {"Logic": 0.25, "Evidence": 0.25, "Relevance": 0.25, "Structure": 0.25, "Persuasiveness": 0.0}
+
+
+def test_system_prompt_states_persuasiveness_is_not_counted():
+    system_prompt, _ = build_evaluation_prompt(_sample_request())
+
+    assert "25%" in system_prompt
+    assert "KHONG tinh vao diem tong" in system_prompt
+    assert "trong so bang nhau" not in system_prompt
+
+
+def test_unknown_criterion_name_triggers_retry_then_raise():
+    criteria = [dict(c) for c in VALID_CRITERIA]
+    criteria[-1]["name"] = "Persuasion"  # ten khong khop RUBRIC
+    bad = json.dumps({**VALID_PAYLOAD, "criteria": criteria})
+    client = FakeLLMClient([bad, bad])
+
+    with pytest.raises(EvaluationParseError):
+        evaluate_argument(_sample_request(), llm_client=client)
+
+    assert client.call_count == 2
+
+
+def test_no_criterion_uses_per_level_descriptions_after_evidence_v2_was_dropped():
+    """Mo ta Evidence 5 bac (muc 3.14.1) da bi BO theo quy tac doc ket qua (truot D1): RUBRIC hien khong co 'levels'."""
+    from app.prompts.evaluator_prompt import RUBRIC
+
+    assert all("levels" not in c for c in RUBRIC)
+    evidence = next(c for c in RUBRIC if c["name"] == "Evidence")
+    assert evidence["description"] == "Lap luan co bang chung / vi du cu the ho tro, khong chi la khang dinh suong."
+
+
+def test_rubric_as_text_renders_levels_when_a_criterion_defines_them():
+    from app.prompts.evaluator_prompt import RUBRIC, _rubric_as_text
+
+    custom = [dict(c) for c in RUBRIC]
+    custom[1]["levels"] = {1: "bac mot", 2: "bac hai"}
+
+    text = _rubric_as_text(custom)
+
+    assert "   - 1 diem: bac mot" in text and "   - 2 diem: bac hai" in text
+    assert "diem:" not in _rubric_as_text()  # rubric hien hanh khong in mo ta tung bac
+
+
+def test_system_prompt_keeps_grading_tiers_and_old_evidence_description():
+    system_prompt, _ = build_evaluation_prompt(_sample_request())
+
+    assert "Lap luan co bang chung / vi du cu the ho tro, khong chi la khang dinh suong." in system_prompt
+    assert "5 - Xuat sac, dap ung nghiem ngat moi tieu chi." in system_prompt
+    assert " diem: " not in system_prompt
+
+
+def test_result_carries_current_scoring_version():
+    client = FakeLLMClient([json.dumps(VALID_PAYLOAD)])
+
+    result = evaluate_argument(_sample_request(), llm_client=client)
+
+    assert result.scoring_version == "v2_4x25"

@@ -20,15 +20,21 @@ Co so thiet ke (xem docs/ADPP_Related_Work_LLM_as_Judge.docx de biet chi tiet):
   tranh bien la kich ban mo (Themis, Hu et al., 2025), noi dap an tham khao co the
   gay hai nhieu hon loi.
 
-TRONG SO: ca 5 tieu chi co trong so BANG NHAU (20% moi tieu chi). Khung Wachsmuth
-chi cho TEN cac chieu danh gia, khong dua ra thu tu uu tien giua chung — nen chia
-deu trong so la lua chon mac dinh de bao ve nhat khi chua co huong dan khac tu
-giang vien. Neu Thay Tam dua ra cach chia trong so khac, cap nhat RUBRIC ben duoi
-(trong so phai cong lai bang 1.0).
+TRONG SO (2026-10, quyet dinh o docs/AI_DEVELOPMENT_LOG.md muc 3.13-3.14): diem tong chi tinh
+tu 4 tieu chi Logic, Evidence, Relevance, Structure, moi tieu chi 25%; Persuasiveness co
+trong so 0 — van duoc AI cham va tra ve trong criteria nhu mot nhan dinh tong the, nhung
+KHONG cong vao diem tong (rubric dinh nghia no la "tong hoa cac tieu chi tren", nen cong vao
+se tinh trung). Truoc 2026-10: ca 5 tieu chi chia deu 20%, vi khung Wachsmuth chi cho TEN cac
+chieu danh gia, khong dua ra thu tu uu tien giua chung. Trong so phai cong lai bang 1.0.
 
 THANG DIEM 5 TIEU CHI CON: moi tieu chi cham 1-5 (5 bac, kieu WUDC) — dung de
 hien thi feedback chi tiet cho learner (strengths/weaknesses/suggestions theo
-tung khia canh), VA de tinh overall_score bang cong thuc (xem ngay ben duoi).
+tung khia canh), VA de tinh overall_score bang cong thuc theo trong so RUBRIC
+(chi 4 tieu chi tinh diem, xem "TRONG SO" o tren va app/services/scoring.py).
+
+LICH SU CONG THUC OVERALL_SCORE (cac doan DAU/QUAY LAI ben duoi mo ta cong thuc CU
+"(tong 5 tieu chi / 25) * 10" cua thoi diem do; tu 2026-10 cong thuc hien hanh la
+2 x Sum(trong so x diem tieu chi), 4 tieu chi x 25%, Persuasiveness 0% — muc 3.14).
 
 OVERALL_SCORE — DOI TU CONG THUC SANG DANH GIA HOLISTIC DOC LAP (2026-09):
 Ban dau overall_score = (tong 5 tieu chi / 25) * 10 — tuc lay trung binh cong
@@ -59,8 +65,9 @@ no vua dua ra.
 => Vi 2 cach tinh NGANG NHAU ve do khop nguoi that, nhung Formula ON DINH +
 MINH BACH + KIEM CHUNG DUOC hon nhieu (cung 5 diem tieu chi LUON cho ra CUNG
 1 overall_score, khong phu thuoc "cam nhan" ngau nhien cua 1 lan goi LLM),
-QUYET DINH QUAY LAI CONG THUC: overall_score = (tong 5 tieu chi / 25) * 10,
-LUON LUON tinh nhu vay trong code (app/services/evaluator.py) — KHONG con
+QUYET DINH QUAY LAI CONG THUC (luc do la (tong 5 tieu chi / 25) * 10; nay xem
+app/services/scoring.py): overall_score
+LUON LUON tinh bang cong thuc trong code (app/services/evaluator.py) — KHONG con
 hoi AI tu cham 1 overall_score rieng nua, va neu LLM co lo tra them field
 "overall_score" trong JSON, gia tri do bi BO QUA hoan toan, khong doc. Xem
 toan bo chuoi suy luan (ca 2 lan doi huong) trong docs/AI_DEVELOPMENT_LOG.md.
@@ -120,27 +127,27 @@ def infer_argument_context(req: ArgumentEvaluationRequest) -> ArgumentContext:
 RUBRIC: list[dict] = [
     {
         "name": "Logic",
-        "weight": 0.20,
+        "weight": 0.25,
         "description": "Lap luan hop ly, khong mau thuan noi tai, cac buoc suy luan noi tiep nhau chat che.",
     },
     {
         "name": "Evidence",
-        "weight": 0.20,
+        "weight": 0.25,
         "description": "Lap luan co bang chung / vi du cu the ho tro, khong chi la khang dinh suong.",
     },
     {
         "name": "Relevance",
-        "weight": 0.20,
+        "weight": 0.25,
         "description": "Lien quan truc tiep den motion, va (neu co) phan bien dung vao luan diem cua doi phuong.",
     },
     {
         "name": "Structure",
-        "weight": 0.20,
+        "weight": 0.25,
         "description": "Cau truc ro rang: claim - reasoning - example/impact, de theo doi.",
     },
     {
         "name": "Persuasiveness",
-        "weight": 0.20,
+        "weight": 0.0,
         "description": "Kha nang thuyet phuc tong the, xet tren tong hoa cac tieu chi tren.",
     },
 ]
@@ -200,6 +207,10 @@ def _rubric_as_text(rubric: list[dict] | None = None) -> str:
     lines = []
     for i, c in enumerate(rubric, start=1):
         lines.append(f"{i}. {c['name']} — {c['description']}")
+        # Tieu chi co 'levels' (mo ta rieng tung bac) thi in moi bac tren 1 dong. HIEN KHONG tieu chi nao dung
+        # (mo ta Evidence 5 bac da thu o muc 3.14.1-3.14.2 va bi bo theo quy tac doc ket qua); giu co che de thu lai sau.
+        for level, text in sorted(c.get("levels", {}).items()):
+            lines.append(f"   - {level} diem: {text}")
     return "\n".join(lines)
 
 
@@ -217,7 +228,7 @@ strengths, weaknesses, suggestions) va ten 5 tieu chi (Logic, Evidence, Relevanc
 Persuasiveness) giu nguyen tieng Anh vi day la quy uoc ky thuat co dinh — khong dich ten \
 field/ten tieu chi.
 
-[TIEU CHI - trong so bang nhau, moi tieu chi chiem 20% diem tong]
+[TIEU CHI - Logic, Evidence, Relevance, Structure moi tieu chi chiem 25% diem tong; Persuasiveness la nhan dinh tong the, van phai cham nhung KHONG tinh vao diem tong]
 {rubric_text}
 
 [HE THONG CHAM DIEM 5 BAC - ap dung cho MOI tieu chi o tren]
@@ -234,7 +245,7 @@ TONG HOP nhan xet CHUNG ve chat luong lap luan, dua tren nhung gi vua phan \
 tich o 5 tieu chi tren — day la phan Chain-of-Thought bat buoc, giup nguoi \
 doc nam nhanh buc tranh tong the. KHONG can va KHONG nen tu dua ra 1 con so \
 diem tong the rieng — diem tong (overall_score) se duoc HE THONG TU DONG \
-TINH tu 5 diem tieu chi ban vua cham o tren, khong can ban tinh hay chot.
+TINH tu diem 4 tieu chi Logic, Evidence, Relevance, Structure ban vua cham o tren (Persuasiveness van duoc cham nhung KHONG tinh vao diem tong), khong can ban tinh hay chot.
 
 [LUU Y CHONG THIEN VI - BAT BUOC tuan thu]
 - KHONG dung do dai cau tra loi lam tieu chi ngam. Cau tra loi ngan van co the dat \

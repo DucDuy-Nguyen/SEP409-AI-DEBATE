@@ -18,6 +18,7 @@ from app.prompts.round_prompt import build_round_evaluation_prompt
 from app.schemas import CriterionScore, RoundEvaluationRequest, RoundEvaluationResult
 from app.services.json_utils import EvaluationParseError, call_llm_with_retry
 from app.services.llm_client import LLMClient, get_llm_client
+from app.services.scoring import SCORING_VERSION_CURRENT, compute_weighted_score
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ def _build_round_result(parsed: dict, raw_text: str, stage) -> RoundEvaluationRe
     # "round_score" (gia tri do bi BO QUA hoan toan). Dam bao tinh tat dinh
     # (deterministic) va tranh loi thuc te da gap (AI tra ve 14.0, vuot thang
     # 0-10). Xem app/prompts/round_prompt.py va docs/AI_DEVELOPMENT_LOG.md muc 3.8.
-    round_score = round(sum(c.score for c in criteria) / (len(criteria) * 5) * 10, 2)
+    round_score = compute_weighted_score(criteria)
 
     consistency_note = parsed.get("consistency_note")
     if not consistency_note:
@@ -52,6 +53,7 @@ def _build_round_result(parsed: dict, raw_text: str, stage) -> RoundEvaluationRe
         weaknesses=parsed.get("weaknesses", []),
         suggestions=parsed.get("suggestions", []),
         raw_model_output=raw_text,
+        scoring_version=SCORING_VERSION_CURRENT,
     )
 
 

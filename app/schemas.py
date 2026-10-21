@@ -10,6 +10,11 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+# Phien ban cong thuc diem tong, de lich su va trung binh Session khong tron hai thang diem
+# (docs/AI_DEVELOPMENT_LOG.md muc 3.14). Ban ghi cu khong co truong nay -> mac dinh la LEGACY.
+SCORING_VERSION_LEGACY = "v1_5x20"  # 5 tieu chi x 20%: (tong 5 tieu chi / 25) * 10
+SCORING_VERSION_CURRENT = "v2_4x25"  # Logic/Evidence/Relevance/Structure x 25%, Persuasiveness 0%
+
 
 class DebateSide(str, Enum):
     PRO = "pro"
@@ -46,9 +51,10 @@ class CriterionScore(BaseModel):
     """
     Diem cho 1 tieu chi trong rubric (logic, evidence, relevance, structure, persuasiveness).
 
-    Khong co field 'weight' rieng vi ca 5 tieu chi co trong so BANG NHAU (20% moi tieu chi) —
-    xem RUBRIC trong app/prompts/evaluator_prompt.py va docstring giai thich ly do (dua tren
-    Wachsmuth et al. 2017, khong co can cu de uu tien tieu chi nao hon tieu chi nao).
+    Khong co field 'weight' trong response: trong so nam trong RUBRIC (app/prompts/evaluator_prompt.py).
+    Tu 2026-10: Logic, Evidence, Relevance, Structure moi tieu chi 25% diem tong; Persuasiveness van
+    nam trong `criteria` (co score + reasoning) nhu mot nhan dinh tong the nhung co trong so 0, KHONG
+    cong vao diem tong (docs/AI_DEVELOPMENT_LOG.md muc 3.14).
     """
 
     name: str
@@ -60,8 +66,9 @@ class ArgumentEvaluationResult(BaseModel):
     """
     Output: ket qua cham diem day du cho 1 luot lap luan.
 
-    overall_score: thang 0-10, LUON duoc TINH BANG CONG THUC tu 5 tieu chi con:
-    overall_score = (tong 5 tieu chi / 25) * 10 — gia tri TAT DINH (deterministic),
+    overall_score: thang 0-10, LUON duoc TINH BANG CONG THUC tu cac tieu chi con:
+    overall_score = 2 x Sum(trong so x diem tieu chi), chi 4 tieu chi Logic/Evidence/Relevance/
+    Structure x 25% (Persuasiveness khong tinh) — gia tri TAT DINH (deterministic),
     tinh 100% trong app/services/evaluator.py, KHONG doc/dung gia tri overall_score
     (neu co) ma LLM tra ve trong JSON. Du an co thu doi sang de AI tu cham 1
     overall_score doc lap (holistic) trong 1 giai doan, nhung thi nghiem so sanh
@@ -73,7 +80,7 @@ class ArgumentEvaluationResult(BaseModel):
     """
 
     overall_score: float = Field(
-        ..., ge=0, le=10, description="Tinh bang cong thuc tu 5 tieu chi con, KHONG doc tu gia tri LLM tu tra ve"
+        ..., ge=0, le=10, description="Tinh bang cong thuc tu 4 tieu chi tinh diem (Persuasiveness khong tinh), KHONG doc tu gia tri LLM tu tra ve"
     )
     overall_reasoning: str = Field(
         ...,
@@ -90,6 +97,10 @@ class ArgumentEvaluationResult(BaseModel):
     )
     raw_model_output: Optional[str] = Field(
         default=None, description="Output tho tu LLM — luu de debug / audit, khong hien thi cho learner"
+    )
+    scoring_version: str = Field(
+        default=SCORING_VERSION_LEGACY,
+        description="Phien ban cong thuc diem tong (v1_5x20 cu, v2_4x25 moi); khong tron hai thang khi tinh Session",
     )
 
 
@@ -135,8 +146,9 @@ class RoundEvaluationResult(BaseModel):
     LLM danh gia TINH NHAT QUAN xuyen suot round (giu vung lap truong, phan ung tot
     voi phan bien cua doi phuong qua cac luot, khong chi cham rieng le tung cau).
 
-    round_score: thang 0-10, LUON duoc TINH BANG CONG THUC tu 5 tieu chi con:
-    round_score = (tong 5 tieu chi / 25) * 10 — gia tri TAT DINH (deterministic),
+    round_score: thang 0-10, LUON duoc TINH BANG CONG THUC tu cac tieu chi con:
+    round_score = 2 x Sum(trong so x diem tieu chi), chi 4 tieu chi Logic/Evidence/Relevance/
+    Structure x 25% (Persuasiveness khong tinh) — gia tri TAT DINH (deterministic),
     KHONG doc/dung gia tri "round_score" (neu co) ma LLM tra ve trong JSON. Ap
     dung dung nguyen tac da chot cho ArgumentEvaluationResult.overall_score (xem
     docs/AI_DEVELOPMENT_LOG.md muc 3.8) sau khi AI tung tra round_score=14.0
@@ -145,7 +157,7 @@ class RoundEvaluationResult(BaseModel):
 
     stage: DebateStage
     round_score: float = Field(
-        ..., ge=0, le=10, description="Tinh bang cong thuc tu 5 tieu chi con, KHONG doc tu gia tri LLM tu tra ve"
+        ..., ge=0, le=10, description="Tinh bang cong thuc tu 4 tieu chi tinh diem (Persuasiveness khong tinh), KHONG doc tu gia tri LLM tu tra ve"
     )
     criteria: list[CriterionScore]
     consistency_note: str = Field(
@@ -155,6 +167,10 @@ class RoundEvaluationResult(BaseModel):
     weaknesses: list[str] = Field(default_factory=list)
     suggestions: list[str] = Field(default_factory=list)
     raw_model_output: Optional[str] = None
+    scoring_version: str = Field(
+        default=SCORING_VERSION_LEGACY,
+        description="Phien ban cong thuc diem tong (v1_5x20 cu, v2_4x25 moi); Session ghim theo round dau tien",
+    )
 
 
 # ============================================================================
@@ -189,6 +205,9 @@ class SessionEvaluationResult(BaseModel):
     overall_weaknesses: list[str] = Field(default_factory=list)
     overall_suggestions: list[str] = Field(default_factory=list)
     raw_model_output: Optional[str] = None
+    scoring_version: str = Field(
+        default=SCORING_VERSION_LEGACY, description="Phien ban cong thuc diem tong cua ROUND DAU TIEN (Session ghim theo round dau; khong kiem tra/loai cac round khac phien ban)"
+    )
 
 
 # ============================================================================

@@ -12,6 +12,7 @@ from app.prompts.evaluator_prompt import RUBRIC, build_evaluation_prompt
 from app.schemas import ArgumentEvaluationRequest, ArgumentEvaluationResult, CriterionScore
 from app.services.json_utils import EvaluationParseError, call_llm_with_retry
 from app.services.llm_client import LLMClient, get_llm_client
+from app.services.scoring import SCORING_VERSION_CURRENT, compute_weighted_score
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +27,13 @@ def _build_result(parsed: dict, raw_text: str) -> ArgumentEvaluationResult:
             f"LLM tra ve {len(criteria)} tieu chi, ky vong {len(RUBRIC)} tieu chi theo rubric"
         )
 
-    # overall_score LUON duoc TINH BANG CONG THUC tu 5 diem tieu chi con —
+    # overall_score LUON duoc TINH BANG CONG THUC tu diem cac tieu chi (4 tieu chi x 25%, Persuasiveness 0% — xem app/services/scoring.py) —
     # KHONG bao gio doc tu JSON LLM tra ve, ke ca neu LLM co lo tra them field
     # "overall_score" (gia tri do bi BO QUA hoan toan). Dam bao tinh tat dinh
     # (deterministic): cung 5 diem tieu chi luon cho ra cung 1 overall_score.
     # Xem ly do dao nguoc tu holistic ve cong thuc trong
     # app/prompts/evaluator_prompt.py va docs/AI_DEVELOPMENT_LOG.md.
-    overall_score = round(sum(c.score for c in criteria) / (len(criteria) * 5) * 10, 2)
+    overall_score = compute_weighted_score(criteria)
 
     overall_reasoning = parsed.get("overall_reasoning")
     if not overall_reasoning:
@@ -53,6 +54,7 @@ def _build_result(parsed: dict, raw_text: str) -> ArgumentEvaluationResult:
         weaknesses=parsed.get("weaknesses", []),
         suggestions=parsed.get("suggestions", []),
         raw_model_output=raw_text,
+        scoring_version=SCORING_VERSION_CURRENT,
     )
 
 

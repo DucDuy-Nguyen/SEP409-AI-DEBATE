@@ -28,6 +28,7 @@ from app.schemas import (
 )
 from app.services.coaching import EvaluationParseError, _select_focus_criteria, coach_argument, coach_round
 from app.services.llm_client import LLMClient
+from app.services.scoring import compute_weighted_score
 
 CRITERIA_NAMES = ["Logic", "Evidence", "Relevance", "Structure", "Persuasiveness"]
 
@@ -50,7 +51,7 @@ def _evaluation(scores: list[int]) -> ArgumentEvaluationResult:
         for name, score in zip(CRITERIA_NAMES, scores)
     ]
     return ArgumentEvaluationResult(
-        overall_score=round(sum(scores) / 25 * 10, 2),
+        overall_score=compute_weighted_score(criteria),
         overall_reasoning="Lap luan dung de tai nhung thieu bang chung.",
         criteria=criteria,
         weaknesses=["Thieu so lieu cu the"],
@@ -98,6 +99,17 @@ def test_select_focus_picks_weak_criteria_sorted_and_capped():
     focus = _select_focus_criteria(evaluation.criteria)
 
     assert [c.name for c in focus] == ["Evidence", "Logic", "Structure"]
+
+
+def test_select_focus_excludes_persuasiveness_even_when_lowest():
+    # Persuasiveness (trong so 0, chi la nhan dinh tong the) khong bao gio la focus cua coaching,
+    # ke ca khi la tieu chi thap nhat: Persuasiveness=1 bi bo qua, lay Evidence=2, Logic=3, Structure=3.
+    evaluation = _evaluation([3, 2, 4, 3, 1])
+
+    focus = _select_focus_criteria(evaluation.criteria)
+
+    assert [c.name for c in focus] == ["Evidence", "Logic", "Structure"]
+    assert "Persuasiveness" not in [c.name for c in focus]
 
 
 def test_select_focus_picks_single_lowest_when_all_strong():
@@ -196,7 +208,7 @@ def _round_coaching_request(scores: list[int], with_opponent: bool = True) -> Ro
         ),
         evaluation=RoundEvaluationResult(
             stage=DebateStage.REBUTTAL,
-            round_score=round(sum(scores) / 25 * 10, 2),
+            round_score=compute_weighted_score(criteria),
             criteria=criteria,
             consistency_note="Giu vung lap truong xuyen suot round.",
             weaknesses=["Thieu bang chung"],
@@ -205,13 +217,14 @@ def _round_coaching_request(scores: list[int], with_opponent: bool = True) -> Ro
 
 
 def test_round_coaching_parsed_and_score_taken_from_evaluation():
-    req = _round_coaching_request([3, 1, 4, 4, 2])  # Evidence=1, Persuasiveness=2, Logic=3
-    client = FakeLLMClient([json.dumps(_payload(["Evidence", "Persuasiveness", "Logic"]))])
+    # Evidence=1, Logic=3 la 2 tieu chi tinh diem <= 3; Persuasiveness=2 bi loai khoi focus (trong so 0)
+    req = _round_coaching_request([3, 1, 4, 4, 2])
+    client = FakeLLMClient([json.dumps(_payload(["Evidence", "Logic"]))])
 
     result = coach_round(req, llm_client=client)
 
-    assert [c.name for c in result.focus_criteria] == ["Evidence", "Persuasiveness", "Logic"]
-    assert [c.current_score for c in result.focus_criteria] == [1, 2, 3]
+    assert [c.name for c in result.focus_criteria] == ["Evidence", "Logic"]
+    assert [c.current_score for c in result.focus_criteria] == [1, 3]
     assert client.call_count == 1
 
 
@@ -227,7 +240,7 @@ def test_round_coaching_wrong_criteria_triggers_retry_then_raise():
 
 
 def test_round_coaching_prompt_solo_vs_interactive():
-    focus = ["Evidence", "Persuasiveness", "Logic"]
+    focus = ["Evidence", "Logic"]
     solo_prompt, _ = build_round_coaching_prompt(_round_coaching_request([3, 1, 4, 4, 2], with_opponent=False), focus)
     interactive_prompt, _ = build_round_coaching_prompt(_round_coaching_request([3, 1, 4, 4, 2]), focus)
 

@@ -35,9 +35,13 @@ def _select_focus_criteria(criteria: list[CriterionScore]) -> list[CriterionScor
     """
     Tieu chi co score <= 3, sap tang dan theo diem (hoa diem thi theo thu tu
     RUBRIC), toi da 3. Neu bai da tot (moi tieu chi >= 4) thi van lay 1 tieu chi
-    thap nhat de learner co huong nang cao.
+    thap nhat de learner co huong nang cao. CHI xet cac tieu chi co trong so > 0 trong RUBRIC
+    (tu 2026-10 Persuasiveness chi la nhan dinh tong the, khong tinh diem, nen khong lam focus —
+    loi khuyen cho no se lap lai Evidence/Logic).
     """
     rubric_order = {c["name"]: i for i, c in enumerate(RUBRIC)}
+    counted = {c["name"] for c in RUBRIC if c["weight"] > 0}
+    criteria = [c for c in criteria if c.name in counted]
     ranked = sorted(criteria, key=lambda c: (c.score, rubric_order.get(c.name, len(RUBRIC))))
     weak = [c for c in ranked if c.score <= WEAK_SCORE_THRESHOLD]
     return weak[:MAX_FOCUS_CRITERIA] if weak else ranked[:1]

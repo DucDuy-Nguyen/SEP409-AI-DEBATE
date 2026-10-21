@@ -25,24 +25,39 @@ về phương pháp cải thiện cho các tiêu chí yếu và hướng phát t
 ### Rubric 5 tiêu chí
 
 `Logic`, `Evidence`, `Relevance`, `Structure`, `Persuasiveness` — mỗi tiêu chí
-chấm 1–5, trọng số bằng nhau (20%). Định nghĩa đầy đủ ở
-`app/prompts/evaluator_prompt.py` (`RUBRIC`).
+chấm 1–5. Định nghĩa đầy đủ và trọng số ở `app/prompts/evaluator_prompt.py`
+(`RUBRIC`):
+
+- `Logic`, `Evidence`, `Relevance`, `Structure`: mỗi tiêu chí chiếm **25%** điểm tổng.
+- `Persuasiveness` là **nhận định tổng thể** ("xét trên tổng hòa các tiêu chí
+  trên"): vẫn được chấm và trả về trong `criteria` (có `score` + `reasoning`)
+  nhưng có **trọng số 0**, không cộng vào điểm tổng. FE nên hiển thị riêng,
+  không gộp vào điểm. Lý do ở `docs/AI_DEVELOPMENT_LOG.md` mục 3.11–3.14.
 
 ### Điểm tổng luôn tính bằng công thức, không để AI tự cho
 
 ```
-overall_score (Argument) = round_score (Round) = (tổng 5 tiêu chí / 25) × 10
+overall_score (Argument) = round_score (Round) = 2 × Σ(trọng số × điểm tiêu chí)   # chỉ Logic, Evidence, Relevance, Structure × 25%
 ```
 
-Điểm tổng được **code tự tính** từ 5 điểm tiêu chí, không đọc con số điểm
+Điểm tổng được **code tự tính** từ điểm các tiêu chí, không đọc con số điểm
 tổng nào do LLM tự đưa ra. Lý do: đã thử cho AI tự chấm điểm tổng "cảm nhận",
-kết quả không khớp người chấm thật hơn công thức mà lại kém ổn định (cùng 5
+kết quả không khớp người chấm thật hơn công thức mà lại kém ổn định (cùng
 điểm tiêu chí nhưng điểm tổng dao động giữa các lần chạy). Chi tiết ở
 `docs/AI_DEVELOPMENT_LOG.md` mục 3.8.
 
 Ở cấp **Session**, `overall_score` là **trung bình cộng** các `round_score`
 truyền vào (tính toán học, không gọi LLM chấm lại). LLM chỉ được dùng để viết
 phần nhận xét tổng kết (`progress_trend`, điểm mạnh/yếu/gợi ý chung).
+
+### Phiên bản công thức điểm (`scoring_version`)
+
+Mỗi kết quả Argument / Round / Session mang trường `scoring_version`:
+`v2_4x25` (hiện hành: 4 tiêu chí × 25%, Persuasiveness 0%) hoặc `v1_5x20` (cũ: 5 tiêu chí × 20%;
+cũng là giá trị mặc định khi một kết quả cũ không có trường này). Backend nên lưu trường này cùng điểm.
+**Lưu ý:** Session **không** từ chối khi các round khác phiên bản — nó **ghim `scoring_version` theo round đầu tiên**,
+còn `overall_score` vẫn là trung bình các `round_score`, nên nếu trộn round `v1_5x20` với `v2_4x25` thì trung bình
+trộn hai thang; hãy chỉ gửi các round cùng phiên bản (hoặc chấm lại round cũ).
 
 ### Tự nhận biết có đối thủ hay không (SOLO / INTERACTIVE)
 
@@ -79,6 +94,7 @@ app/
     round_evaluator.py     # service cấp Round
     session_evaluator.py   # service cấp Session
     coaching.py            # service Coaching (chọn tiêu chí yếu + gọi LLM gợi ý)
+    scoring.py             # công thức điểm tổng theo trọng số RUBRIC (4 tiêu chí × 25%)
   routers/
     evaluate.py            # 3 endpoint POST /evaluate...
     coaching.py            # POST /coaching/argument, /coaching/round
@@ -182,7 +198,7 @@ Cấu trúc response (nội dung nhận xét do LLM sinh bằng tiếng Việt):
 
 ```json
 {
-  "overall_score": 4.4,
+  "overall_score": 4.5,
   "overall_reasoning": "Nhận xét tổng hợp ngắn về chất lượng lập luận ...",
   "criteria": [
     {"name": "Logic", "score": 2, "reasoning": "..."},
@@ -289,7 +305,7 @@ Không chấm lại — điểm learner đã thấy giữ nguyên.
     "opponent_argument_text": "Mạng xã hội giúp kết nối người ở xa nhau."
   },
   "evaluation": {
-    "overall_score": 6.4,
+    "overall_score": 6.5,
     "overall_reasoning": "Lập luận đúng đề tài nhưng thiếu bằng chứng cụ thể.",
     "criteria": [
       {"name": "Logic", "score": 4, "reasoning": "..."},
@@ -309,7 +325,8 @@ Response:
 
 - `focus_criteria` — gợi ý cho các tiêu chí **yếu nhất**: các tiêu chí
   ≤ 3 điểm, thấp nhất trước, tối đa 3 (nếu mọi tiêu chí ≥ 4 thì lấy 1 tiêu chí
-  thấp nhất để nâng cao). Việc chọn do **code** quyết định, không để AI tự chọn.
+  thấp nhất để nâng cao). Chỉ xét 4 tiêu chí tính điểm: `Persuasiveness` (trọng
+  số 0) không bao giờ là focus. Việc chọn do **code** quyết định, không để AI tự chọn.
   Mỗi phần tử gồm `name`, `current_score` (lấy từ kết quả chấm), `diagnosis`
   (vấn đề cụ thể trong bài), `methods` (2–3 kỹ thuật), `application` (áp dụng
   vào chính bài này).
@@ -383,8 +400,8 @@ Response có **cùng cấu trúc** với `/coaching/argument` (`focus_criteria` 
 python -m pytest tests/ -v
 ```
 
-Hiện có **48 test** (4 test API, 15 test cấp Argument, 8 test cấp Round, 5 test
-cấp Session, 13 test Coaching, 3 test xử lý lỗi của Groq client). Tất cả chạy **offline** bằng `FakeLLMClient` (giả lập câu trả lời
+Hiện có **61 test** (4 test API, 19 test cấp Argument, 10 test cấp Round, 5 test
+cấp Session, 14 test Coaching, 6 test công thức điểm tổng, 3 test xử lý lỗi của Groq client). Tất cả chạy **offline** bằng `FakeLLMClient` (giả lập câu trả lời
 của LLM) — **không cần API key, không tốn tiền**. Nên chạy lại mỗi khi sửa code.
 
 > Trên Windows / PowerShell, dùng `python -m pytest` thay vì gọi `pytest` trực tiếp.

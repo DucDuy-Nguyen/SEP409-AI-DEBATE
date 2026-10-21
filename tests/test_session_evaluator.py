@@ -107,3 +107,34 @@ def test_missing_progress_trend_raises():
 
     with pytest.raises(EvaluationParseError):
         evaluate_session(_sample_session_request(), llm_client=client)
+
+
+def test_session_accepts_mixed_scoring_versions_and_pins_to_the_first_round():
+    """Session KHONG tu choi (422) khi cac round khac scoring_version: ghim theo round DAU TIEN (quyet dinh o muc 3.15)."""
+    old = _make_round(DebateStage.OPENING, 6.0).model_copy(update={"scoring_version": "v1_5x20"})
+    new = _make_round(DebateStage.REBUTTAL, 8.0).model_copy(update={"scoring_version": "v2_4x25"})
+
+    req = SessionEvaluationRequest(motion="m", side=DebateSide.PRO, rounds=[old, new])  # khong nem ValidationError
+    result = evaluate_session(req, llm_client=FakeLLMClient([json.dumps(VALID_SESSION_PAYLOAD)]))
+    assert result.scoring_version == "v1_5x20"
+    assert result.overall_score == 7.0  # van la trung binh round_score cua ca hai round
+
+    req_reversed = SessionEvaluationRequest(motion="m", side=DebateSide.PRO, rounds=[new, old])
+    result_reversed = evaluate_session(req_reversed, llm_client=FakeLLMClient([json.dumps(VALID_SESSION_PAYLOAD)]))
+    assert result_reversed.scoring_version == "v2_4x25"
+
+
+def test_session_result_carries_the_common_scoring_version_and_missing_means_legacy():
+    new_rounds = [
+        _make_round(DebateStage.OPENING, 6.0).model_copy(update={"scoring_version": "v2_4x25"}),
+        _make_round(DebateStage.REBUTTAL, 8.0).model_copy(update={"scoring_version": "v2_4x25"}),
+    ]
+    client = FakeLLMClient([json.dumps(VALID_SESSION_PAYLOAD)])
+    result = evaluate_session(SessionEvaluationRequest(motion="m", side=DebateSide.PRO, rounds=new_rounds), llm_client=client)
+    assert result.scoring_version == "v2_4x25"
+
+    # ban ghi round cu khong co truong scoring_version -> mac dinh la ban cu
+    legacy = RoundEvaluationResult.model_validate(
+        {k: v for k, v in json.loads(_make_round(DebateStage.OPENING, 6.0).model_dump_json()).items() if k != "scoring_version"}
+    )
+    assert legacy.scoring_version == "v1_5x20"
