@@ -27,5 +27,12 @@ namespace SystemService.DAL.Repositories.Identity.Implementations
             return await _context.Roles
                 .FirstOrDefaultAsync(r => r.RoleName == roleName, cancellationToken);
         }
+
+        public async Task<List<Role>> GetAllRolesAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Roles
+                .OrderBy(r => r.RoleId)
+                .ToListAsync(cancellationToken);
+        }
     }
 }

@@ -53,5 +53,62 @@ namespace SystemService.DAL.Repositories.Identity.Implementations
             _context.Users.Update(user);
             await _context.SaveChangesAsync(cancellationToken);
         }
+
+        public async Task<(List<User> Items, int TotalCount)> GetPagedUsersAsync(
+            string? searchTerm, int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+        {
+            var query = _context.Users
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .AsNoTracking()
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var term = searchTerm.Trim().ToLower();
+                query = query.Where(u => u.FullName.ToLower().Contains(term) || u.Email.ToLower().Contains(term));
+            }
+
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            var items = await query
+                .OrderByDescending(u => u.CreatedAt)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            return (items, totalCount);
+        }
+
+        public async Task<int> GetTotalUsersCountAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Users.CountAsync(cancellationToken);
+        }
+
+        public async Task<int> CountUsersInRoleAsync(string roleName, CancellationToken cancellationToken = default)
+        {
+            return await _context.UserRoles
+                .CountAsync(ur => ur.Role.RoleName == roleName && ur.User.IsActive, cancellationToken);
+        }
+
+        public async Task UpdateUserRolesAsync(int userId, IEnumerable<int> roleIds, CancellationToken cancellationToken = default)
+        {
+            var existingUserRoles = await _context.UserRoles
+                .Where(ur => ur.UserId == userId)
+                .ToListAsync(cancellationToken);
+
+            _context.UserRoles.RemoveRange(existingUserRoles);
+
+            foreach (var roleId in roleIds.Distinct())
+            {
+                await _context.UserRoles.AddAsync(new UserRole
+                {
+                    UserId = userId,
+                    RoleId = roleId
+                }, cancellationToken);
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
     }
 }

@@ -21,5 +21,6 @@ namespace SystemService.DAL.Repositories.Debate.Interfaces
         Task UpdateAsync(Topic topic, CancellationToken cancellationToken = default);
         Task DeleteAsync(Topic topic, CancellationToken cancellationToken = default);
         Task<bool> ExistsByTitleAsync(string title, int? excludeTopicId = null, CancellationToken cancellationToken = default);
+        Task<int> GetTotalTopicsCountAsync(CancellationToken cancellationToken = default);
     }
 }

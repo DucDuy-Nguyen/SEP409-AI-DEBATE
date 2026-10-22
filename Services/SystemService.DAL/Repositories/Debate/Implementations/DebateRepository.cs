@@ -173,5 +173,10 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             await _context.SaveChangesAsync(cancellationToken);
             return newFormat;
         }
+
+        public async Task<int> GetTotalDebateSessionsCountAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.DebateSessions.CountAsync(cancellationToken);
+        }
     }
 }

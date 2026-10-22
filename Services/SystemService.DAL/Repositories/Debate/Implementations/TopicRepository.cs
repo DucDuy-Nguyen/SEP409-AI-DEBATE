@@ -104,5 +104,10 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             return await _context.Topics
                 .AnyAsync(t => t.Title.ToLower() == cleanTitle && (!excludeTopicId.HasValue || t.TopicId != excludeTopicId.Value), cancellationToken);
         }
+
+        public async Task<int> GetTotalTopicsCountAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Topics.CountAsync(cancellationToken);
+        }
     }
 }

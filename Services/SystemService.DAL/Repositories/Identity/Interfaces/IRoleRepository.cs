@@ -8,5 +8,6 @@ namespace SystemService.DAL.Repositories.Identity.Interfaces
     {
         Task<Role?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
         Task<Role?> GetByNameAsync(string roleName, CancellationToken cancellationToken = default);
+        Task<List<Role>> GetAllRolesAsync(CancellationToken cancellationToken = default);
     }
 }

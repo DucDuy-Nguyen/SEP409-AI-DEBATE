@@ -26,5 +26,6 @@ namespace SystemService.DAL.Repositories.Debate.Interfaces
         Task<DebateFormat?> GetFormatByIdAsync(int formatId, CancellationToken cancellationToken = default);
         Task<DebateFormat?> GetFormatByNameAsync(string formatName, CancellationToken cancellationToken = default);
         Task<DebateFormat> GetOrCreateFormatAsync(string formatName, int maxParticipants, int totalRounds = 3, int roundDurationSeconds = 180, CancellationToken cancellationToken = default);
+        Task<int> GetTotalDebateSessionsCountAsync(CancellationToken cancellationToken = default);
     }
 }
