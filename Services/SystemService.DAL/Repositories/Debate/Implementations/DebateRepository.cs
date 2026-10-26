@@ -1,9 +1,13 @@
-using Microsoft.EntityFrameworkCore;
+using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using SystemService.DAL.Context;
+using SystemService.DAL.Entities.Competition;
 using SystemService.DAL.Entities.Debate;
 using SystemService.DAL.Entities.Debate.Enums;
 using SystemService.DAL.Repositories.Debate.Interfaces;
@@ -44,6 +48,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
                     .ThenInclude(r => r.Arguments)
                         .ThenInclude(a => a.Participant)
                             .ThenInclude(p => p.User)
+                .Include(s => s.AIJudgements)
                 .FirstOrDefaultAsync(s => s.DebateSessionId == debateSessionId, cancellationToken);
         }
 
@@ -172,6 +177,100 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             await _context.DebateFormats.AddAsync(newFormat, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
             return newFormat;
+        }
+
+        public async Task<IDbContextTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
+        {
+            return await _context.Database.BeginTransactionAsync(isolationLevel, cancellationToken);
+        }
+
+        public void ClearChangeTracker()
+        {
+            _context.ChangeTracker.Clear();
+        }
+
+        public bool IsSessionInCompetition(int debateSessionId)
+        {
+            return _context.CompetitionMatches.Any(m => m.DebateSessionId == debateSessionId);
+        }
+
+        public async Task<bool> IsSessionInCompetitionAsync(int debateSessionId, CancellationToken cancellationToken = default)
+        {
+            return await _context.CompetitionMatches.AnyAsync(m => m.DebateSessionId == debateSessionId, cancellationToken);
+        }
+
+        public async Task<CompetitionMatch?> GetLinkedCompetitionMatchAsync(int debateSessionId, CancellationToken cancellationToken = default)
+        {
+            return await _context.CompetitionMatches
+                .Include(m => m.Competition)
+                .FirstOrDefaultAsync(m => m.DebateSessionId == debateSessionId, cancellationToken);
+        }
+
+        public async Task UpdateLinkedMatchStatusOnSessionCompleteAsync(int debateSessionId, DateTime completedAt, CancellationToken cancellationToken = default)
+        {
+            var linkedMatch = await _context.CompetitionMatches
+                .FirstOrDefaultAsync(m => m.DebateSessionId == debateSessionId && m.Status == "Ongoing", cancellationToken);
+            if (linkedMatch != null)
+            {
+                linkedMatch.Status = "Evaluating";
+                linkedMatch.UpdatedAt = completedAt;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task<bool> ClaimAndStartSessionAsync(int debateSessionId, DateTime startTime, int? linkedMatchId = null, CancellationToken cancellationToken = default)
+        {
+            var claimed = await _context.DebateSessions
+                .Where(s => s.DebateSessionId == debateSessionId && s.Status == SessionStatus.Waiting)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(s => s.Status, SessionStatus.InProgress)
+                    .SetProperty(s => s.StartTime, startTime), cancellationToken);
+
+            if (claimed != 1)
+            {
+                return false;
+            }
+
+            var firstRound = await _context.DebateRounds
+                .FirstOrDefaultAsync(r => r.DebateSessionId == debateSessionId && r.RoundNumber == 1, cancellationToken);
+            if (firstRound != null)
+            {
+                firstRound.StartTime = startTime;
+            }
+
+            if (linkedMatchId.HasValue)
+            {
+                var matchClaimed = await _context.CompetitionMatches
+                    .Where(m => m.CompetitionMatchId == linkedMatchId.Value && m.Status == "Ready")
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(m => m.Status, "Ongoing")
+                        .SetProperty(m => m.StartedAt, startTime)
+                        .SetProperty(m => m.UpdatedAt, startTime), cancellationToken);
+
+                if (matchClaimed != 1)
+                {
+                    return false;
+                }
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            _context.ChangeTracker.Clear();
+            return true;
+        }
+
+        public async Task AddAIJudgementAsync(AIJudgement judgement, CancellationToken cancellationToken = default)
+        {
+            await _context.AIJudgements.AddAsync(judgement, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task<AIJudgement?> GetLatestAIJudgementAsync(int debateSessionId, CancellationToken cancellationToken = default)
+        {
+            return await _context.AIJudgements
+                .Include(j => j.WinnerParticipant)
+                .Where(j => j.DebateSessionId == debateSessionId)
+                .OrderByDescending(j => j.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
         }
     }
 }

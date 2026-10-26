@@ -5,14 +5,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using SystemService.BLL.Common.Responses;
+using SystemService.BLL.DTOs.AI;
 using SystemService.BLL.DTOs.Debate;
+using SystemService.BLL.Services.AI.Interfaces;
 using SystemService.BLL.Services.Debate.Interfaces;
 using SystemService.DAL.Entities.Debate;
 using SystemService.DAL.Entities.Debate.Enums;
 using SystemService.DAL.Repositories.Debate.Interfaces;
 using SystemService.DAL.Repositories.Identity.Interfaces;
-using SystemService.DAL.Context;
 using System.Data;
 
 namespace SystemService.BLL.Services.Debate.Implementations
@@ -23,16 +26,19 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
         private readonly IDebateRepository _debateRepository;
         private readonly IUserRepository _userRepository;
-        private readonly SystemDbContext _context;
+        private readonly IAiEvaluatorClient? _aiEvaluatorClient;
+        private readonly ILogger<DebateService>? _logger;
 
         public DebateService(
             IDebateRepository debateRepository,
             IUserRepository userRepository,
-            SystemDbContext context)
+            IAiEvaluatorClient? aiEvaluatorClient = null,
+            ILogger<DebateService>? logger = null)
         {
             _debateRepository = debateRepository;
             _userRepository = userRepository;
-            _context = context;
+            _aiEvaluatorClient = aiEvaluatorClient;
+            _logger = logger;
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> CreateAiPracticeSessionAsync(
@@ -182,8 +188,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.");
             }
 
-            var isCompetition = await _context.CompetitionMatches
-                .AnyAsync(m => m.DebateSessionId == sessionId, cancellationToken);
+            var isCompetition = await _debateRepository.IsSessionInCompetitionAsync(sessionId, cancellationToken);
             if (isCompetition)
             {
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Phiên tranh biện này thuộc giải đấu. Người tham gia đã được chỉ định tự động.");
@@ -334,20 +339,25 @@ namespace SystemService.BLL.Services.Debate.Implementations
                         session.Status = SessionStatus.Completed;
                         session.EndTime = completedAt;
 
-                        var linkedMatch = await _context.CompetitionMatches
-                            .FirstOrDefaultAsync(m => m.DebateSessionId == sessionId && m.Status == "Ongoing", cancellationToken);
-                        if (linkedMatch != null)
-                        {
-                            linkedMatch.Status = "Evaluating";
-                            linkedMatch.UpdatedAt = completedAt;
-                        }
-
-                        // UpdateSessionAsync persists both tracked entities inside this transaction.
+                        await _debateRepository.UpdateLinkedMatchStatusOnSessionCompleteAsync(sessionId, completedAt, cancellationToken);
                         await _debateRepository.UpdateSessionAsync(session, cancellationToken);
                     }
                 }
 
+                bool isSessionCompleted = session.Status == SessionStatus.Completed;
                 await transaction.CommitAsync(cancellationToken);
+
+                if (isSessionCompleted && _aiEvaluatorClient != null)
+                {
+                    try
+                    {
+                        await EvaluateAndStoreSessionInternalAsync(sessionId, cancellationToken);
+                    }
+                    catch (Exception evalEx)
+                    {
+                        _logger?.LogWarning(evalEx, "Auto-evaluation for completed debate session {SessionId} failed. Evaluation can be triggered on demand.", sessionId);
+                    }
+                }
 
                 var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
                 return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Argument submitted successfully.");
@@ -452,8 +462,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.");
             }
 
-            var isCompetition = await _context.CompetitionMatches
-                .AnyAsync(m => m.DebateSessionId == sessionId, cancellationToken);
+            var isCompetition = await _debateRepository.IsSessionInCompetitionAsync(sessionId, cancellationToken);
             if (isCompetition)
             {
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Phiên tranh biện này thuộc giải đấu. Người tham gia đã được chỉ định tự động.");
@@ -614,7 +623,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 currentTurnSide = lastSubmittedSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
             }
 
-            bool isCompetition = _context.CompetitionMatches.Any(m => m.DebateSessionId == session.DebateSessionId);
+            bool isCompetition = _debateRepository.IsSessionInCompetition(session.DebateSessionId);
             DebateType debateType;
             if (isCompetition)
             {
@@ -677,8 +686,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.");
             }
 
-            var isCompetition = await _context.CompetitionMatches
-                .AnyAsync(m => m.DebateSessionId == sessionId, cancellationToken);
+            var isCompetition = await _debateRepository.IsSessionInCompetitionAsync(sessionId, cancellationToken);
             if (isCompetition)
             {
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Không thể đổi phe trong phiên tranh biện thuộc giải đấu.");
@@ -726,8 +734,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<bool>.FailureResponse("Debate session not found.");
             }
 
-            var isCompetition = await _context.CompetitionMatches
-                .AnyAsync(m => m.DebateSessionId == sessionId, cancellationToken);
+            var isCompetition = await _debateRepository.IsSessionInCompetitionAsync(sessionId, cancellationToken);
             if (isCompetition)
             {
                 return ApiResponse<bool>.FailureResponse("Không thể đổi phe trong phiên tranh biện thuộc giải đấu.");
@@ -793,8 +800,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
         public async Task<ApiResponse<DebateSessionResponse>> RespondSwapSideRequestAsync(int userId, int sessionId, RespondSwapSideRequest request, CancellationToken cancellationToken = default)
         {
-            var isCompetition = await _context.CompetitionMatches
-                .AnyAsync(m => m.DebateSessionId == sessionId, cancellationToken);
+            var isCompetition = await _debateRepository.IsSessionInCompetitionAsync(sessionId, cancellationToken);
             if (isCompetition)
             {
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Không thể đổi phe trong phiên tranh biện thuộc giải đấu.");
@@ -863,8 +869,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
         public async Task<ApiResponse<List<SideSwapRequestResponse>>> GetPendingSwapRequestsAsync(int userId, int sessionId, CancellationToken cancellationToken = default)
         {
-            var isCompetition = await _context.CompetitionMatches
-                .AnyAsync(m => m.DebateSessionId == sessionId, cancellationToken);
+            var isCompetition = await _debateRepository.IsSessionInCompetitionAsync(sessionId, cancellationToken);
             if (isCompetition)
             {
                 return ApiResponse<List<SideSwapRequestResponse>>.SuccessResponse(new List<SideSwapRequestResponse>());
@@ -898,7 +903,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
-            using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            using var transaction = await _debateRepository.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             try
             {
                 var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
@@ -909,9 +914,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 }
 
                 // 1. Competition Authorization check vs Standalone check
-                var linkedMatch = await _context.CompetitionMatches
-                    .Include(m => m.Competition)
-                    .FirstOrDefaultAsync(m => m.DebateSessionId == sessionId, cancellationToken);
+                var linkedMatch = await _debateRepository.GetLinkedCompetitionMatchAsync(sessionId, cancellationToken);
 
                 if (linkedMatch != null)
                 {
@@ -1008,66 +1011,459 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     }
                 }
 
-                // Atomically claim the Waiting session. This works for both SQL Server and
-                // SQLite and does not require a new concurrency column on DebateSessions.
                 var now = DateTime.UtcNow;
-                var claimed = await _context.DebateSessions
-                    .Where(s => s.DebateSessionId == sessionId && s.Status == SessionStatus.Waiting)
-                    .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(s => s.Status, SessionStatus.InProgress)
-                        .SetProperty(s => s.StartTime, now), cancellationToken);
+                var claimed = await _debateRepository.ClaimAndStartSessionAsync(
+                    sessionId, now, linkedMatch?.CompetitionMatchId, cancellationToken);
 
-                if (claimed != 1)
+                if (!claimed)
                 {
                     await transaction.RollbackAsync(cancellationToken);
+                    _debateRepository.ClearChangeTracker();
                     return ApiResponse<DebateSessionResponse>.FailureResponse(
-                        "Cuộc tranh biện đã được bắt đầu bởi một tiến trình khác.");
+                        linkedMatch != null
+                            ? "Trận đấu đã được bắt đầu hoặc không còn ở trạng thái sẵn sàng."
+                            : "Cuộc tranh biện đã được bắt đầu bởi một tiến trình khác.");
                 }
 
-                var firstRound = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == 1);
-                if (firstRound != null)
-                {
-                    firstRound.StartTime = now;
-                }
-
-                if (linkedMatch != null)
-                {
-                    var matchClaimed = await _context.CompetitionMatches
-                        .Where(m => m.CompetitionMatchId == linkedMatch.CompetitionMatchId && m.Status == "Ready")
-                        .ExecuteUpdateAsync(setters => setters
-                            .SetProperty(m => m.Status, "Ongoing")
-                            .SetProperty(m => m.StartedAt, now)
-                            .SetProperty(m => m.UpdatedAt, now), cancellationToken);
-
-                    if (matchClaimed != 1)
-                    {
-                        await transaction.RollbackAsync(cancellationToken);
-                        _context.ChangeTracker.Clear();
-                        return ApiResponse<DebateSessionResponse>.FailureResponse(
-                            "Trận đấu đã được bắt đầu hoặc không còn ở trạng thái sẵn sàng.");
-                    }
-                }
-
-                await _context.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
                 // ExecuteUpdate bypasses the change tracker, so reload a consistent response.
-                _context.ChangeTracker.Clear();
+                _debateRepository.ClearChangeTracker();
                 var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
                 return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Bắt đầu cuộc tranh biện thành công.");
             }
             catch (DbUpdateConcurrencyException)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                _context.ChangeTracker.Clear();
+                _debateRepository.ClearChangeTracker();
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Trận đấu đã được bắt đầu bởi một tiến trình khác.");
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                _context.ChangeTracker.Clear();
+                _debateRepository.ClearChangeTracker();
                 return ApiResponse<DebateSessionResponse>.FailureResponse($"Lỗi khi bắt đầu cuộc tranh biện: {ex.Message}");
             }
+        }
+
+        #endregion
+
+        #region AI Evaluation & Analysis
+
+        public async Task<ApiResponse<DebateEvaluationResponse>> EvaluateSessionAsync(
+            int userId, int sessionId, CancellationToken cancellationToken = default)
+        {
+            if (_aiEvaluatorClient == null)
+            {
+                return ApiResponse<DebateEvaluationResponse>.FailureResponse("AI Evaluator service is not configured.");
+            }
+
+            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+            if (user == null)
+            {
+                return ApiResponse<DebateEvaluationResponse>.FailureResponse("User not found.");
+            }
+
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<DebateEvaluationResponse>.FailureResponse("Debate session not found.");
+            }
+
+            bool isParticipant = session.Participants.Any(p => p.UserId == userId);
+            bool isCreator = session.CreatedBy == userId;
+            var linkedMatch = await _debateRepository.GetLinkedCompetitionMatchAsync(sessionId, cancellationToken);
+            bool isMatchJudge = linkedMatch != null && (linkedMatch.AssignedJudgeUserId == userId || linkedMatch.Competition?.CreatedBy == userId);
+
+            if (!isParticipant && !isCreator && !isMatchJudge)
+            {
+                return ApiResponse<DebateEvaluationResponse>.FailureResponse("You do not have permission to evaluate this debate session.");
+            }
+
+            bool hasArguments = session.DebateRounds.Any(r => r.Arguments.Any());
+            if (!hasArguments)
+            {
+                return ApiResponse<DebateEvaluationResponse>.FailureResponse("Debate session has no submitted arguments to evaluate.");
+            }
+
+            try
+            {
+                var evaluation = await EvaluateAndStoreSessionInternalAsync(sessionId, cancellationToken);
+                return ApiResponse<DebateEvaluationResponse>.SuccessResponse(evaluation, "Debate session evaluated and analyzed successfully.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to evaluate debate session {SessionId}", sessionId);
+                return ApiResponse<DebateEvaluationResponse>.FailureResponse($"Failed to evaluate debate session: {ex.Message}");
+            }
+        }
+
+        public async Task<ApiResponse<DebateEvaluationResponse>> GetSessionEvaluationAsync(
+            int userId, int sessionId, CancellationToken cancellationToken = default)
+        {
+            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+            if (user == null)
+            {
+                return ApiResponse<DebateEvaluationResponse>.FailureResponse("User not found.");
+            }
+
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<DebateEvaluationResponse>.FailureResponse("Debate session not found.");
+            }
+
+            var existingJudgement = session.AIJudgements.OrderByDescending(j => j.CreatedAt).FirstOrDefault();
+            if (existingJudgement != null)
+            {
+                var response = MapJudgementToResponse(existingJudgement, session);
+                return ApiResponse<DebateEvaluationResponse>.SuccessResponse(response, "Evaluation details retrieved.");
+            }
+
+            if (session.Status == SessionStatus.Completed && _aiEvaluatorClient != null && session.DebateRounds.Any(r => r.Arguments.Any()))
+            {
+                return await EvaluateSessionAsync(userId, sessionId, cancellationToken);
+            }
+
+            return ApiResponse<DebateEvaluationResponse>.FailureResponse("No evaluation found for this debate session. Please trigger evaluation after the debate.");
+        }
+
+        public async Task<ApiResponse<SingleArgumentEvaluationResponse>> EvaluateArgumentAsync(
+            int userId, int sessionId, int argumentId, CancellationToken cancellationToken = default)
+        {
+            if (_aiEvaluatorClient == null)
+            {
+                return ApiResponse<SingleArgumentEvaluationResponse>.FailureResponse("AI Evaluator service is not configured.");
+            }
+
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<SingleArgumentEvaluationResponse>.FailureResponse("Debate session not found.");
+            }
+
+            var found = session.DebateRounds
+                .SelectMany(r => r.Arguments.Select(a => new { Round = r, Argument = a }))
+                .FirstOrDefault(x => x.Argument.ArgumentId == argumentId);
+
+            if (found == null)
+            {
+                return ApiResponse<SingleArgumentEvaluationResponse>.FailureResponse("Argument not found in this debate session.");
+            }
+
+            var round = found.Round;
+            var arg = found.Argument;
+            var participant = arg.Participant;
+
+            var previousArg = round.Arguments
+                .Where(a => a.SubmittedAt < arg.SubmittedAt && a.ParticipantId != arg.ParticipantId)
+                .OrderByDescending(a => a.SubmittedAt)
+                .FirstOrDefault();
+
+            if (previousArg == null)
+            {
+                var prevRound = session.DebateRounds
+                    .Where(r => r.RoundNumber < round.RoundNumber)
+                    .OrderByDescending(r => r.RoundNumber)
+                    .FirstOrDefault();
+                previousArg = prevRound?.Arguments
+                    .Where(a => a.Participant.Side != participant.Side)
+                    .OrderByDescending(a => a.SubmittedAt)
+                    .FirstOrDefault();
+            }
+
+            var motion = session.Topic?.Description ?? session.Topic?.Title ?? "Debate motion";
+            var sideStr = (participant.Side == DebateSide.PRO || participant.Side == DebateSide.Affirmative) ? "pro" : "con";
+            var stageStr = round.RoundType switch
+            {
+                RoundType.OPENING => "opening",
+                RoundType.REBUTTAL => "rebuttal",
+                RoundType.CLOSING => "closing",
+                _ => "rebuttal"
+            };
+
+            var req = new EvaluateArgumentRequest(
+                Motion: motion,
+                Side: sideStr,
+                Stage: stageStr,
+                ArgumentText: arg.Content,
+                OpponentArgumentText: previousArg?.Content
+            );
+
+            try
+            {
+                var evalResult = await _aiEvaluatorClient.EvaluateArgumentAsync(req, cancellationToken);
+                if (evalResult == null)
+                {
+                    return ApiResponse<SingleArgumentEvaluationResponse>.FailureResponse("AI Evaluator returned an empty response.");
+                }
+
+                var response = new SingleArgumentEvaluationResponse
+                {
+                    ArgumentId = arg.ArgumentId,
+                    SessionId = sessionId,
+                    RoundNumber = round.RoundNumber,
+                    Stage = stageStr,
+                    Side = participant.Side.ToString(),
+                    SpeakerName = participant.ParticipantType == ParticipantType.AI ? "AI Opponent" : (participant.User?.FullName ?? $"User {participant.UserId}"),
+                    OverallScore = evalResult.OverallScore,
+                    OverallReasoning = evalResult.OverallReasoning,
+                    Criteria = evalResult.Criteria,
+                    Strengths = evalResult.Strengths,
+                    Weaknesses = evalResult.Weaknesses,
+                    Suggestions = evalResult.Suggestions
+                };
+
+                return ApiResponse<SingleArgumentEvaluationResponse>.SuccessResponse(response, "Argument evaluated successfully.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to evaluate argument {ArgumentId}", argumentId);
+                return ApiResponse<SingleArgumentEvaluationResponse>.FailureResponse($"Failed to evaluate argument: {ex.Message}");
+            }
+        }
+
+        private async Task<DebateEvaluationResponse> EvaluateAndStoreSessionInternalAsync(int sessionId, CancellationToken cancellationToken)
+        {
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                throw new InvalidOperationException("Debate session not found.");
+            }
+
+            var motion = session.Topic?.Description ?? session.Topic?.Title ?? "Debate motion";
+            var sortedRounds = session.DebateRounds.OrderBy(r => r.RoundNumber).ToList();
+
+            var proRounds = new List<EvaluateRoundResponse>();
+            var conRounds = new List<EvaluateRoundResponse>();
+
+            foreach (var round in sortedRounds)
+            {
+                var roundArgs = round.Arguments.OrderBy(a => a.SubmittedAt).ToList();
+                if (!roundArgs.Any()) continue;
+
+                var stageStr = round.RoundType switch
+                {
+                    RoundType.OPENING => "opening",
+                    RoundType.REBUTTAL => "rebuttal",
+                    RoundType.CLOSING => "closing",
+                    _ => "rebuttal"
+                };
+
+                // Formulate turns for PRO evaluation
+                var proTurns = roundArgs.Select(a => new RoundTurnDto(
+                    Speaker: (a.Participant.Side == DebateSide.PRO || a.Participant.Side == DebateSide.Affirmative) ? "learner" : "opponent",
+                    Text: a.Content
+                )).ToList();
+
+                if (proTurns.Any(t => t.Speaker == "learner"))
+                {
+                    var proRoundReq = new EvaluateRoundRequest(Motion: motion, Side: "pro", Stage: stageStr, Turns: proTurns);
+                    var proRoundRes = await _aiEvaluatorClient!.EvaluateRoundAsync(proRoundReq, cancellationToken);
+                    if (proRoundRes != null)
+                    {
+                        proRounds.Add(proRoundRes);
+                    }
+                }
+
+                // Formulate turns for CON evaluation
+                var conTurns = roundArgs.Select(a => new RoundTurnDto(
+                    Speaker: (a.Participant.Side == DebateSide.CON || a.Participant.Side == DebateSide.Negative) ? "learner" : "opponent",
+                    Text: a.Content
+                )).ToList();
+
+                if (conTurns.Any(t => t.Speaker == "learner"))
+                {
+                    var conRoundReq = new EvaluateRoundRequest(Motion: motion, Side: "con", Stage: stageStr, Turns: conTurns);
+                    var conRoundRes = await _aiEvaluatorClient!.EvaluateRoundAsync(conRoundReq, cancellationToken);
+                    if (conRoundRes != null)
+                    {
+                        conRounds.Add(conRoundRes);
+                    }
+                }
+            }
+
+            EvaluateSessionResponse? proSessionRes = null;
+            if (proRounds.Any())
+            {
+                var proSessionReq = new EvaluateSessionRequest(Motion: motion, Side: "pro", Rounds: proRounds);
+                proSessionRes = await _aiEvaluatorClient!.EvaluateSessionAsync(proSessionReq, cancellationToken);
+            }
+
+            EvaluateSessionResponse? conSessionRes = null;
+            if (conRounds.Any())
+            {
+                var conSessionReq = new EvaluateSessionRequest(Motion: motion, Side: "con", Rounds: conRounds);
+                conSessionRes = await _aiEvaluatorClient!.EvaluateSessionAsync(conSessionReq, cancellationToken);
+            }
+
+            decimal proScore = proSessionRes?.OverallScore ?? (proRounds.Any() ? proRounds.Average(r => r.RoundScore) : 0m);
+            decimal conScore = conSessionRes?.OverallScore ?? (conRounds.Any() ? conRounds.Average(r => r.RoundScore) : 0m);
+
+            string suggestedWinner;
+            if (proScore > conScore) suggestedWinner = "PRO";
+            else if (conScore > proScore) suggestedWinner = "CON";
+            else suggestedWinner = "TIE";
+
+            var winnerParticipant = session.Participants.FirstOrDefault(p =>
+                (suggestedWinner == "PRO" && (p.Side == DebateSide.PRO || p.Side == DebateSide.Affirmative)) ||
+                (suggestedWinner == "CON" && (p.Side == DebateSide.CON || p.Side == DebateSide.Negative))
+            );
+
+            decimal scoreDiff = Math.Abs(proScore - conScore);
+            decimal confidence = Math.Round(Math.Min(1.0m, 0.50m + (scoreDiff / 20.0m)), 2);
+
+            var winnerText = suggestedWinner == "TIE" ? "Kết quả hòa" : $"Phe {suggestedWinner} thắng";
+            var summary = $"{winnerText} với điểm số: PRO {proScore:F1}/10 - CON {conScore:F1}/10.";
+            var feedback = proSessionRes?.ProgressTrend ?? conSessionRes?.ProgressTrend ?? summary;
+
+            var rawData = new
+            {
+                ProSession = proSessionRes,
+                ConSession = conSessionRes,
+                ProRounds = proRounds,
+                ConRounds = conRounds
+            };
+            string rawJson = JsonSerializer.Serialize(rawData);
+
+            var judgement = new AIJudgement
+            {
+                DebateSessionId = sessionId,
+                WinnerParticipantId = winnerParticipant?.ParticipantId,
+                SuggestedWinnerSide = suggestedWinner,
+                OverallScorePro = proScore,
+                OverallScoreCon = conScore,
+                OverallScore = Math.Max(proScore, conScore),
+                ConfidenceScore = confidence,
+                OverallFeedback = feedback,
+                Summary = summary,
+                AIProvider = "Azure Container Apps - AI Evaluator",
+                AIModel = "Groq / Llama-3.3-70b-versatile",
+                RawResponseJson = rawJson,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _debateRepository.AddAIJudgementAsync(judgement, cancellationToken);
+
+            judgement.DebateSession = session;
+            judgement.WinnerParticipant = winnerParticipant;
+
+            return MapJudgementToResponse(judgement, session);
+        }
+
+        private DebateEvaluationResponse MapJudgementToResponse(AIJudgement judgement, DebateSession session)
+        {
+            var proParticipant = session.Participants.FirstOrDefault(p => p.Side == DebateSide.PRO || p.Side == DebateSide.Affirmative);
+            var conParticipant = session.Participants.FirstOrDefault(p => p.Side == DebateSide.CON || p.Side == DebateSide.Negative);
+            var winnerParticipant = judgement.WinnerParticipant ?? session.Participants.FirstOrDefault(p => p.ParticipantId == judgement.WinnerParticipantId);
+
+            ParticipantEvaluationDto? proEval = null;
+            ParticipantEvaluationDto? conEval = null;
+
+            if (!string.IsNullOrEmpty(judgement.RawResponseJson))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(judgement.RawResponseJson);
+                    var root = doc.RootElement;
+
+                    if (root.TryGetProperty("ProSession", out var proSessionEl) && proSessionEl.ValueKind == JsonValueKind.Object)
+                    {
+                        var proSession = JsonSerializer.Deserialize<EvaluateSessionResponse>(proSessionEl.GetRawText());
+                        List<EvaluateRoundResponse>? proRounds = null;
+                        if (root.TryGetProperty("ProRounds", out var proRoundsEl) && proRoundsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            proRounds = JsonSerializer.Deserialize<List<EvaluateRoundResponse>>(proRoundsEl.GetRawText());
+                        }
+
+                        if (proSession != null)
+                        {
+                            proEval = new ParticipantEvaluationDto
+                            {
+                                Side = "PRO",
+                                SpeakerName = proParticipant?.ParticipantType == ParticipantType.AI ? "AI Opponent" : (proParticipant?.User?.FullName ?? "User PRO"),
+                                OverallScore = proSession.OverallScore,
+                                StageBreakdown = proSession.StageBreakdown ?? new(),
+                                ProgressTrend = proSession.ProgressTrend ?? string.Empty,
+                                Strengths = proSession.OverallStrengths ?? new(),
+                                Weaknesses = proSession.OverallWeaknesses ?? new(),
+                                Suggestions = proSession.OverallSuggestions ?? new(),
+                                RoundEvaluations = proRounds?.Select((r, idx) => new RoundEvaluationDetailDto
+                                {
+                                    RoundNumber = idx + 1,
+                                    Stage = r.Stage,
+                                    RoundScore = r.RoundScore,
+                                    ConsistencyNote = r.ConsistencyNote,
+                                    Criteria = r.Criteria ?? new(),
+                                    Strengths = r.Strengths ?? new(),
+                                    Weaknesses = r.Weaknesses ?? new(),
+                                    Suggestions = r.Suggestions ?? new()
+                                }).ToList() ?? new()
+                            };
+                        }
+                    }
+
+                    if (root.TryGetProperty("ConSession", out var conSessionEl) && conSessionEl.ValueKind == JsonValueKind.Object)
+                    {
+                        var conSession = JsonSerializer.Deserialize<EvaluateSessionResponse>(conSessionEl.GetRawText());
+                        List<EvaluateRoundResponse>? conRounds = null;
+                        if (root.TryGetProperty("ConRounds", out var conRoundsEl) && conRoundsEl.ValueKind == JsonValueKind.Array)
+                        {
+                            conRounds = JsonSerializer.Deserialize<List<EvaluateRoundResponse>>(conRoundsEl.GetRawText());
+                        }
+
+                        if (conSession != null)
+                        {
+                            conEval = new ParticipantEvaluationDto
+                            {
+                                Side = "CON",
+                                SpeakerName = conParticipant?.ParticipantType == ParticipantType.AI ? "AI Opponent" : (conParticipant?.User?.FullName ?? "User CON"),
+                                OverallScore = conSession.OverallScore,
+                                StageBreakdown = conSession.StageBreakdown ?? new(),
+                                ProgressTrend = conSession.ProgressTrend ?? string.Empty,
+                                Strengths = conSession.OverallStrengths ?? new(),
+                                Weaknesses = conSession.OverallWeaknesses ?? new(),
+                                Suggestions = conSession.OverallSuggestions ?? new(),
+                                RoundEvaluations = conRounds?.Select((r, idx) => new RoundEvaluationDetailDto
+                                {
+                                    RoundNumber = idx + 1,
+                                    Stage = r.Stage,
+                                    RoundScore = r.RoundScore,
+                                    ConsistencyNote = r.ConsistencyNote,
+                                    Criteria = r.Criteria ?? new(),
+                                    Strengths = r.Strengths ?? new(),
+                                    Weaknesses = r.Weaknesses ?? new(),
+                                    Suggestions = r.Suggestions ?? new()
+                                }).ToList() ?? new()
+                            };
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fallback to basic summary if JSON parsing has issues
+                }
+            }
+
+            return new DebateEvaluationResponse
+            {
+                JudgementId = judgement.JudgementId,
+                SessionId = judgement.DebateSessionId,
+                SuggestedWinnerSide = judgement.SuggestedWinnerSide ?? "TIE",
+                WinnerParticipantId = judgement.WinnerParticipantId,
+                WinnerSpeakerName = winnerParticipant?.ParticipantType == ParticipantType.AI ? "AI Opponent" : (winnerParticipant?.User?.FullName ?? (judgement.WinnerParticipantId.HasValue ? $"User {judgement.WinnerParticipantId}" : null)),
+                OverallScorePro = judgement.OverallScorePro,
+                OverallScoreCon = judgement.OverallScoreCon,
+                OverallScore = judgement.OverallScore,
+                ConfidenceScore = judgement.ConfidenceScore,
+                Summary = judgement.Summary,
+                OverallFeedback = judgement.OverallFeedback,
+                AIProvider = judgement.AIProvider,
+                AIModel = judgement.AIModel,
+                EvaluatedAt = judgement.CreatedAt,
+                ProEvaluation = proEval,
+                ConEvaluation = conEval
+            };
         }
 
         #endregion

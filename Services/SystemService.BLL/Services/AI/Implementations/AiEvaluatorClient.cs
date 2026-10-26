@@ -24,8 +24,13 @@ namespace SystemService.BLL.Services.AI.Implementations
         {
             try
             {
-                var response = await _httpClient.PostAsJsonAsync("/evaluate", req, ct);
-                response.EnsureSuccessStatusCode();
+                var response = await _httpClient.PostAsJsonAsync("evaluate", req, ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync(ct);
+                    _logger.LogError("AI Evaluator EvaluateArgumentAsync returned status {StatusCode}: {ErrorBody}", response.StatusCode, errorBody);
+                    throw new HttpRequestException($"AI Evaluator returned {(int)response.StatusCode}: {errorBody}");
+                }
                 return await response.Content.ReadFromJsonAsync<EvaluateArgumentResponse>(cancellationToken: ct);
             }
             catch (Exception ex)
@@ -39,8 +44,13 @@ namespace SystemService.BLL.Services.AI.Implementations
         {
             try
             {
-                var response = await _httpClient.PostAsJsonAsync("/evaluate/round", req, ct);
-                response.EnsureSuccessStatusCode();
+                var response = await _httpClient.PostAsJsonAsync("evaluate/round", req, ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync(ct);
+                    _logger.LogError("AI Evaluator EvaluateRoundAsync returned status {StatusCode}: {ErrorBody}", response.StatusCode, errorBody);
+                    throw new HttpRequestException($"AI Evaluator returned {(int)response.StatusCode}: {errorBody}");
+                }
                 return await response.Content.ReadFromJsonAsync<EvaluateRoundResponse>(cancellationToken: ct);
             }
             catch (Exception ex)
@@ -54,13 +64,58 @@ namespace SystemService.BLL.Services.AI.Implementations
         {
             try
             {
-                var response = await _httpClient.PostAsJsonAsync("/evaluate/session", req, ct);
-                response.EnsureSuccessStatusCode();
+                var response = await _httpClient.PostAsJsonAsync("evaluate/session", req, ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync(ct);
+                    _logger.LogError("AI Evaluator EvaluateSessionAsync returned status {StatusCode}: {ErrorBody}", response.StatusCode, errorBody);
+                    throw new HttpRequestException($"AI Evaluator returned {(int)response.StatusCode}: {errorBody}");
+                }
                 return await response.Content.ReadFromJsonAsync<EvaluateSessionResponse>(cancellationToken: ct);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to call AI Evaluator EvaluateSessionAsync");
+                throw;
+            }
+        }
+
+        public async Task<CoachingResultDto?> CoachArgumentAsync(ArgumentCoachingRequest req, CancellationToken ct = default)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync("coaching/argument", req, ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync(ct);
+                    _logger.LogError("AI Evaluator CoachArgumentAsync returned status {StatusCode}: {ErrorBody}", response.StatusCode, errorBody);
+                    throw new HttpRequestException($"AI Evaluator returned {(int)response.StatusCode}: {errorBody}");
+                }
+                return await response.Content.ReadFromJsonAsync<CoachingResultDto>(cancellationToken: ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to call AI Evaluator CoachArgumentAsync");
+                throw;
+            }
+        }
+
+        public async Task<CoachingResultDto?> CoachRoundAsync(RoundCoachingRequest req, CancellationToken ct = default)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync("coaching/round", req, ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync(ct);
+                    _logger.LogError("AI Evaluator CoachRoundAsync returned status {StatusCode}: {ErrorBody}", response.StatusCode, errorBody);
+                    throw new HttpRequestException($"AI Evaluator returned {(int)response.StatusCode}: {errorBody}");
+                }
+                return await response.Content.ReadFromJsonAsync<CoachingResultDto>(cancellationToken: ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to call AI Evaluator CoachRoundAsync");
                 throw;
             }
         }

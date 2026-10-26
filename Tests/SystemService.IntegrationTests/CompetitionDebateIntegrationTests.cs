@@ -357,7 +357,7 @@ namespace SystemService.IntegrationTests
             var prepareRes = await bridge.PrepareMatchDebateAsync(orgId, match.CompetitionMatchId, topicId);
             int sessionId = prepareRes.Data!.SessionId;
 
-            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context), context);
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context));
 
             // Act: Judge starts
             var startRes = await debateService.StartDebateSessionAsync(judgeId, sessionId);
@@ -390,7 +390,7 @@ namespace SystemService.IntegrationTests
             var prepareRes = await bridge.PrepareMatchDebateAsync(orgId, match.CompetitionMatchId, topicId);
             int sessionId = prepareRes.Data!.SessionId;
 
-            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context), context);
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context));
 
             // Competitor p1 tries to start
             var startResPlayer = await debateService.StartDebateSessionAsync(p1Id, sessionId);
@@ -430,7 +430,7 @@ namespace SystemService.IntegrationTests
             context.Users.Add(intruder);
             await context.SaveChangesAsync();
 
-            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context), context);
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context));
 
             // 1. Join attempt blocked
             var joinRes = await debateService.JoinP2pSessionAsync(intruder.UserId, sessionId, new JoinSessionRequest());
@@ -454,7 +454,7 @@ namespace SystemService.IntegrationTests
             using var context = CreateContext();
             var (u1, u2, _, _, topicId, f1v1, _) = await SeedTestDataAsync(context);
 
-            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context), context);
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context));
 
             // Create standalone P2P session
             var createRes = await debateService.CreateP2pSessionAsync(u1, new CreateP2pSessionRequest
@@ -540,7 +540,7 @@ namespace SystemService.IntegrationTests
                 var startTasks = Enumerable.Range(0, 2).Select(_ => Task.Run(async () =>
                 {
                     using var context = new TestSystemDbContext(opts);
-                    var service = new DebateService(new DebateRepository(context), new UserRepository(context), context);
+                    var service = new DebateService(new DebateRepository(context), new UserRepository(context));
                     gate.Wait();
                     return await service.StartDebateSessionAsync(creatorId, sessionId);
                 })).ToArray();
@@ -593,7 +593,7 @@ namespace SystemService.IntegrationTests
             var bridge = new CompetitionDebateBridgeService(context, new DebateRepository(context), new CompetitionTeamRepository(context));
             var prepare = await bridge.PrepareMatchDebateAsync(orgId, match.CompetitionMatchId, topicId);
             Assert.True(prepare.Success);
-            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context), context);
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context));
             var start = await debateService.StartDebateSessionAsync(orgId, prepare.Data!.SessionId);
             Assert.True(start.Success);
 
@@ -665,7 +665,7 @@ namespace SystemService.IntegrationTests
                     var task1 = Task.Run(async () =>
                     {
                         using var c1 = new TestSystemDbContext(opts);
-                        var s1 = new DebateService(new DebateRepository(c1), new UserRepository(c1), c1);
+                        var s1 = new DebateService(new DebateRepository(c1), new UserRepository(c1));
                         startGate.Wait();
                         return await s1.StartDebateSessionAsync(orgId, sessionId);
                     });
@@ -673,7 +673,7 @@ namespace SystemService.IntegrationTests
                     var task2 = Task.Run(async () =>
                     {
                         using var c2 = new TestSystemDbContext(opts);
-                        var s2 = new DebateService(new DebateRepository(c2), new UserRepository(c2), c2);
+                        var s2 = new DebateService(new DebateRepository(c2), new UserRepository(c2));
                         startGate.Wait();
                         return await s2.StartDebateSessionAsync(judgeId, sessionId);
                     });
@@ -754,7 +754,7 @@ namespace SystemService.IntegrationTests
             var prepareRes = await bridge.PrepareMatchDebateAsync(orgId, match.CompetitionMatchId, topicId);
             int sessionId = prepareRes.Data!.SessionId;
 
-            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context), context);
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context));
 
             // Act: Organizer starts
             var startRes = await debateService.StartDebateSessionAsync(orgId, sessionId);
