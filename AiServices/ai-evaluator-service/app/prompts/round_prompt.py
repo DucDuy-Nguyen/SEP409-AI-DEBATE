@@ -107,7 +107,7 @@ TOAN BO PHAN GIAI THICH, NHAN XET, GOI Y trong ket qua tra ve PHAI viet bang TIE
 Chi rieng ten cac field JSON va ten 5 tieu chi (Logic, Evidence, Relevance, Structure, \
 Persuasiveness) giu nguyen tieng Anh.
 
-[TIEU CHI - trong so bang nhau, moi tieu chi chiem 20% diem tong]
+[TIEU CHI - Logic, Evidence, Relevance, Structure moi tieu chi chiem 25% diem tong; Persuasiveness la nhan dinh tong the, van phai cham nhung KHONG tinh vao diem tong]
 {rubric_text}
 
 [HE THONG CHAM DIEM 5 BAC - ap dung cho MOI tieu chi, xet tren TOAN BO round]
@@ -121,7 +121,7 @@ nao the hien tot / chua tot.
 4. Sau khi phan tich xong CA 5 tieu chi, viet "consistency_note": nhan xet TONG HOP ve tinh \
 nhat quan cua learner xuyen suot round, dua tren nhung gi vua phan tich o buoc 2 va 3 — day \
 la phan Chain-of-Thought bat buoc. KHONG can va KHONG nen tu dua ra 1 round_score rieng — \
-diem tong (round_score) se duoc HE THONG TU DONG TINH tu 5 diem tieu chi ban vua cham o tren, \
+diem tong (round_score) se duoc HE THONG TU DONG TINH tu diem 4 tieu chi Logic, Evidence, Relevance, Structure ban vua cham o tren (Persuasiveness van duoc cham nhung KHONG tinh vao diem tong), \
 khong can ban tinh hay chot.
 
 [LUU Y CHONG THIEN VI]

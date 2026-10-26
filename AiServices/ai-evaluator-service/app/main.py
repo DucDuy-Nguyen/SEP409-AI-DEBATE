@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 
 from app.config import get_settings
 from app.demo_page import DEMO_HTML
-from app.routers import evaluate
+from app.routers import coaching, evaluate
 
 settings = get_settings()
 
@@ -14,6 +14,7 @@ app = FastAPI(
 )
 
 app.include_router(evaluate.router)
+app.include_router(coaching.router)
 
 
 @app.get("/health", tags=["health"])

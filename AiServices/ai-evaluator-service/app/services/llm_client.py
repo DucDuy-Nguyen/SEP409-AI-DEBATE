@@ -10,7 +10,9 @@ from abc import ABC, abstractmethod
 
 from app.config import Settings
 import time
-from openai import RateLimitError
+from openai import BadRequestError, RateLimitError
+
+from app.services.json_utils import EvaluationParseError
 
 
 class LLMClient(ABC):
@@ -169,6 +171,14 @@ class GroqClient(LLMClient):
                 if is_last_attempt:
                     raise
                 time.sleep(wait_seconds)
+            except BadRequestError as e:
+                # JSON mode cua Groq tu kiem tra output phia server: model sinh JSON
+                # hong -> 400 json_validate_failed. Ban chat la loi dinh dang tam thoi
+                # (giong JSON hong o phia client) -> doi thanh EvaluationParseError de
+                # call_llm_with_retry tu thu lai, thay vi lot ra thanh loi 500.
+                if e.code == "json_validate_failed":
+                    raise EvaluationParseError("Groq tu choi output vi JSON khong hop le") from e
+                raise
 
         raise RuntimeError("Groq: het so lan thu cho phep vi rate limit")
 

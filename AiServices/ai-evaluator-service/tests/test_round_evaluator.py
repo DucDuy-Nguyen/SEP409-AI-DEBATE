@@ -19,9 +19,9 @@ VALID_CRITERIA = [
     {"name": "Structure", "score": 4, "reasoning": "Cau truc ro rang qua cac luot."},
     {"name": "Persuasiveness", "score": 4, "reasoning": "Thuyet phuc, hoi thieu impact cu the."},
 ]
-# round_score LUON duoc TINH BANG CONG THUC tu 5 tieu chi con (da ap dung dung
-# nguyen tac cua overall_score o Argument-level — xem app/services/round_evaluator.py
-# va docs/AI_DEVELOPMENT_LOG.md muc 3.8): (4+3+5+4+4)/25*10 = 8.0
+# round_score LUON duoc TINH BANG CONG THUC theo trong so RUBRIC (4 tieu chi x 25%, Persuasiveness
+# 0% — xem app/services/scoring.py, docs/AI_DEVELOPMENT_LOG.md muc 3.14), cung nguyen tac voi
+# overall_score o Argument-level: 2 x 0.25 x (4+3+5+4) = 8.0 (Persuasiveness=4 KHONG anh huong)
 EXPECTED_ROUND_SCORE = 8.0
 
 # LUU Y: khong con "round_score" trong VALID_ROUND_PAYLOAD — field nay khong
@@ -75,7 +75,7 @@ def test_valid_round_json_parsed_correctly():
 
 def test_round_score_always_computed_via_formula():
     """
-    round_score LUON duoc tinh bang cong thuc (tong 5 tieu chi / 25) * 10 tu
+    round_score LUON duoc tinh bang cong thuc (2 x Sum(trong so x diem), 4 tieu chi x 25%) tu
     "criteria" — KHONG con la field bat buoc trong JSON LLM tra ve (khac voi
     thiet ke truoc day cho phep AI tu tra ve gia tri rieng). VALID_ROUND_PAYLOAD
     khong co "round_score" va van phai cho ra ket qua dung.
@@ -85,7 +85,7 @@ def test_round_score_always_computed_via_formula():
 
     result = evaluate_round(_sample_round_request(), llm_client=client)
 
-    expected = round(sum(c["score"] for c in VALID_CRITERIA) / (len(VALID_CRITERIA) * 5) * 10, 2)
+    expected = round(2 * 0.25 * sum(c["score"] for c in VALID_CRITERIA if c["name"] != "Persuasiveness"), 2)
     assert result.round_score == expected == EXPECTED_ROUND_SCORE
     assert client.call_count == 1
 
@@ -162,3 +162,36 @@ def test_round_system_prompt_includes_opponent_rebuttal_when_opponent_turn_prese
     system_prompt, _ = build_round_evaluation_prompt(_sample_round_request())
 
     assert "phan bien" in system_prompt.lower() and "doi phuong" in system_prompt.lower()
+
+
+def test_round_persuasiveness_does_not_affect_round_score():
+    """Persuasiveness van duoc tra ve trong criteria nhung trong so 0: doi no 1 -> 5 khong doi round_score."""
+    results = []
+    for score in (1, 5):
+        criteria = [dict(c) for c in VALID_CRITERIA]
+        criteria[-1]["score"] = score
+        client = FakeLLMClient([json.dumps({**VALID_ROUND_PAYLOAD, "criteria": criteria})])
+        results.append(evaluate_round(_sample_round_request(), llm_client=client))
+
+    assert results[0].round_score == results[1].round_score == EXPECTED_ROUND_SCORE
+    assert results[0].criteria[-1].score == 1 and results[1].criteria[-1].score == 5
+
+
+def test_round_system_prompt_states_persuasiveness_is_not_counted():
+    system_prompt, _ = build_round_evaluation_prompt(_sample_round_request())
+
+    assert "25%" in system_prompt
+    assert "KHONG tinh vao diem tong" in system_prompt
+    assert "trong so bang nhau" not in system_prompt
+
+
+def test_round_result_carries_current_scoring_version_and_keeps_old_evidence_description():
+    client = FakeLLMClient([json.dumps(VALID_ROUND_PAYLOAD)])
+
+    result = evaluate_round(_sample_round_request(), llm_client=client)
+    system_prompt, _ = build_round_evaluation_prompt(_sample_round_request())
+
+    assert result.scoring_version == "v2_4x25"
+    assert "Lap luan co bang chung / vi du cu the ho tro, khong chi la khang dinh suong." in system_prompt
+    assert "5 - Xuat sac, dap ung nghiem ngat moi tieu chi." in system_prompt
+    assert " diem: " not in system_prompt
