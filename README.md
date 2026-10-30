@@ -18,12 +18,14 @@ app/
   llm/                       # BẢN SAO có chủ đích provider abstraction từ Evaluation service
   opponent/
     models.py                # ORM: opponent_sessions, opponent_case_files, opponent_llm_calls,
-                             #      opponent_speeches, opponent_turns
+                             #      opponent_speeches, opponent_turns, opponent_hints
     schemas.py               # request/response + schema CaseFile
     router.py                # endpoint (chỉ gọi service)
     service.py               # logic Case Planning
     match_format.py          # format trận 6 lượt + mode sinh (MỘT chỗ duy nhất)
     turn_service.py          # POST .../turns: validate, idempotent, lưu bài nói
+    hint.py                  # gợi ý phản bác (WF-02): prompt hint_v1, validator, Stance Reviewer — KHÔNG đọc case plan
+    hint_service.py          # POST .../hints: map lượt, idempotent theo request_id, lưu opponent_hints
     turn_generators.py       # interface bộ sinh + turn_baseline_v1 (chatbot ngây thơ, giữ nguyên để so sánh)
     turn_full.py             # turn_full_v6 (mặc định) / v5 / v4 / v3 / v2 / v1: JSON phân tích → dàn ý → bài nói
     json_repair.py           # sửa tất định JSON "mảng tách" bị Groq từ chối (lượt nói + Case Planning)
@@ -38,6 +40,7 @@ alembic/                     # 0001 tạo 3 bảng, 0002 external_session_id + 1
                              # 0003 vague_evidence + learner_claim, ..., 0008 speeches + turns, 0009 ai_points, 0010 reasoning, 0011 turn wait
 scripts/try_case_plan.py     # gọi LLM thật (thủ công, không cần DB)
 scripts/try_match.py         # chạy thử cả trận 6 lượt với LLM thật (cần DB dev)
+scripts/try_hint.py          # gợi ý phản bác với LLM thật trên trận đã có trong DB dev (chấm chất lượng thủ công)
 scripts/run_case_plan_batch.py  # batch nhiều motion × 2 phe, ghi JSONL vào experiments/
 scripts/compare_case_plan_batches.py  # so sánh v3 vs v4 (nhiều file mỗi phiên bản)
 scripts/label_stance.py      # gán nhãn phe MÙ → đo độ chính xác Stance Reviewer
@@ -200,6 +203,33 @@ Bộ sinh (`TURN_GENERATOR_VERSION`):
 ```bash
 curl -X POST http://localhost:8002/opponent/sessions/main-123/turns -H "Content-Type: application/json" \
   -d '{"turn_index": 2, "new_learner_speeches": [{"turn_index": 1, "round_type": "opening", "text": "..."}]}'
+```
+
+### Gợi ý phản bác cho learner (WF-02)
+
+`POST /opponent/sessions/{external_session_id}/hints`. Chỉ SystemService gọi; SystemService tự kiểm tra chế độ
+Practice, số dư và trừ token.
+
+- **Request:** `{"request_id": "...", "learner_turn_index": 3, "learner_draft": null}`.
+- **Response:** 2–3 chiến lược. Mỗi chiến lược có `title`, `target_claim`, `attack_type`, `direction` (≤ 60 từ) và
+  `evidence_to_look_for`. Gợi ý nhắm vào lượt AI gần nhất trước lượt learner (`target_turn_index`).
+- **Không đọc case plan của AI.** Prompt chỉ có motion, phe learner, bài nói công khai (bài target nguyên văn, các
+  lượt trước cắt còn 150 từ) và bản nháp.
+- **Idempotent theo `request_id`:** cùng input trả 200 (không gọi LLM); khác input trả 409.
+- **Mã lỗi:**
+
+| Mã | Khi nào |
+|---|---|
+| 400 | Lượt không phải của learner, hoặc chưa có lượt AI trước đó |
+| 404 | Không có session |
+| 409 | Session chưa ready; lượt AI target chưa sinh; trùng `request_id` khác input |
+| 422 | Sai schema |
+| 502 | LLM lỗi, hint không hợp lệ sau `HINT_MAX_ATTEMPTS`, hoặc quá `HINT_TOTAL_BUDGET_SECONDS` |
+| 503 | Thiếu cấu hình LLM |
+
+```bash
+curl -X POST http://localhost:8002/opponent/sessions/main-123/hints -H "Content-Type: application/json" \
+  -d '{"request_id": "hint-main-123-u1-c1", "learner_turn_index": 3}'
 ```
 
 ## 4. Chạy test

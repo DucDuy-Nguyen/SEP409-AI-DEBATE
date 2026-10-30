@@ -378,7 +378,7 @@ cụm cấm bằng hướng dẫn tích cực: "Khi đề xuất giải pháp th
 luận dựa trên cơ chế hoạt động của nó, không dựa trên việc nơi khác đã áp dụng hay đã được chứng minh."
 Lý do: chạy lại v3 vẫn thấy "nhiều quốc gia đã áp dụng…" dù bị cấm đích danh — liệt kê cụm cấm không đủ, và
 có thể còn gợi ý chính cụm đó. Giả thuyết: nói model **làm gì** (lập luận bằng cơ chế) hiệu quả hơn nói **không
-làm gì**. **Chưa kiểm chứng** — cần batch v3 vs v4 (mục 5). v4 dùng chung với v3: `CaseFile`, số luận điểm,
+làm gì**. **Chưa kiểm chứng** — cần batch v3 vs v4 (mục 6). v4 dùng chung với v3: `CaseFile`, số luận điểm,
 nhãn phe, luật theo phe, mẫu JSON, JSON schema (import từ v3). `CASE_PLAN_PROMPT_VERSION` (mặc định
 `case_plan_v4`), Settings chỉ nhận `case_plan_v3` / `case_plan_v4`.
 
@@ -401,7 +401,7 @@ tiếng Việt). Hệ quả: lỗi **tương quan** — nếu generator hiểu s
 kiến nghị dạng "Nên cấm X"), reviewer cùng họ có thể hiểu sai y như vậy và **không bắt được** lật phe. Reviewer
 khác họ (vd Qwen trên Groq, hoặc Claude / Gemini) sẽ độc lập hơn nhưng chưa thử (chi phí, JSON schema strict
 chưa kiểm chứng). Cấu hình được qua `STANCE_REVIEW_PROVIDER` / `STANCE_REVIEW_MODEL`. Muốn đo mức độ ảnh
-hưởng cần bộ case file gắn nhãn tay (mục 5).
+hưởng cần bộ case file gắn nhãn tay (mục 6).
 
 ### 2.4h. Rate limit: chờ theo provider, tách chỉ số, năng lực phục vụ (2026-09-26)
 
@@ -466,7 +466,7 @@ Chi tiết cách dùng: README mục 7. Cả 3 script chỉ đọc JSONL (không
 
 **Phát hiện khi chạy thử (chỉ đọc) trên batch v3 sạch `20260927-092737`:** câu *"một số **nghiên cứu (không nêu cụ
 thể) cho thấy**…"* (planned_response) **lọt validator cụm cấm** — mẫu `nghiên cứu cho thấy` khớp nguyên văn, có chữ
-chen giữa là trượt. Detector (chỉ log) vẫn bắt được. Chưa sửa (ngoài phạm vi lượt này) — xem mục 5.
+chen giữa là trượt. Detector (chỉ log) vẫn bắt được. Chưa sửa (ngoài phạm vi lượt này) — xem mục 6.
 
 ### 2.4j. Đánh giá v3/v4 bằng nhãn tay → sửa lỗi tổng hợp, prompt v5 (2026-09-29)
 
@@ -1839,14 +1839,86 @@ Có test kiểm tra mặc định trả đúng prompt sản phẩm.
 
 ---
 
-## 4. Vấn đề đã gặp
+## 4. Gợi ý phản bác cho learner — WF-02 (2026-10-30)
+
+Spec: `SPEC_AI_HINT_WF02.md`. Endpoint `POST /opponent/sessions/{external_session_id}/hints`. Code ở
+`app/opponent/hint.py` (thuần) và `hint_service.py` (DB). Migration `0014`.
+
+### 4.1. Quyết định thiết kế
+
+1. **Không đọc case plan (quan trọng nhất).**
+   - Case file, ledger và các trường phân tích của `opponent_turns` (`ai_points`, `premises`, `target_premise`) là dữ
+     liệu lập kế hoạch nội bộ của AI. Đưa vào hint là mách nước cho learner, và AI không còn là đối thủ thật.
+   - Bảo đảm bằng cấu trúc: `build_hint_prompt` / `HintContext` không có tham số nào chứa dữ liệu đó; ngữ cảnh chỉ lấy
+     từ `opponent_speeches` (bài đã nói công khai).
+   - Ba test:
+     - Quét AST `hint.py` + `hint_service.py`: không có tên nào như `get_case_file`, `build_ledger`, `OpponentTurn`,
+       `ai_points`, …
+     - Test unit: prompt không chứa chuỗi đánh dấu.
+     - Test API: case file thật trong DB có chuỗi đánh dấu; mọi prompt gửi LLM (kể cả reviewer) và mọi dòng log đều
+       không chứa nó.
+2. **Xác định lượt:**
+   - Dùng lại `match_format` (`speaker_of`, `turns_of`, `turn_spec`), không viết lại thứ tự lượt.
+   - `target_turn_index` = lượt AI gần nhất trước lượt learner.
+   - Lượt target "đã sinh" nghĩa là có trong `opponent_speeches`.
+   - Lịch sử gồm MỌI lượt khác trước lượt learner (cả hai bên), kể cả lượt nằm giữa target và lượt learner. Ví dụ
+     learner phe con xin gợi ý ở lượt 5 (target là lượt 3) vẫn thấy bài lượt 4 của chính mình.
+3. **Thứ tự kiểm tra:**
+   - Không có session → 404. Chưa ready → 409.
+   - Có `request_id` rồi: cùng input → 200, khác input → 409. Bước này đặt trước kiểm tra lượt, để gửi lại đúng request
+     cũ luôn nhận 200.
+   - Lượt không hợp lệ → 400. Target chưa sinh → 409. Sau đó mới gọi LLM.
+   - Input so sánh gồm `learner_turn_index` và `learner_draft` (NFC + strip; draft rỗng coi như null).
+   - Request đồng thời cùng `request_id`: khóa `pg_advisory_xact_lock` theo (session, `request_id`) trước khi kiểm tra
+     idempotency, nên request sau chờ rồi nhận bản đã lưu (200) và không gọi LLM lần 2. Nếu vẫn vướng unique →
+     `IntegrityError` → đọc lại và so input (không thấy bản kia → 409, client gọi lại).
+   - `learner_turn_index` ngoài 1..6 bị schema chặn (422); trong khoảng nhưng là lượt của AI hoặc chưa có lượt AI
+     trước đó → 400.
+4. **Validator** (lỗi → retry kèm phản hồi; không tự vá JSON / tên trường, theo spec):
+   - Schema: 2–3 chiến lược, `attack_type` thuộc enum.
+   - `direction` ≤ 60 từ.
+   - `evidence_to_look_for`: cấm chữ số / `%`, URL / tên miền, và cụm bị bộ dò bằng chứng gắn mức HIGH.
+   - Hai chiến lược không được trùng cả `attack_type` lẫn `target_claim` (so sau chuẩn hóa).
+   - Mục 5.1 ("nhắm vào nội dung AI thật sự đã nói") không kiểm được chắc chắn bằng code: chỉ đưa vào prompt, và log
+     `speech_checks.target_overlap` (tỷ lệ từ của `target_claim` có trong bài target).
+5. **Stance Reviewer v1 tái dùng:**
+   - Mỗi chiến lược thành 1 mục: *"Phản bác ý '{target_claim}': {direction}"*. Reviewer không biết phe; code so với
+     phe learner.
+   - Lật phe → retry trung tính. Reviewer lỗi → không chấp nhận hint (fail-closed như mục 2.14). Hết lượt → 502.
+6. **Tham số** (người dùng chốt 2026-10-30):
+   - `HINT_MAX_TOKENS=2000` thay vì 700 như spec gợi ý, vì gpt-oss tính cả token suy luận vào `max_tokens`.
+   - `HINT_REASONING_EFFORT=low`. Temperature lấy `LLM_TEMPERATURE` (cấu hình chung, theo spec).
+   - Mã lỗi: 503 khi thiếu cấu hình LLM (như các endpoint khác). Quá `HINT_TOTAL_BUDGET_SECONDS` (90s) trả **502**,
+     không phải 504, vì spec gom mọi lỗi LLM về 502.
+7. **Log:**
+   - Mỗi lời gọi ghi vào `opponent_llm_calls` (`purpose='hint'` và `stance_review`), cột mới `hint_id` (null nếu
+     thất bại).
+   - `opponent_hints` lưu tổng `tokens_in` / `tokens_out` / `latency_ms`.
+   - Hint thất bại không được lưu, nên gọi lại cùng `request_id` sẽ sinh mới.
+
+**Test:** `tests/test_hint_unit.py` (42) + `tests/test_hints_api.py` (27), LLM giả. **Chưa chạy LLM thật.**
+
+### 4.2. Kiểm tra chất lượng thủ công (CHƯA làm)
+
+- Chạy `python -m scripts.try_hint <external_session_id ...>` trên 10 phiên mẫu (tạo bằng `scripts/try_match.py`), có
+  cả learner pro và con.
+- Chấm mỗi hint theo 4 câu (cột trong JSONL `experiments/hints/*.jsonl`):
+  - Nhắm đúng nội dung AI đã nói?
+  - Đúng phe learner?
+  - Không viết hộ?
+  - Không bịa số liệu?
+- Ghi kết quả vào đây.
+
+---
+
+## 5. Vấn đề đã gặp
 
 - Docker CLI trong Git Bash báo `docker-credential-desktop not found` khi pull image → chạy
   `docker compose` từ PowerShell (hoặc thêm `C:\Program Files\Docker\Docker\resources\bin` vào PATH).
 
 ---
 
-## 5. Việc còn treo
+## 6. Việc còn treo
 
 - [ ] **Batch v5** (CHƯA chạy): `run_case_plan_batch --prompt-version v5`, rồi `compare_case_plan_batches --v4 … --v5 …`;
       gán nhãn `vague_evidence` + `label_stance` cho batch v5 (đo reviewer v2 với LLM thật — có hết báo nhầm kiểu M10 không).
@@ -1945,7 +2017,7 @@ Có test kiểm tra mặc định trả đúng prompt sản phẩm.
 
 ---
 
-## 6. Nhật ký cập nhật
+## 7. Nhật ký cập nhật
 
 - 2026-09-25: Khởi tạo service (Bước 0): FastAPI + Postgres + Alembic, copy provider abstraction
   từ Evaluation service, Case Planning v1, 3 bảng, 27 test pass.
@@ -2001,7 +2073,7 @@ Có test kiểm tra mặc định trả đúng prompt sản phẩm.
   tái hiện batch 59/59 mục. Mặc định reviewer → `stance_review_v3` (mục 2.4l). Việc còn treo: restatement tiếng Anh, kiểm
   chứng v3 trên dữ liệu mới. 245 test pass.
 - 2026-09-29: Đọc batch v5: 3 lần side_flip của reviewer v3 (M05 con easy #1, #4; M09 con hard #1) đều bị người gán nhãn
-  đánh giá là báo sai → thêm việc còn treo (mục 5). `replay_stance_review` thêm `--from-batch FILE --only-flagged`
+  đánh giá là báo sai → thêm việc còn treo (mục 6). `replay_stance_review` thêm `--from-batch FILE --only-flagged`
   (lần thử bị báo side_flip/unclear + lần được chấp nhận ngay sau, in batch vs replay theo từng mục, restatement v3, phản
   hồi retry). Không đổi logic service. CHƯA chạy replay thật. 250 test pass.
 - 2026-09-29: Mục 2.4m — replay v1 trên 5 lần thử bị v3 gắn cờ ở batch v5: 5/5 pass, 13/13 khớp nhãn người (v3: 3 báo
@@ -2104,3 +2176,7 @@ Có test kiểm tra mặc định trả đúng prompt sản phẩm.
   - 557 test pass. KHÔNG chạy LLM thật.
 - 2026-10-03: Mục 3.1 — ghi chú: giám khảo lỗi khi chấm learner thì chấp nhận bài (thiên về bỏ sót sim-flip, bước
   phụ); khi chấm AI vẫn retry / `judge_missing` như thiết kế ban đầu. Chỉ sửa tài liệu.
+- 2026-10-30: Mục 4 (chương mới; chương cũ 4/5/6 → 5/6/7) — gợi ý phản bác WF-02: `POST .../hints`, bảng
+  `opponent_hints` (migration 0014), không đọc case plan (3 test), validator 5 luật, Stance Reviewer theo phe learner,
+  `HINT_MAX_TOKENS=2000` / reasoning low, quá thời gian → 502, khóa advisory chống gọi LLM 2 lần. 69 test mới (LLM giả). CHƯA chạy LLM thật; chấm thủ
+  công 10 phiên còn treo.

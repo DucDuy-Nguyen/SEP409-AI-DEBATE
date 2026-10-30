@@ -153,6 +153,17 @@ class Settings(BaseSettings):
     turn_target_words_rebuttal: int = 320
     turn_target_words_closing: int = 260
 
+    # ---- Goi y phan bac cho learner (WF-02, hint.py) ----
+    # Temperature dung LLM_TEMPERATURE (cau hinh chung, theo spec). 2000 (spec goi y 700): gpt-oss tinh ca token suy luan
+    # vao max_tokens; output hint ~300-500 token. Reasoning "low" de nhanh / re. Reviewer (neu bat) dung lai
+    # STANCE_REVIEW_* nhu luot noi.
+    hint_max_tokens: int = 2000
+    hint_reasoning_effort: Literal["low", "medium", "high"] | None = "low"
+    # So lan thu khi output khong hop le (JSON / schema / validator / lat phe / reviewer loi). 429 khong tinh.
+    hint_max_attempts: int = 3
+    # Tran thoi gian cho 1 request hint (moi lan goi + cho 429). Het -> 502 (spec gom moi loi LLM ve 502).
+    hint_total_budget_seconds: float = 90
+
     # ---- App ----
     app_name: str = "ADPP AI Generation Service"
     app_port: int = 8002  # Evaluation service chay 8000

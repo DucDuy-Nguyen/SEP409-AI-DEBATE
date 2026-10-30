@@ -9,6 +9,7 @@ SQLAlchemy ORM cho module AI Opponent — 5 bang:
                         prompt ve sau (giong cach Evaluation service do agreement rate).
 - opponent_speeches   : snapshot MOI bai noi trong tran (learner do Main Flow gui + AI), 1 dong / luot.
 - opponent_turns      : metadata sinh bai noi cua AI (mode, bo sinh, model, token...), tro toi opponent_speeches.
+- opponent_hints      : goi y phan bac cho learner (WF-02), idempotent theo (session_id, request_id).
 """
 import enum
 import uuid
@@ -64,6 +65,7 @@ class LLMCallPurpose(str, enum.Enum):
     CASE_PLAN = "case_plan"
     STANCE_REVIEW = "stance_review"  # trong tai trung lap kiem tra phe (stance_reviewer.py)
     TURN = "turn"  # sinh bai noi cua AI trong tran (Giai doan 3)
+    HINT = "hint"  # goi y phan bac cho learner (WF-02, hint.py)
 
 
 # Format tran: xem match_format.py (enum dat o day vi dung lam kieu cot DB).
@@ -234,6 +236,11 @@ class OpponentLLMCall(Base):
     turn_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("opponent_turns.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    # Loi goi cua 1 goi y phan bac (purpose=hint, va stance_review cua hint): tro toi hint da luu. NULL voi loi goi khac
+    # va voi hint THAT BAI (chua co dong opponent_hints) — khi do tim theo session_id + purpose. Migration 0014.
+    hint_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("opponent_hints.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = _created_at()
 
 
@@ -292,4 +299,38 @@ class OpponentTurn(Base):
     rate_limit_wait_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = _created_at()
+
+
+class OpponentHint(Base):
+    """
+    Goi y phan bac (WF-02) cho luot SAP TOI cua learner. Chi dung bai noi CONG KHAI (opponent_speeches), KHONG BAO GIO
+    case file / ledger. Idempotent theo (session_id, request_id): cung input -> tra ban da luu, khac input -> 409.
+    """
+
+    __tablename__ = "opponent_hints"
+    __mapper_args__ = {"eager_defaults": True}
+    __table_args__ = (
+        UniqueConstraint("session_id", "request_id", name="uq_opponent_hints_session_request"),
+        CheckConstraint("learner_turn_index BETWEEN 1 AND 6", name="ck_opponent_hints_learner_turn_index"),
+        CheckConstraint("target_turn_index BETWEEN 1 AND 6", name="ck_opponent_hints_target_turn_index"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("opponent_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    request_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    learner_turn_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    target_turn_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    learner_draft: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # [{"title", "target_claim", "attack_type", "direction", "evidence_to_look_for"}], 2-3 phan tu (hint.HintOutput)
+    strategies: Mapped[list] = mapped_column(JSONB, nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    llm_provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    llm_model: Mapped[str] = mapped_column(String(100), nullable=False)
+    temperature: Mapped[float] = mapped_column(Float, nullable=False)
+    tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = _created_at()

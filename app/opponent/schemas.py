@@ -4,6 +4,7 @@ Pydantic models cho request/response cua module AI Opponent + schema case_file.
 Quy uoc giong Evaluation service (AI_DEVELOPMENT_LOG muc 2.4): TEN FIELD JSON giu
 tieng Anh (API contract), NOI DUNG sinh ra bang tieng Viet.
 """
+import enum
 import unicodedata
 import uuid
 from datetime import datetime
@@ -196,3 +197,59 @@ class TurnResponse(BaseModel):
     mode: TurnMode
     speech_text: str
 
+
+# ---------------------------------------------------------------------------
+# Goi y phan bac cho learner (WF-02) — POST /opponent/sessions/{external_session_id}/hints
+# ---------------------------------------------------------------------------
+
+
+class AttackType(str, enum.Enum):
+    COUNTEREXAMPLE = "counterexample"  # phan vi du
+    HIDDEN_PREMISE = "hidden_premise"  # tien de ngam
+    WEAK_EVIDENCE = "weak_evidence"  # dan chung yeu
+    LOGICAL_GAP = "logical_gap"  # lo hong logic
+    IMPACT_COMPARISON = "impact_comparison"  # so sanh tac dong
+    TURN_THE_ARGUMENT = "turn_the_argument"  # bien lap luan cua doi thu thanh loi the cua minh
+
+
+class CreateHintRequest(BaseModel):
+    request_id: str = Field(..., min_length=1, max_length=200, description="Khoa idempotency do SystemService sinh")
+    learner_turn_index: int = Field(..., ge=1, le=6, description="Luot SAP TOI cua learner can goi y (1..6)")
+    learner_draft: str | None = Field(None, max_length=5000, description="Ban nhap learner dang dinh noi (neu co)")
+
+    @field_validator("request_id")
+    @classmethod
+    def request_id_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("khong duoc de trong")
+        return v
+
+    @field_validator("learner_draft")
+    @classmethod
+    def normalize_draft(cls, v: str | None) -> str | None:
+        # NFC + strip de so sanh idempotent on dinh; rong -> None (khong co ban nhap).
+        if v is None:
+            return None
+        v = unicodedata.normalize("NFC", v).strip()
+        return v or None
+
+
+class HintStrategy(BaseModel):
+    title: str
+    target_claim: str
+    attack_type: AttackType
+    direction: str
+    evidence_to_look_for: str | None = None
+
+
+class HintResponse(BaseModel):
+    hint_id: uuid.UUID
+    learner_turn_index: int
+    round_type: RoundType
+    target_turn_index: int
+    strategies: list[HintStrategy]
+    prompt_version: str
+    llm_provider: str
+    llm_model: str
+    created_at: datetime

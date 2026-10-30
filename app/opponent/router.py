@@ -7,12 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.core.db import get_db
 from app.llm.client import LLMClient, get_llm_client
-from app.opponent import service, turn_service
+from app.opponent import hint_service, service, turn_service
 from app.opponent.schemas import (
     CaseFileResponse,
     CreateSessionRequest,
+    CreateHintRequest,
     CreateSessionResponse,
     CreateTurnRequest,
+    HintResponse,
     SessionResponse,
     TurnResponse,
 )
@@ -183,3 +185,61 @@ async def create_turn(
         turn_index=outcome.turn_index, round_type=outcome.round_type, mode=outcome.mode, speech_text=outcome.speech_text
     )
 
+
+def _error(description: str) -> dict:
+    return {"description": description, "content": {"application/json": {"example": {"detail": "..."}}}}
+
+
+@router.post(
+    "/sessions/{external_session_id}/hints",
+    response_model=HintResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        200: {"model": HintResponse, "description": "request_id da co voi cung input (idempotent, khong goi LLM)"},
+        400: _error("learner_turn_index khong phai luot cua learner, hoac chua co luot AI nao truoc no"),
+        404: _error("Khong co session voi external_session_id"),
+        409: _error("Session chua ready; luot AI can phan bac chua duoc sinh; hoac request_id da dung voi input khac"),
+        502: _error("LLM loi hoac goi y khong hop le sau khi het so lan thu (ke ca het thoi gian)"),
+        503: _error("Thieu cau hinh LLM (API key / provider)"),
+    },
+)
+async def create_hint(
+    external_session_id: str,
+    req: CreateHintRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    llm_client_factory: Callable[[], LLMClient] = Depends(get_llm_client_factory),
+    reviewer_factory: Callable[[], LLMClient | None] = Depends(get_stance_reviewer_factory),
+    settings: Settings = Depends(get_settings),
+) -> HintResponse:
+    """
+    Goi y phan bac (WF-02) cho luot SAP TOI cua learner: 2-3 chien luoc nham vao luot AI gan nhat truoc do. Chi
+    SystemService goi (kiem tra Practice / so du / tru token o phia do). Chi dung bai noi CONG KHAI — KHONG doc case
+    plan cua AI. Idempotent theo request_id: cung input -> 200 ban da luu; khac input -> 409.
+    """
+    try:
+        outcome, created = await hint_service.generate_hint(
+            db, external_session_id, req, llm_client_factory, settings, reviewer_factory
+        )
+    except service.SessionNotFoundError:
+        raise _not_found(external_session_id)
+    except hint_service.HintRequestError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except hint_service.HintConflictError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except service.LLMNotConfiguredError as e:
+        logger.error("Khong khoi tao duoc LLM client: %s", e)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+    except hint_service.HintGenerationError as e:
+        raise HTTPException(status_code=502, detail=f"AI tra ve goi y khong hop le: {e}")
+    except service.LLMCallError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    if not created:
+        response.status_code = status.HTTP_200_OK
+    hint = outcome.hint
+    return HintResponse(
+        hint_id=hint.id, learner_turn_index=hint.learner_turn_index, round_type=outcome.round_type,
+        target_turn_index=hint.target_turn_index, strategies=hint.strategies, prompt_version=hint.prompt_version,
+        llm_provider=hint.llm_provider, llm_model=hint.llm_model, created_at=hint.created_at,
+    )
