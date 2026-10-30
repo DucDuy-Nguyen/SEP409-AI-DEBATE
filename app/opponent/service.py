@@ -40,6 +40,7 @@ from app.opponent.models import (
     DebateSide,
     LLMCallPurpose,
     OpponentCaseFile,
+    MotionType,
     OpponentDifficulty,
     OpponentLLMCall,
     OpponentSession,
@@ -48,15 +49,23 @@ from app.opponent.models import (
 )
 from app.opponent import stance_reviewer, vague_detector
 from app.opponent.json_repair import repair_split_array
-from app.opponent.prompts import case_plan_v3, case_plan_v4, case_plan_v5
+from app.opponent.prompts import case_plan_v3, case_plan_v4, case_plan_v5, case_plan_v6, case_plan_v6b, case_plan_v7
 from app.opponent.schemas import AnticipatedArgument, CaseArgument, CaseFile, CreateSessionRequest, Definition
 
 logger = logging.getLogger(__name__)
 
-PROMPT_MODULES = {m.PROMPT_VERSION: m for m in (case_plan_v3, case_plan_v4, case_plan_v5)}
+PROMPT_MODULES = {
+    m.PROMPT_VERSION: m
+    for m in (case_plan_v3, case_plan_v4, case_plan_v5, case_plan_v6, case_plan_v6b, case_plan_v7)
+}
+MOTION_READING_OVERRIDDEN = "motion_reading_overridden"
 
 class InvalidSidesError(ValueError):
     """learner_side trung ai_side."""
+
+
+class InvalidMotionSpecError(ValueError):
+    """motion_type / motion_reading / burden_pro / burden_con gui khong du bo (xem _check_motion_spec) -> 400."""
 
 
 class SessionNotFoundError(Exception):
@@ -122,6 +131,12 @@ class FailureKind:
     SIDE_FLIP = "side_flip"
     BUDGET_EXCEEDED = "budget_exceeded"
     REVIEWER_ERROR = "reviewer_error"  # output cua Stance Reviewer khong parse duoc
+    # Reviewer khong tra duoc verdict sau MAX_CALLS lan goi -> output case_plan KHONG duoc chap nhan (fail-closed, muc
+    # 2.14), sinh lai trung tinh nhu side_flip. Dong case_plan mang failure_kind nay.
+    REVIEWER_UNAVAILABLE = "reviewer_unavailable"
+    # Loi goi reviewer co output RONG / bi cat (Groq 400 json_validate_failed, failed_generation rong; hoac
+    # finish_reason "length") — tach khoi schema_rejected (muc 2.14; luot noi: muc 2.10).
+    TRUNCATED = "truncated_max_tokens"
 
 
 # Phan hoi gui kem lan thu ke tiep (thay cho cau nhac chung chung truoc day): noi RO truong nao, sai gi.
@@ -545,7 +560,11 @@ async def _call_llm(
             rejected = schema_rejected_output(e)
             rate_limited = rejected is None and is_rate_limit_error(e)
             transient = rejected is None and not rate_limited and is_transient_error(e)
-            if rejected is not None:
+            if rejected == "" and purpose == LLMCallPurpose.STANCE_REVIEW:
+                # Reviewer tra RONG (vd 20261001-084031 V3 con: 2/2 lan) — thuong la token suy luan dung het max_tokens.
+                # Chi reviewer: planner van theo luong schema_rejected (doi chi so so sanh batch — viec con treo 2.10).
+                kind = FailureKind.TRUNCATED
+            elif rejected is not None:
                 kind = FailureKind.SCHEMA_REJECTED
             elif rate_limited:
                 kind = FailureKind.RATE_LIMITED
@@ -629,7 +648,9 @@ async def _review_stance(
             try:
                 review, extra = spec.parse(raw_output, ids, has_summary=True)
             except (LLMOutputParseError, ValidationError, ValueError) as e:
-                record.success, record.error, record.failure_kind = False, str(e)[:4000], FailureKind.REVIEWER_ERROR
+                truncated = record.finish_reason == "length" or not (raw_output or "").strip()
+                kind = FailureKind.TRUNCATED if truncated else FailureKind.REVIEWER_ERROR
+                record.success, record.error, record.failure_kind = False, str(e)[:4000], kind
                 failed = record
             else:
                 verdict, detail = stance_reviewer.judge(review, ai_side, review_version, extra)
@@ -643,7 +664,7 @@ async def _review_stance(
         verdict, detail = stance_reviewer.reviewer_failure(failed.error or "", review_version)
         detail["reviewer_calls"] = call_no
         failed.reviewer_verdict, failed.reviewer_detail = verdict, detail
-        logger.warning("Stance review loi %d lan, coi nhu unclear: %s", call_no, failed.error)
+        logger.warning("Stance review loi %d lan, KHONG co verdict (fail-closed): %s", call_no, failed.error)
         return verdict, detail
     raise AssertionError("unreachable")  # pragma: no cover
 
@@ -651,6 +672,10 @@ async def _review_stance(
 # Retry khi reviewer bao side_flip: sinh lai tu prompt GOC, KHONG phan hoi (muc 2.4m). Batch v5: 3/3 bao side_flip cua
 # reviewer v3 la bao sai; phan hoi "ban dang bao ve phe nguoi hoc" co the ep generator doi phe that.
 SIDE_FLIP_NEUTRAL_RETRY = "side_flip_neutral_retry"
+# Reviewer loi (khong co verdict) -> cung retry trung tinh (muc 2.14: batch 20261001-084031 V3 con easy, reviewer loi 2
+# lan -> "unclear" -> case file LAT PHE TOAN BO duoc chap nhan).
+REVIEWER_UNAVAILABLE_NEUTRAL_RETRY = "reviewer_unavailable_neutral_retry"
+NEUTRAL_RETRIES = (SIDE_FLIP_NEUTRAL_RETRY, REVIEWER_UNAVAILABLE_NEUTRAL_RETRY)
 
 
 async def _attempt_loop(
@@ -689,13 +714,13 @@ async def _attempt_loop(
         logger.info("Case plan lan thu %d khong hop le (%s), retry kem phan hoi: %s", record.attempt, record.failure_kind, issues)
         return False
 
-    def retry_neutral(record: AttemptRecord) -> bool:
-        """side_flip: sinh lai tu prompt goc, khong noi generator 'da lat phe'. True = het luot thu."""
+    def retry_neutral(record: AttemptRecord, reason: str = SIDE_FLIP_NEUTRAL_RETRY) -> bool:
+        """side_flip / reviewer loi: sinh lai tu prompt goc, khong phan hoi. True = het luot thu."""
         if out_of_attempts():
             return True
-        record.reviewer_detail = {**(record.reviewer_detail or {}), "retry": SIDE_FLIP_NEUTRAL_RETRY}
+        record.reviewer_detail = {**(record.reviewer_detail or {}), "retry": reason}
         progress.user_prompt = base_user_prompt
-        logger.info("Case plan lan thu %d: %s (khong gui phan hoi)", record.attempt, SIDE_FLIP_NEUTRAL_RETRY)
+        logger.info("Case plan lan thu %d: %s (khong gui phan hoi)", record.attempt, reason)
         return False
 
     while True:
@@ -769,6 +794,14 @@ async def _attempt_loop(
                 if retry_neutral(record):
                     return
                 continue
+            if stance_reviewer.is_reviewer_failure(detail):
+                # FAIL-CLOSED (muc 2.14): khong co verdict -> khong chap nhan; sinh lai trung tinh, tinh vao so lan thu.
+                record.error = f"{FailureKind.REVIEWER_UNAVAILABLE}: {detail['reviewer_error'][:500]}"
+                record.failure_kind = FailureKind.REVIEWER_UNAVAILABLE
+                logger.warning("Case plan lan thu %d: reviewer khong tra duoc verdict -> khong chap nhan", record.attempt)
+                if retry_neutral(record, REVIEWER_UNAVAILABLE_NEUTRAL_RETRY):
+                    return
+                continue
             if verdict == ReviewerVerdict.UNCLEAR:
                 logger.warning("Stance review khong ro (lan %d): %s", record.attempt, detail)
             record.success, record.error = True, None
@@ -790,14 +823,48 @@ async def generate_case_file(
     client: LLMClient,
     settings: Settings,
     reviewer_client: LLMClient | None = None,
+    motion_type: MotionType | None = None,
+    motion_reading: str | None = None,
+    burden_pro: str | None = None,
+    burden_con: str | None = None,
 ) -> CasePlanOutcome:
     """
     Goi LLM sinh case file (+ Stance Reviewer neu co reviewer_client) trong gioi han
     CASE_PLAN_TOTAL_BUDGET_SECONDS — bao MOI lan goi (planner + reviewer) va moi lan cho rate-limit.
     Prompt theo CASE_PLAN_PROMPT_VERSION. KHONG nem exception — ket qua nam trong outcome.
+    case_plan_v6 (muc 2.13): can CA motion_type + motion_reading, thieu -> dung v5; case file duoc chap nhan bi GHI DE
+    motion_reading = ban duoc gui (model tra khac -> log o key_repairs.motion_reading_overridden cua lan thu do).
+    case_plan_v6b (muc 2.15): can motion_type + burden_pro + burden_con, thieu -> v5; motion_reading bi GHI DE = burden
+    cua phe AI. case_plan_v7 (muc 2.16): can burden_pro + burden_con (KHONG can motion_type), thieu -> v5; KHONG ghi de.
+    v3 / v4 / v5 bo qua cac tham so nay.
     """
     prompt = prompt_module(settings)
-    system_prompt, user_prompt = prompt.build_case_plan_prompt(motion, ai_side, learner_side, difficulty)
+    forced_reading = None  # v6 / v6b: case file chap nhan phai co motion_reading nay
+    if prompt is case_plan_v6 and (motion_type is None or not motion_reading):
+        logger.info("case_plan_v6 can motion_type + motion_reading; session khong co -> dung case_plan_v5")
+        prompt = case_plan_v5
+    if prompt is case_plan_v6b and (motion_type is None or not burden_pro or not burden_con):
+        logger.info("case_plan_v6b can motion_type + burden_pro + burden_con; session khong co -> dung case_plan_v5")
+        prompt = case_plan_v5
+    if prompt is case_plan_v7 and (not burden_pro or not burden_con):
+        logger.info("case_plan_v7 can burden_pro + burden_con; session khong co -> dung case_plan_v5")
+        prompt = case_plan_v5
+    if prompt is case_plan_v7:
+        system_prompt, user_prompt = prompt.build_case_plan_prompt(
+            motion, ai_side, learner_side, difficulty, burden_pro, burden_con
+        )  # KHONG ghi de motion_reading (model tu viet nhu v5)
+    elif prompt is case_plan_v6:
+        system_prompt, user_prompt = prompt.build_case_plan_prompt(
+            motion, ai_side, learner_side, difficulty, motion_type, motion_reading
+        )
+        forced_reading = motion_reading
+    elif prompt is case_plan_v6b:
+        system_prompt, user_prompt = prompt.build_case_plan_prompt(
+            motion, ai_side, learner_side, difficulty, motion_type, burden_pro, burden_con
+        )
+        forced_reading = case_plan_v6b.burden_of(ai_side, burden_pro, burden_con)
+    else:
+        system_prompt, user_prompt = prompt.build_case_plan_prompt(motion, ai_side, learner_side, difficulty)
     outcome = CasePlanOutcome(
         case_file=None,
         system_prompt=system_prompt,
@@ -838,7 +905,20 @@ async def generate_case_file(
             AttemptRecord(attempt, up, None, False, error, latency_ms, failure_kind=FailureKind.BUDGET_EXCEEDED, **overrides)
         )
 
+    if forced_reading is not None and outcome.case_file is not None:
+        _override_motion_reading(outcome, forced_reading)
     return outcome
+
+
+def _override_motion_reading(outcome: CasePlanOutcome, motion_reading: str) -> None:
+    """v6 / v6b: case file dung NGUYEN VAN cach hieu / ganh nang duoc gui. Model tra khac -> ghi ban cua model (log)."""
+    model_reading = outcome.case_file.motion_reading
+    if model_reading == motion_reading:
+        return
+    outcome.case_file.motion_reading = motion_reading
+    plan = next(a for a in reversed(outcome.attempts) if a.purpose == LLMCallPurpose.CASE_PLAN and a.success)
+    plan.key_repairs = {**(plan.key_repairs or {}), MOTION_READING_OVERRIDDEN: {"model": model_reading}}
+    logger.info("case_plan_v6: ghi de motion_reading (model tra khac ban duoc gui): %s", model_reading[:200])
 
 
 async def get_session_by_external_id(db: AsyncSession, external_session_id: str) -> OpponentSession:
@@ -855,11 +935,36 @@ async def get_case_file(db: AsyncSession, session_id: uuid.UUID) -> OpponentCase
 
 
 # Cac truong phai trung khop khi goi lai cung external_session_id.
-_IDENTITY_FIELDS = ("motion", "learner_side", "ai_side", "difficulty")
+# (truong cua request, cot cua session): phai trung khop khi goi lai cung external_session_id. motion_type /
+# motion_reading tu muc 2.13 (thieu ca hai o ca 2 phia = trung).
+_IDENTITY_FIELDS = (
+    ("motion", "motion"), ("learner_side", "learner_side"), ("ai_side", "ai_side"), ("difficulty", "difficulty"),
+    ("motion_type", "motion_type"), ("motion_reading", "motion_reading_provided"),
+    ("burden_pro", "burden_pro"), ("burden_con", "burden_con"),  # muc 2.15
+)
+
+
+def _check_motion_spec(req: CreateSessionRequest) -> None:
+    """
+    Cac truong tuy chon phai di DU BO (muc 2.13, 2.15, 2.16):
+    - burden_pro va burden_con: ca hai hoac khong; motion_type TUY CHON (v7 khong can; v6b can — thieu thi v6b tu dung v5);
+    - motion_reading can motion_type; motion_type can motion_reading hoac (burden_pro + burden_con).
+    Khong gui gi = hanh vi cu.
+    """
+    has_reading = req.motion_reading is not None
+    if (req.burden_pro is None) != (req.burden_con is None):
+        raise InvalidMotionSpecError("burden_pro va burden_con phai gui cung nhau (hoac khong gui ca hai)")
+    has_burdens = req.burden_pro is not None
+    if req.motion_type is None and has_reading:
+        raise InvalidMotionSpecError("motion_reading phai gui cung nhau voi motion_type")
+    if req.motion_type is not None and not (has_reading or has_burdens):
+        raise InvalidMotionSpecError(
+            "motion_type phai gui cung nhau voi motion_reading hoac burden_pro + burden_con (hoac khong gui)"
+        )
 
 
 def _ensure_same_data(session: OpponentSession, req: CreateSessionRequest) -> None:
-    mismatched = [f for f in _IDENTITY_FIELDS if getattr(session, f) != getattr(req, f)]
+    mismatched = [f for f, col in _IDENTITY_FIELDS if getattr(session, col) != getattr(req, f)]
     if mismatched:
         raise SessionDataMismatchError(req.external_session_id, mismatched)
 
@@ -889,6 +994,7 @@ async def create_session_and_plan(
     """
     if req.learner_side == req.ai_side:
         raise InvalidSidesError("learner_side va ai_side phai khac nhau")
+    _check_motion_spec(req)
 
     existing = await db.scalar(
         select(OpponentSession).where(OpponentSession.external_session_id == req.external_session_id)
@@ -913,6 +1019,10 @@ async def create_session_and_plan(
             learner_side=req.learner_side,
             difficulty=req.difficulty,
             language=req.language,
+            motion_type=req.motion_type,
+            motion_reading_provided=req.motion_reading,
+            burden_pro=req.burden_pro,
+            burden_con=req.burden_con,
             status=SessionStatus.PLANNING,
         )
         .on_conflict_do_nothing(index_elements=[OpponentSession.external_session_id])
@@ -995,7 +1105,9 @@ async def _run_case_planning(
     """Tra ve (session, lost_race). lost_race=True: request khac da ghi case file truoc."""
     session_id = session.id
     outcome = await generate_case_file(
-        session.motion, session.ai_side, session.learner_side, session.difficulty, client, settings, reviewer_client
+        session.motion, session.ai_side, session.learner_side, session.difficulty, client, settings, reviewer_client,
+        motion_type=session.motion_type, motion_reading=session.motion_reading_provided,
+        burden_pro=session.burden_pro, burden_con=session.burden_con,
     )
 
     db.add_all(_llm_call_rows(session_id, outcome))

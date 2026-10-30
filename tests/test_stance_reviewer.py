@@ -167,20 +167,59 @@ async def test_khong_ro_is_not_rejected():
 
 
 @pytest.mark.parametrize("failure", [RuntimeError("503 groq down"), "khong phai json"])
-async def test_reviewer_failing_twice_is_unclear_not_blocking(failure):
-    fake = FakeLLMClient([json.dumps(VALID_CASE_FILE)])
+async def test_reviewer_failing_twice_is_fail_closed_neutral_retry(failure):
+    # Muc 2.14: batch 20261001-084031 V3 con easy — reviewer loi 2 lan -> truoc day "unclear" -> case file LAT PHE duoc
+    # chap nhan. Nay: KHONG chap nhan, sinh lai trung tinh (tinh vao so lan thu).
+    fake = FakeLLMClient([json.dumps(VALID_CASE_FILE), json.dumps(VALID_CASE_FILE)])
     reviewer = FakeStanceReviewer()
-    reviewer.responses = [failure, failure]
+    reviewer.responses = [failure, failure]  # lan review thu 3 tro di: mac dinh dung phe
 
-    outcome = await _plan(fake, reviewer)
+    outcome = await _plan(fake, reviewer, case_plan_max_attempts=3)
 
     assert outcome.case_file is not None and outcome.llm_error is None
-    plan, review1, review2 = outcome.attempts  # CA 2 lan goi reviewer deu duoc log
-    assert [review1.purpose, review2.purpose] == [LLMCallPurpose.STANCE_REVIEW] * 2
+    plan1, review1, review2, plan2, review3 = outcome.attempts
+    assert [review1.purpose, review2.purpose] == [LLMCallPurpose.STANCE_REVIEW] * 2  # CA 2 lan goi deu duoc log
     assert review1.success is False and review2.success is False
-    assert plan.reviewer_verdict == ReviewerVerdict.UNCLEAR and "reviewer_error" in plan.reviewer_detail
-    assert plan.reviewer_detail["reviewer_calls"] == 2
-    assert len(reviewer.calls) == 2
+    assert plan1.success is False and plan1.failure_kind == "reviewer_unavailable"
+    assert "reviewer_error" in plan1.reviewer_detail and plan1.reviewer_detail["reviewer_calls"] == 2
+    assert plan1.reviewer_detail["retry"] == "reviewer_unavailable_neutral_retry" and plan1.retry_feedback is None
+    assert fake.calls[1]["user"] == fake.calls[0]["user"]  # TRUNG TINH: prompt goc
+    assert plan2.success and plan2.reviewer_verdict == ReviewerVerdict.PASS and review3.success
+
+
+async def test_reviewer_unavailable_every_attempt_fails_planning():
+    fake = FakeLLMClient([json.dumps(VALID_CASE_FILE)] * 2)
+    reviewer = FakeStanceReviewer()
+    reviewer.responses = ["khong phai json"] * 4
+
+    outcome = await _plan(fake, reviewer, case_plan_max_attempts=2)
+
+    assert outcome.case_file is None and outcome.llm_error is None  # -> CasePlanningError (502)
+    plans = [a for a in outcome.attempts if a.purpose == LLMCallPurpose.CASE_PLAN]
+    assert [p.failure_kind for p in plans] == ["reviewer_unavailable"] * 2
+
+
+async def test_reviewer_empty_output_logged_as_truncated():
+    from tests.conftest import SchemaRejected
+
+    fake = FakeLLMClient([json.dumps(VALID_CASE_FILE), json.dumps(VALID_CASE_FILE)])
+    reviewer = FakeStanceReviewer()
+    reviewer.responses = [SchemaRejected(""), SchemaRejected("")]  # Groq 400 json_validate_failed, failed_generation ""
+
+    outcome = await _plan(fake, reviewer, case_plan_max_attempts=3)
+
+    reviews = [a for a in outcome.attempts if a.purpose == LLMCallPurpose.STANCE_REVIEW]
+    assert [r.failure_kind for r in reviews[:2]] == ["truncated_max_tokens"] * 2  # KHONG phai schema_rejected
+    assert outcome.attempts[0].failure_kind == "reviewer_unavailable" and outcome.case_file is not None
+
+
+async def test_real_khong_ro_verdict_still_accepted():
+    # "khong_ro" do reviewer TRA THAT la phan doan, khong phai loi -> van chap nhan (chi log)
+    reviewer = FakeStanceReviewer(PHAN_DOI)
+    reviewer.positions = {"A2": KHONG_RO}
+    outcome = await _plan(FakeLLMClient([json.dumps(VALID_CASE_FILE)]), reviewer)
+    assert outcome.case_file is not None and outcome.attempts[0].failure_kind is None
+    assert outcome.attempts[0].reviewer_verdict == ReviewerVerdict.UNCLEAR
 
 
 @pytest.mark.parametrize("failure", [RuntimeError("503 groq down"), "khong phai json"])
@@ -425,12 +464,12 @@ async def test_regression_m10_a3_reviewer_v3():
     assert review.prompt_version == plan.reviewer_detail["prompt_version"] == "stance_review_v3"
 
 
-async def test_v3_reviewer_error_is_unclear_not_blocking():
+async def test_v3_reviewer_error_is_fail_closed():
     reviewer = FakeStanceReviewer(PHAN_DOI)
     bad = json.dumps({"arguments": [{"id": "A1", "position": PHAN_DOI, "reason": "x"}]})  # sai dinh dang v3
     reviewer.responses = [bad, bad]
-    outcome = await _plan(FakeLLMClient([json.dumps(VALID_CASE_FILE)]), reviewer,
-                          stance_review_prompt_version="stance_review_v3")
+    outcome = await _plan(FakeLLMClient([json.dumps(VALID_CASE_FILE)] * 2), reviewer,
+                          stance_review_prompt_version="stance_review_v3", case_plan_max_attempts=3)
     assert outcome.case_file is not None
-    assert outcome.attempts[0].reviewer_verdict == ReviewerVerdict.UNCLEAR
-    assert outcome.attempts[0].reviewer_detail["prompt_version"] == "stance_review_v3"
+    first = outcome.attempts[0]
+    assert first.failure_kind == "reviewer_unavailable" and first.reviewer_detail["prompt_version"] == "stance_review_v3"

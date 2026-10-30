@@ -25,7 +25,8 @@ from tests.conftest import FakeLLMClient, FakeStanceReviewer, RateLimited, Schem
 MOTIONS = [{"id": "M01", "motion": "Nên cấm dạy thêm, học thêm"}, {"id": "M02", "motion": "Nên áp dụng tuần làm việc 4 ngày"}]
 
 RECORD_KEYS = {
-    "run_index", "motion_id", "motion", "ai_side", "learner_side", "difficulty", "prompt_version", "provider",
+    "run_index", "repeat_round", "motion_id", "motion", "ai_side", "learner_side", "difficulty", "motion_type", "motion_reading", "motion_reading_sent", "burden_pro", "burden_con", "burdens_sent",
+    "prompt_version", "provider",
     "model", "reviewer_model", "temperature", "case_plan_max_tokens", "json_schema", "rerun_of", "final_status",
     "total_latency_ms", "final_reviewer_verdict", "final_vague_evidence", "attempts", "case_file",
     "content_retries", "rate_limit_waits", "rate_limit_wait_seconds",

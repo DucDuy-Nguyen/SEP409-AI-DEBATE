@@ -149,13 +149,13 @@ class FakeLLMClient(LLMClient):
         self.last_finish_reason = self.finish_reasons.pop(0) if self.finish_reasons else "stop"
 
     def generate_chat(
-        self, system_prompt, messages, temperature=None, max_tokens=None, reasoning_effort=None
+        self, system_prompt, messages, temperature=None, max_tokens=None, reasoning_effort=None, json_schema=None
     ) -> str:
         """Hoi thoai (bai noi trong tran): dung chung hang doi `responses`; ghi {"system", "messages", ...}."""
         self.last_usage, self.last_finish_reason = None, None
         self.calls.append(
             {"system": system_prompt, "messages": [dict(m) for m in messages], "temperature": temperature,
-             "max_tokens": max_tokens, "chat": True, "reasoning_effort": reasoning_effort}
+             "max_tokens": max_tokens, "chat": True, "reasoning_effort": reasoning_effort, "json_schema": json_schema}
         )
         if self.delay_seconds:
             time.sleep(self.delay_seconds)

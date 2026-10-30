@@ -1,0 +1,24 @@
+{
+  "runs": 24,
+  "success": 23,
+  "final_status": {
+    "ready": 23,
+    "invalid_output": 1
+  },
+  "side_flip_caught": 0,
+  "runs_with_side_flip": 0,
+  "final_unclear": 0,
+  "schema_rejected": 8,
+  "case_files_with_vague_evidence": 7,
+  "banned_phrase_rejected": 2,
+  "key_repaired": 23,
+  "content_retries": 9,
+  "avg_content_retries": 0.38,
+  "rate_limit_waits": 0,
+  "rate_limit_wait_seconds": 0.0,
+  "case_plan_calls": 33,
+  "case_plan_tokens_out_avg": 2031,
+  "case_plan_tokens_out_max": 2767,
+  "case_plan_max_tokens": 4000,
+  "avg_latency_ms": 9425
+}

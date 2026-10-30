@@ -41,6 +41,12 @@ BASELINE_V1 = "turn_baseline_v1"
 FULL_V1 = "turn_full_v1"
 FULL_V2 = "turn_full_v2"
 FULL_V3 = "turn_full_v3"
+FULL_V4 = "turn_full_v4"  # v3 + ganh nang chung minh (muc 2.17)
+FULL_V4_NOBURDEN = "turn_full_v4_noburden"  # v4 khi KHONG dua burden (TURN_BURDEN_ENABLED=false / session khong co)
+FULL_V5 = "turn_full_v5"  # v4 + sua loi tu 4 tran thu 30/09 (muc 2.18)
+FULL_V5_NOBURDEN = "turn_full_v5_noburden"
+FULL_V6 = "turn_full_v6"  # v5 + sua loi chep tien de (muc 2.19)
+FULL_V6_NOBURDEN = "turn_full_v6_noburden"
 # Baseline GIU NGUYEN hanh vi 3a de so sanh: khong doc TURN_MAX_TOKENS / TURN_MAX_ATTEMPTS (3b doi mac dinh 2 bien nay
 # cho turn_full_v1 len 4000 / 3).
 BASELINE_MAX_TOKENS = 3000
@@ -63,12 +69,16 @@ class TurnFailure:
     INVALID_JSON = "invalid_json"
     SCHEMA_VALIDATION = "schema_validation"
     WORD_COUNT = "word_count"  # speech_text ngoai khoang chap nhan [0.7, 1.25] x muc tieu (loi MEM)
+    # v6 (muc 2.19): >= 70% premises.explicit trung y nguoi hoc o ledger (luot truoc) -> chep, khong trich bai moi
+    PREMISES_REUSED = "premises_reused"
     # Output rong / bi cat vi het max_tokens (finish_reason "length", noi dung rong, hoac Groq 400 json_validate_failed
     # voi failed_generation RONG — token suy luan dung het gioi han). KHONG gop vao schema_rejected (muc 2.10).
     TRUNCATED = "truncated_max_tokens"
     BANNED_PHRASE = "banned_phrase"  # bang chung mo ho muc HIGH trong speech_text
     SIDE_FLIP = "side_flip"  # Stance Reviewer bao lat phe (muc 2.11) -> retry TRUNG TINH
     REVIEWER_ERROR = "reviewer_error"  # output reviewer khong parse duoc
+    # Reviewer khong tra duoc verdict sau MAX_CALLS lan -> bai noi KHONG duoc chap nhan, retry trung tinh (muc 2.14)
+    REVIEWER_UNAVAILABLE = "reviewer_unavailable"
 
 
 @dataclass(frozen=True)
@@ -87,6 +97,9 @@ class Ledger:
     """
 
     learner_claims: list[str] = field(default_factory=list)
+    # turn_full_v5 (muc 2.18): "luan diem nguoi hoc da neu" dung tu premises.explicit cua cac luot AI truoc (v5 khong con
+    # sinh learner_claims). v1-v4 van dung learner_claims.
+    learner_premises: list[str] = field(default_factory=list)
     ai_points: list[str] = field(default_factory=list)  # "nhung dieu ban DA khang dinh"
     attacked_premises: list[str] = field(default_factory=list)
 
@@ -103,6 +116,9 @@ class TurnContext:
     history: list[SpeechItem]  # MOI bai noi truoc turn_index, theo thu tu luot
     case_file: dict | None = None  # baseline khong dung; turn_full_v1 bat buoc
     ledger: Ledger = field(default_factory=Ledger)  # baseline khong dung
+    # Ganh nang chung minh cua PHE AI (session.burden_pro / burden_con theo ai_side), CHI khi TURN_BURDEN_ENABLED.
+    # None = khong dua. Chi turn_full_v4 dung (muc 2.17).
+    ai_burden: str | None = None
 
 
 @dataclass
@@ -221,17 +237,24 @@ class LLMCaller:
         return {"reasoning_effort": effort} if effort else {}
 
     async def complete(
-        self, system_prompt: str, user_prompt: str, *, temperature: float, max_tokens: int, prompt_version: str,
-        json_schema: dict | None, purpose: LLMCallPurpose = LLMCallPurpose.TURN,
+        self, system_prompt: str, user_prompt: str | None, *, temperature: float, max_tokens: int, prompt_version: str,
+        json_schema: dict | None, purpose: LLMCallPurpose = LLMCallPurpose.TURN, messages: list[dict] | None = None,
     ) -> TurnCall:
+        """messages (Giai doan 3d, nhanh C): goi generate_chat voi json_schema thay vi generate(system, user); user_prompt
+        ghi log = JSON danh sach messages. Khong truyen -> hanh vi cu."""
         effort = self._effort()
-        call = await self._call(
-            system_prompt, user_prompt, prompt_version, temperature, purpose,
-            lambda: self.client.generate(
+        if messages is not None:
+            send = lambda: self.client.generate_chat(  # noqa: E731
+                system_prompt, messages, temperature=temperature, max_tokens=max_tokens, json_schema=json_schema,
+                **effort,
+            )
+            user_prompt = json.dumps(messages, ensure_ascii=False)
+        else:
+            send = lambda: self.client.generate(  # noqa: E731
                 system_prompt, user_prompt, temperature=temperature, max_tokens=max_tokens, json_schema=json_schema,
                 **effort,
-            ),
-        )
+            )
+        call = await self._call(system_prompt, user_prompt, prompt_version, temperature, purpose, send)
         if call.success and (call.finish_reason == "length" or not (call.raw_output or "").strip()):
             call.success, call.truncated, call.failure_kind = False, True, TurnFailure.TRUNCATED
             call.error = (
@@ -380,11 +403,21 @@ class BaselineTurnGenerator:
 
 
 def generators() -> dict[str, type]:
-    from app.opponent.turn_full import FullTurnGenerator, FullTurnGeneratorV2, FullTurnGeneratorV3  # import muon
+    from app.opponent.turn_full import (  # import muon (turn_full import file nay)
+        FullTurnGenerator,
+        FullTurnGeneratorV2,
+        FullTurnGeneratorV3,
+        FullTurnGeneratorV4,
+        FullTurnGeneratorV5,
+        FullTurnGeneratorV6,
+    )
 
     return {
         BASELINE_V1: BaselineTurnGenerator, FULL_V1: FullTurnGenerator, FULL_V2: FullTurnGeneratorV2,
         FULL_V3: FullTurnGeneratorV3,
+        FULL_V4: FullTurnGeneratorV4,
+        FULL_V5: FullTurnGeneratorV5,
+        FULL_V6: FullTurnGeneratorV6,
     }
 
 

@@ -1,0 +1,18 @@
+{
+  "version": "motions_v2",
+  "description": "12 kiến nghị cân bằng theo loại (4 policy, 4 comparative, 4 value) cho thí nghiệm case_plan_v6 vs v5 (dev log mục 2.13). motion_reading là cách hiểu CHUẨN; reading_status \"draft\" = chưa được người dùng duyệt — batch từ chối chạy khi còn draft (trừ --allow-draft).",
+  "motions": [
+    {"id": "P1", "text": "Nên cấm học sinh sử dụng điện thoại trong trường học", "motion_type": "policy", "motion_reading": "Cấm học sinh sử dụng điện thoại di động trong toàn bộ thời gian ở trường, kể cả giờ ra chơi, trừ trường hợp khẩn cấp được giáo viên cho phép.", "reading_status": "approved"},
+    {"id": "P2", "text": "Nên bỏ kỳ thi tốt nghiệp THPT", "motion_type": "policy", "motion_reading": "Bỏ kỳ thi tốt nghiệp THPT quốc gia; việc xét tốt nghiệp dựa trên đánh giá quá trình của nhà trường, và các trường đại học tự lựa chọn phương thức tuyển sinh riêng.", "reading_status": "approved"},
+    {"id": "P3", "text": "Nên cấm xe máy ở nội thành các thành phố lớn", "motion_type": "policy", "motion_reading": "Sau một lộ trình chuẩn bị, cấm xe máy cá nhân lưu thông trong khu vực nội thành của Hà Nội và TP.HCM.", "reading_status": "approved"},
+    {"id": "P4", "text": "Nên đánh thuế cao đối với đồ uống có đường", "motion_type": "policy", "motion_reading": "Áp thuế tiêu thụ đặc biệt đủ lớn để giá bán lẻ đồ uống có đường tăng rõ rệt.", "reading_status": "approved"},
+    {"id": "C1", "text": "Người trẻ nên ở lại quê hương lập nghiệp thay vì lên thành phố", "motion_type": "comparative", "motion_reading": "So sánh hai lựa chọn của người trẻ nói chung khi bắt đầu sự nghiệp: lập nghiệp ở quê hương hay chuyển lên thành phố lớn.", "reading_status": "approved"},
+    {"id": "C2", "text": "Học sinh nên chọn học nghề thay vì vào đại học", "motion_type": "comparative", "motion_reading": "So sánh hai lựa chọn sau tốt nghiệp THPT: học nghề hay học đại học, đối với học sinh nói chung.", "reading_status": "approved"},
+    {"id": "C3", "text": "Du học tốt hơn học đại học trong nước", "motion_type": "comparative", "motion_reading": "So sánh hai lựa chọn học đại học đối với sinh viên Việt Nam nói chung: du học nước ngoài hay học tại một trường đại học ở Việt Nam.", "reading_status": "approved"},
+    {"id": "C4", "text": "Người trẻ nên làm việc cho doanh nghiệp lớn thay vì khởi nghiệp", "motion_type": "comparative", "motion_reading": "So sánh hai lựa chọn nghề nghiệp đầu đời của người trẻ nói chung: làm nhân viên doanh nghiệp lớn hay tự khởi nghiệp.", "reading_status": "approved"},
+    {"id": "V1", "text": "Mạng xã hội gây hại nhiều hơn có lợi cho giới trẻ", "motion_type": "value", "motion_reading": "Cân nhắc tổng thể tác hại và lợi ích của mạng xã hội đối với người từ 15 đến 24 tuổi.", "reading_status": "approved"},
+    {"id": "V2", "text": "Sinh viên nên đi làm thêm trong thời gian học đại học", "motion_type": "value", "motion_reading": "Cân nhắc lợi ích và tác hại của việc làm thêm bán thời gian đối với sinh viên đại học nói chung.", "reading_status": "approved"},
+    {"id": "V3", "text": "Trí tuệ nhân tạo mang lại nhiều lợi ích hơn tác hại cho học sinh", "motion_type": "value", "motion_reading": "Cân nhắc tổng thể lợi ích và tác hại của các công cụ AI như chatbot đối với học sinh phổ thông.", "reading_status": "approved"},
+    {"id": "V4", "text": "Game online gây hại nhiều hơn có lợi cho học sinh", "motion_type": "value", "motion_reading": "Cân nhắc tổng thể tác động của trò chơi điện tử trực tuyến đối với học sinh phổ thông.", "reading_status": "approved"}
+  ]
+}

@@ -7,6 +7,9 @@ Ton token that -> khong nam trong pytest. CAN Postgres dev dang chay + `alembic 
     python -m scripts.try_match --motion-id M01 --learner-side pro --reasoning-effort low   # so sanh muc suy luan
 
 - Bai noi learner lay tu experiments/fixtures/match_<motion_id>_<learner_side>.json (co dinh, khong phan hoi AI).
+- Fixture co burden_pro / burden_con (M01 = P1 trong motions_v3.json, muc 2.17) -> session gui kem burden: Case Planning
+  dung case_plan_v7, luot noi turn_full_v4 dua ganh nang cua phe AI. --no-burden: KHONG gui burden (ablation: v5 +
+  turn_full_v4_noburden).
 - ai_side = phe con lai. Session moi moi lan chay (external_session_id "try-match-...").
 - Bo sinh: --generator (turn_baseline_v1 | turn_full_v1 | turn_full_v2), mac dinh TURN_GENERATOR_VERSION.
 - --reasoning-effort (low | medium | high): ghi de TURN_REASONING_EFFORT cho cac luot noi (Case Planning van theo
@@ -94,7 +97,7 @@ async def rate_limit_wait_total(db: AsyncSession, session_id) -> tuple[int, int]
 
 async def run_match(
     db: AsyncSession, settings: Settings, fixture: dict, learner_side: DebateSide, difficulty: OpponentDifficulty,
-    external_id: str, client_factory, reviewer_factory, out=print,
+    external_id: str, client_factory, reviewer_factory, out=print, use_burden: bool = True,
 ) -> dict:
     """
     Chay ca tran. KHONG nem loi: tra {"ok", "transcript", "failed_turn", "error", "rate_limit_wait_ms",
@@ -103,10 +106,15 @@ async def run_match(
     ai_side = DebateSide.CON if learner_side == DebateSide.PRO else DebateSide.PRO
     result = {"ok": False, "transcript": [], "failed_turn": None, "error": None,
               "rate_limit_wait_ms": 0, "rate_limit_waits": 0}
+    burdens = (
+        {"burden_pro": fixture["burden_pro"], "burden_con": fixture["burden_con"]}
+        if use_burden and fixture.get("burden_pro") and fixture.get("burden_con") else {}
+    )
     req = CreateSessionRequest(
         external_session_id=external_id, motion=fixture["motion"], learner_side=learner_side, ai_side=ai_side,
-        difficulty=difficulty,
+        difficulty=difficulty, **burdens,
     )
+    out(f"Ganh nang chung minh: {'CO (' + str(len(burdens)) + ' truong)' if burdens else 'KHONG'}")
     try:
         session, _ = await service.create_session_and_plan(db, req, client_factory, settings, reviewer_factory)
     except Exception as e:  # noqa: BLE001 — script thu: in loi roi dung gon
@@ -220,6 +228,8 @@ async def main() -> int:
     parser.add_argument("--difficulty", choices=[d.value for d in OpponentDifficulty], default="medium")
     parser.add_argument("--generator", choices=GENERATORS, default=None,
                         help="Bo sinh bai noi (mac dinh: TURN_GENERATOR_VERSION)")
+    parser.add_argument("--no-burden", action="store_true",
+                        help="KHONG gui burden_pro / burden_con cua fixture (ablation: Case Planning v5, luot noi v4 khong burden)")
     parser.add_argument("--reasoning-effort", choices=["low", "medium", "high"], default=None,
                         help="Ghi de TURN_REASONING_EFFORT cho cac luot noi (Groq gpt-oss; mac dinh: khong gui)")
     parser.add_argument("--fixtures-dir", type=Path, default=FIXTURES_DIR)
@@ -260,18 +270,20 @@ async def main() -> int:
     try:
         async with async_sessionmaker(get_engine(), expire_on_commit=False)() as db:
             result = await run_match(db, settings, fixture, learner_side, OpponentDifficulty(args.difficulty),
-                                     external_id, client_factory, reviewer_factory)
+                                     external_id, client_factory, reviewer_factory, use_burden=not args.no_burden)
     finally:
         await dispose_engine()  # dong ket noi TRUOC khi event loop dong (tranh loi "Event loop is closed" luc thoat)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    suffix = f"_effort-{effort}" if effort else ""
+    suffix = (f"_effort-{effort}" if effort else "") + ("_noburden" if args.no_burden else "")
     out = args.out_dir / f"{datetime.now():%Y%m%d-%H%M%S}_{args.motion_id}_learner-{learner_side.value}_{generator}{suffix}.json"
     out.write_text(json.dumps({
         "external_session_id": external_id, "motion_id": args.motion_id, "motion": fixture["motion"],
         "learner_side": learner_side.value, "ai_side": ai_side.value, "difficulty": args.difficulty,
         "generator_version": generator, "model": probe.model, "temperature": settings.turn_temperature,
         "reasoning_effort": effort, "turn_max_tokens": settings.turn_max_tokens,
+        "burden_used": not args.no_burden and bool(fixture.get("burden_pro")),
+        "turn_burden_enabled": settings.turn_burden_enabled,
         "completed": result["ok"], "failed_turn": result["failed_turn"], "error": result["error"],
         "rate_limit_wait_ms": result["rate_limit_wait_ms"], "rate_limit_waits": result["rate_limit_waits"],
         "transcript": result["transcript"],

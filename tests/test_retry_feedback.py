@@ -208,7 +208,8 @@ def test_v3_and_v4_share_schema_and_counts():
 
 
 def test_prompt_version_setting():
-    assert _settings().case_plan_prompt_version == "case_plan_v5"
+    # Mac dinh v7 tu muc 2.17 — KHONG co burden thi service tu dung v5 (xem tests/test_v7_burden.py)
+    assert _settings().case_plan_prompt_version == "case_plan_v7"
     assert _settings(case_plan_prompt_version="case_plan_v3").case_plan_prompt_version == "case_plan_v3"
     assert _settings(case_plan_prompt_version="case_plan_v4").case_plan_prompt_version == "case_plan_v4"
     with pytest.raises(ValidationError):

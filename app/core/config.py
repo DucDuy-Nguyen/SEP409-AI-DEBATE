@@ -61,7 +61,16 @@ class Settings(BaseSettings):
 
     # ---- Case Planning (AI opponent chuan bi "ho so lap luan" truoc tran) ----
     # Prompt dang dung. v3 va v4 dung chung CaseFile / validator; giu v3 de so sanh batch.
-    case_plan_prompt_version: Literal["case_plan_v3", "case_plan_v4", "case_plan_v5"] = "case_plan_v5"
+    # case_plan_v6 (thi nghiem motion_type, muc 2.13): CHI dung khi session co motion_type + motion_reading; thieu ->
+    # tu dung v5 (prompt_version ghi dung ban da dung). Mac dinh VAN la v5.
+    # case_plan_v6b (thi nghiem "ganh nang chung minh", muc 2.15): CHI dung khi session co motion_type + burden_pro +
+    # burden_con; thieu -> v5.
+    # case_plan_v7 (MAC DINH tu 2026-10-01, muc 2.16-2.17): = v5 + khoi ganh nang chung minh; CHI dung khi session co
+    # burden_pro + burden_con (KHONG can motion_type); KHONG co burden -> tu dung case_plan_v5 (giu hanh vi cu).
+    # Thi nghiem v7 vs v5 (72 luot / nhanh): lat phe that 2 vs 6, thanh cong 71 vs 72, HIGH 4 vs 2 -> dat ca 3 dieu kien.
+    case_plan_prompt_version: Literal[
+        "case_plan_v3", "case_plan_v4", "case_plan_v5", "case_plan_v6", "case_plan_v6b", "case_plan_v7"
+    ] = "case_plan_v7"
     # Cao hon Evaluation (0.2): can da dang lap luan giua cac lan sinh, nhung
     # khong qua cao de JSON van on dinh.
     case_plan_temperature: float = 0.7
@@ -107,11 +116,22 @@ class Settings(BaseSettings):
     stance_review_prompt_version: Literal["stance_review_v1", "stance_review_v2", "stance_review_v3"] = "stance_review_v1"
 
     # ---- Luot tranh luan (Giai doan 3 — turn_generators.py, match_format.py) ----
-    # Bo sinh bai noi cua AI. turn_full_v3 (mac dinh, muc 2.12) = v2 + "KHONG nhac lai / dien giai quy tac, chi dan".
+    # Bo sinh bai noi cua AI. turn_full_v3 (muc 2.12) = v2 + "KHONG nhac lai / dien giai quy tac, chi dan".
     # turn_full_v2 (muc 2.10) = v1 + rang buoc "khong doc thuat ngu phan tich".
     # turn_full_v1: 1 loi goi JSON (phan tich -> dan y -> bai noi) + case file + ledger + validator (muc 2.9).
     # turn_baseline_v1: chatbot ngay tho, GIU NGUYEN de so sanh.
-    turn_generator_version: Literal["turn_baseline_v1", "turn_full_v1", "turn_full_v2", "turn_full_v3"] = "turn_full_v3"
+    turn_generator_version: Literal[
+        "turn_baseline_v1", "turn_full_v1", "turn_full_v2", "turn_full_v3", "turn_full_v4", "turn_full_v5",
+        "turn_full_v6",
+    ] = "turn_full_v6"
+    # turn_full_v6 (MAC DINH, muc 2.19) = v5 + sua loi CHEP TIEN DE (ledger doi ten, chi dan trich tu bai MOI, reject
+    # premises_reused), chuan hoa "tôi" -> "mình", bo "cố định" o rang buoc cuoi, kiem tra so bo qua "thế kỷ 21" / thu tu.
+    # turn_full_v5 (muc 2.18) = v4 + sua loi tu 4 tran thu 30/09 (bo "CỐ ĐỊNH", bo learner_claims khoi output,
+    # 3 rang buoc moi, log "tôi" / tieng Anh / cau lap, do dai: chi retry ngoai [0,5x; 1,5x]).
+    # turn_full_v4 (muc 2.17) = v3 + ganh nang chung minh cua phe AI (system prompt + khoi rang buoc) khi session co burden.
+    # TURN_BURDEN_ENABLED=false -> v4 / v5 KHONG dua burden (ablation 3d); khi do / khi session khong co burden,
+    # generator_version ghi "turn_full_v4_noburden" / "turn_full_v5_noburden" / "turn_full_v6_noburden".
+    turn_burden_enabled: bool = True
     turn_temperature: float = 0.5
     # CHI turn_full_v* (baseline co dinh 3000 / 2 lan — xem turn_generators.BASELINE_*): JSON + bai noi + token suy luan.
     # 6000 (truoc: 4000): tran 2026-09-30 15:11 co luot 4 tokens_out 3274/4000 va 1 lan output RONG (Groq 400,

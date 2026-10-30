@@ -14,7 +14,21 @@ Chay tu thu muc goc service:
     python -m scripts.run_case_plan_batch --limit 1             # thu nhanh: 1 motion x 2 phe
     python -m scripts.run_case_plan_batch --prompt-version v3   # chay prompt v3 (mac dinh theo CASE_PLAN_PROMPT_VERSION)
     python -m scripts.run_case_plan_batch --only-failed experiments/case_plan/<file>.jsonl  # chay lai cac cau hinh llm_error
-So sanh 2 file ket qua: python -m scripts.compare_case_plan_batches <a.jsonl> <b.jsonl>
+    # thi nghiem motion_type (muc 2.13): cung bo motion, v5 (KHONG gui type/reading) vs v6 (gui ca hai)
+    python -m scripts.run_case_plan_batch --motions experiments/motions_v2.json --prompt-version v5
+    python -m scripts.run_case_plan_batch --motions experiments/motions_v2.json --prompt-version v6
+    # thi nghiem ganh nang chung minh (muc 2.15): doi chung = batch v5 da co (cung text motion)
+    python -m scripts.run_case_plan_batch --motions experiments/motions_v3.json --prompt-version v6b
+    # kiem chung ganh nang chung minh (muc 2.16): v7 = v5 + khoi ganh nang; --repeat N = N vong 24 cau hinh
+    python -m scripts.run_case_plan_batch --motions experiments/motions_v3.json --prompt-version v7 --repeat 3
+    # chay lai LOI HA TANG (llm_error, budget_exceeded) cua 1 file; them loi noi dung: --include-content-failures
+    python -m scripts.run_case_plan_batch --only-failed experiments/case_plan/<file>.jsonl
+So sanh 2 file ket qua: python -m scripts.compare_case_plan_batches --v5 <a.jsonl> --v6 <b.jsonl>  (hoac --v6b)
+
+File motion: motions_v1 ({"id", "motion"}), motions_v2 ({"id", "text", "motion_type", "motion_reading",
+"reading_status"}) hoac motions_v3 ({"id", "text", "motion_type", "burden_pro", "burden_con", "reading_status"}). Moi dong JSONL ghi motion_type (lay tu file motion, ke ca khi chay v5 — chi de phan tich);
+motion_reading_sent = cach hieu DA GUI cho LLM (chi v6, v5 = null). File con reading_status "draft" -> tu choi chay
+(nguoi dung duyet cach hieu truoc), tru khi --allow-draft.
 """
 import argparse
 import asyncio
@@ -27,7 +41,7 @@ from pathlib import Path
 from app.core.config import Settings, get_settings
 from app.llm.client import LLMClient, get_llm_client
 from app.opponent.models import DebateSide, LLMCallPurpose, OpponentDifficulty, ReviewerVerdict
-from app.opponent.service import SIDE_FLIP_NEUTRAL_RETRY, AttemptRecord, CasePlanOutcome, FailureKind, generate_case_file
+from app.opponent.service import NEUTRAL_RETRIES, AttemptRecord, CasePlanOutcome, FailureKind, generate_case_file
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MOTIONS = ROOT / "experiments" / "motions_v1.json"
@@ -37,44 +51,95 @@ DIFFICULTY_CYCLE = [OpponentDifficulty.EASY, OpponentDifficulty.MEDIUM, Opponent
 
 
 def load_motions(path: Path) -> list[dict]:
-    return json.loads(path.read_text(encoding="utf-8"))["motions"]
+    """Chuan hoa motions_v1 / v2 / v3 ve {"id", "motion", "motion_type", "motion_reading", "burden_pro", "burden_con",
+    "reading_status"} (truong khong co -> None)."""
+    return [
+        {
+            "id": m["id"],
+            "motion": m.get("motion", m.get("text")),
+            "motion_type": m.get("motion_type"),
+            "motion_reading": m.get("motion_reading"),
+            "burden_pro": m.get("burden_pro"),
+            "burden_con": m.get("burden_con"),
+            "reading_status": m.get("reading_status"),
+        }
+        for m in json.loads(path.read_text(encoding="utf-8"))["motions"]
+    ]
+
+
+PLACEHOLDER_MARK = "[CHỜ"  # gia tri giu cho trong file motion (vd "[CHỜ KHOA GỬI]") — chua co noi dung that
+
+
+def draft_motions(motions: list[dict]) -> list[str]:
+    """Motion chua duyet: reading_status "draft" hoac con gia tri giu cho o cach hieu / ganh nang."""
+    def placeholder(m):
+        return any(PLACEHOLDER_MARK in (m.get(k) or "") for k in ("motion_reading", "burden_pro", "burden_con"))
+
+    return [m["id"] for m in motions if m.get("reading_status") == "draft" or placeholder(m)]
 
 
 def load_records(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def build_runs(motions: list[dict]) -> list[dict]:
-    """Moi motion x (pro, con); difficulty xoay vong theo chi so lan chay."""
+def build_runs(motions: list[dict], repeat: int = 1) -> list[dict]:
+    """
+    Moi motion x (pro, con); difficulty xoay vong theo chi so TRONG VONG (moi vong cung cau hinh -> ghep duoc khi so
+    sanh). repeat > 1 (muc 2.16): lap N vong; run_index tang lien tuc qua cac vong, repeat_round = 1..N.
+    """
     runs = []
-    for motion in motions:
-        for ai_side in (DebateSide.PRO, DebateSide.CON):
-            runs.append(
-                {
-                    "run_index": len(runs),
-                    "motion_id": motion["id"],
-                    "motion": motion["motion"],
-                    "ai_side": ai_side,
-                    "learner_side": DebateSide.CON if ai_side == DebateSide.PRO else DebateSide.PRO,
-                    "difficulty": DIFFICULTY_CYCLE[len(runs) % len(DIFFICULTY_CYCLE)],
-                }
-            )
+    for repeat_round in range(1, repeat + 1):
+        in_round = 0
+        for motion in motions:
+            for ai_side in (DebateSide.PRO, DebateSide.CON):
+                runs.append(_run(motion, ai_side, len(runs), DIFFICULTY_CYCLE[in_round % len(DIFFICULTY_CYCLE)],
+                                 repeat_round))
+                in_round += 1
     return runs
 
 
-def runs_from_failed(records: list[dict]) -> list[dict]:
-    """Cau hinh (motion, phe, do kho) cua cac lan chay llm_error trong 1 file JSONL cu — giu run_index goc."""
+def _run(motion: dict, ai_side: DebateSide, run_index: int, difficulty, repeat_round: int) -> dict:
+    return {
+        "run_index": run_index,
+        "repeat_round": repeat_round,
+        "motion_id": motion["id"],
+        "motion": motion["motion"],
+        "ai_side": ai_side,
+        "learner_side": DebateSide.CON if ai_side == DebateSide.PRO else DebateSide.PRO,
+        "difficulty": difficulty,
+        "motion_type": motion.get("motion_type"),
+        "motion_reading": motion.get("motion_reading"),
+        "burden_pro": motion.get("burden_pro"),
+        "burden_con": motion.get("burden_con"),
+    }
+
+
+# --only-failed (muc 2.15): LOI HA TANG = khong noi gi ve chat luong prompt (provider loi / het lan cho 429 / loi mang
+# -> final_status "llm_error"; het budget thoi gian -> "budget_exceeded"). LOI NOI DUNG = "invalid_output" (het lan thu vi
+# output sai / lat phe / reviewer loi) — chi chay lai khi --include-content-failures.
+INFRA_FAILURES = ("llm_error", "budget_exceeded")
+CONTENT_FAILURES = ("invalid_output",)
+
+
+def runs_from_failed(records: list[dict], include_content_failures: bool = False) -> list[dict]:
+    """Cau hinh (motion, phe, do kho, spec) cua cac lan chay that bai trong 1 file JSONL cu — giu run_index goc."""
+    statuses = INFRA_FAILURES + (CONTENT_FAILURES if include_content_failures else ())
     return [
         {
             "run_index": r["run_index"],
+            "repeat_round": r.get("repeat_round", 1),
             "motion_id": r["motion_id"],
             "motion": r["motion"],
             "ai_side": DebateSide(r["ai_side"]),
             "learner_side": DebateSide(r["learner_side"]),
             "difficulty": OpponentDifficulty(r["difficulty"]),
+            "motion_type": r.get("motion_type"),
+            "motion_reading": r.get("motion_reading"),
+            "burden_pro": r.get("burden_pro"),
+            "burden_con": r.get("burden_con"),
         }
         for r in records
-        if r["final_status"] == "llm_error"
+        if r["final_status"] in statuses
     ]
 
 
@@ -116,11 +181,11 @@ def content_retries(record: dict) -> int:
     """
     So lan THU LAI Case Planning vi output khong hop le (schema, validator, cum cam, side_flip...).
     = so lan thu case_plan co retry_feedback (phan hoi chi sinh ra khi thuc su retry) hoac retry trung tinh sau side_flip
-    (khong co phan hoi, danh dau o reviewer_detail.retry — muc 2.4m). Cho 429 KHONG tinh.
+    (khong co phan hoi, danh dau o reviewer_detail.retry — muc 2.4m) / sau khi reviewer loi (muc 2.14). Cho 429 KHONG tinh.
     """
     return sum(
         1 for a in record["attempts"] if a["purpose"] == LLMCallPurpose.CASE_PLAN.value and (
-            a.get("retry_feedback") or (a.get("reviewer_detail") or {}).get("retry") == SIDE_FLIP_NEUTRAL_RETRY
+            a.get("retry_feedback") or (a.get("reviewer_detail") or {}).get("retry") in NEUTRAL_RETRIES
         )
     )
 
@@ -136,6 +201,24 @@ def rate_limit_waits(record: dict) -> tuple[int, float | None]:
     return sum(1 for a in attempts if a.get("failure_kind") == FailureKind.RATE_LIMITED), None
 
 
+def sends_motion_spec(settings: Settings) -> bool:
+    """Chi v6 / v6b / v7 gui them du lieu (cach hieu / ganh nang) cho LLM; v5 (va cu hon) KHONG gui — A/B dung nghia."""
+    return settings.case_plan_prompt_version in ("case_plan_v6", "case_plan_v6b", "case_plan_v7")
+
+
+def motion_spec(run: dict, settings: Settings) -> dict:
+    """Tham so them cho generate_case_file theo prompt: v6 -> motion_reading; v6b -> burden_pro / burden_con."""
+    version = settings.case_plan_prompt_version
+    if version == "case_plan_v6":
+        return {"motion_type": run.get("motion_type"), "motion_reading": run.get("motion_reading")}
+    if version == "case_plan_v6b":
+        return {"motion_type": run.get("motion_type"), "burden_pro": run.get("burden_pro"),
+                "burden_con": run.get("burden_con")}
+    if version == "case_plan_v7":  # v7: CHI ganh nang (khong motion_type, khong module)
+        return {"burden_pro": run.get("burden_pro"), "burden_con": run.get("burden_con")}
+    return {}
+
+
 def run_record(
     run: dict, outcome: CasePlanOutcome, total_latency_ms: int, settings: Settings, rerun_of: str | None = None
 ) -> dict:
@@ -144,11 +227,23 @@ def run_record(
     )
     record = {
         "run_index": run["run_index"],
+        "repeat_round": run.get("repeat_round", 1),  # --repeat (muc 2.16)
         "motion_id": run["motion_id"],
         "motion": run["motion"],
         "ai_side": run["ai_side"].value,
         "learner_side": run["learner_side"].value,
         "difficulty": run["difficulty"].value,
+        # motion_type: tu file motion, ghi ca khi chay v5 (phan tich theo loai). motion_reading: cach hieu CHUAN trong
+        # file motion; motion_reading_sent: cach hieu DA GUI cho LLM (chi v6).
+        "motion_type": run.get("motion_type"),
+        "motion_reading": run.get("motion_reading"),
+        "motion_reading_sent": (
+            run.get("motion_reading") if settings.case_plan_prompt_version == "case_plan_v6" else None
+        ),
+        # ganh nang chung minh (motions_v3): ghi ca khi chay v5 (phan tich); burdens_sent = DA GUI cho LLM (v6b, v7)
+        "burden_pro": run.get("burden_pro"),
+        "burden_con": run.get("burden_con"),
+        "burdens_sent": settings.case_plan_prompt_version in ("case_plan_v6b", "case_plan_v7"),
         "prompt_version": outcome.prompt_version,
         "provider": outcome.llm_provider,
         "model": outcome.llm_model,
@@ -196,8 +291,10 @@ async def run_batch(
         if i and pause_seconds:
             await asyncio.sleep(pause_seconds)
         started = time.perf_counter()
+        spec = motion_spec(run, settings)
         outcome = await generate_case_file(
-            run["motion"], run["ai_side"], run["learner_side"], run["difficulty"], client, settings, reviewer_client
+            run["motion"], run["ai_side"], run["learner_side"], run["difficulty"], client, settings, reviewer_client,
+            **spec,
         )
         record = run_record(run, outcome, int((time.perf_counter() - started) * 1000), settings, rerun_of)
         with out_path.open("a", encoding="utf-8") as f:  # ghi ngay tung dong
@@ -296,12 +393,25 @@ async def main() -> int:
     )
     parser.add_argument("--no-review", action="store_true", help="Tat Stance Reviewer")
     parser.add_argument(
-        "--prompt-version", choices=["v3", "v4", "v5"], default=None,
+        "--prompt-version", choices=["v3", "v4", "v5", "v6", "v6b", "v7"], default=None,
         help="Prompt Case Planning (mac dinh: CASE_PLAN_PROMPT_VERSION; voi --only-failed: prompt cua file cu)",
     )
     parser.add_argument(
+        "--repeat", type=int, default=1, metavar="N",
+        help="Chay N vong toan bo cau hinh (moi dong JSONL ghi repeat_round); bo qua voi --only-failed",
+    )
+    parser.add_argument(
+        "--allow-draft", action="store_true",
+        help='Cho phep chay khi file motion con cach hieu reading_status "draft" (chua duoc duyet)',
+    )
+    parser.add_argument(
         "--only-failed", type=Path, default=None, metavar="FILE.jsonl",
-        help="Chi chay lai cac cau hinh bi llm_error trong file JSONL cu (bo qua --motions / --limit)",
+        help="Chi chay lai cac cau hinh LOI HA TANG (llm_error, budget_exceeded) trong file JSONL cu (bo qua --motions"
+             " / --limit)",
+    )
+    parser.add_argument(
+        "--include-content-failures", action="store_true",
+        help="Cung --only-failed: chay lai ca LOI NOI DUNG (invalid_output)",
     )
     args = parser.parse_args()
 
@@ -309,7 +419,7 @@ async def main() -> int:
     rerun_of = None
     if args.only_failed:
         old = load_records(args.only_failed)
-        runs = runs_from_failed(old)
+        runs = runs_from_failed(old, args.include_content_failures)
         rerun_of = args.only_failed.name
         old_version = old[0]["prompt_version"] if old else settings.case_plan_prompt_version
         version = f"case_plan_{args.prompt_version}" if args.prompt_version else old_version
@@ -317,12 +427,31 @@ async def main() -> int:
             print(f"CANH BAO: file cu dung {old_version}, dang chay lai bang {version} — ket qua KHONG so sanh truc tiep duoc.")
         settings = settings.model_copy(update={"case_plan_prompt_version": version})
         if not runs:
-            print(f"{args.only_failed} khong co lan chay llm_error nao.")
+            kinds = "loi ha tang" + (" / loi noi dung" if args.include_content_failures else "")
+            print(f"{args.only_failed} khong co lan chay {kinds} nao.")
             return 0
     else:
         if args.prompt_version:
             settings = settings.model_copy(update={"case_plan_prompt_version": f"case_plan_{args.prompt_version}"})
-        runs = build_runs(load_motions(args.motions)[: args.limit])
+        motions = load_motions(args.motions)[: args.limit]
+        drafts = draft_motions(motions)
+        if drafts and not args.allow_draft:
+            print(f"{args.motions}: cach hieu / ganh nang con o trang thai \"draft\" hoac con gia tri giu cho "
+                  f"({', '.join(drafts)}) — duyet va sua truoc khi chay (hoac --allow-draft).")
+            return 2
+        if sends_motion_spec(settings):
+            version = settings.case_plan_prompt_version
+            required = {"case_plan_v6": ("motion_type", "motion_reading"),
+                        "case_plan_v6b": ("motion_type", "burden_pro", "burden_con"),
+                        "case_plan_v7": ("burden_pro", "burden_con")}[version]
+            missing = [m["id"] for m in motions if not all(m.get(k) for k in required)]
+            if missing:
+                print(f"{version} can {' + '.join(required)} cho moi motion; thieu: {', '.join(missing)}")
+                return 2
+        if args.repeat < 1:
+            print("--repeat phai >= 1")
+            return 2
+        runs = build_runs(motions, args.repeat)
 
     client = get_llm_client(settings)
     reviewer_client = None
@@ -331,7 +460,7 @@ async def main() -> int:
             settings, provider=settings.stance_review_provider, model=settings.stance_review_model
         )
 
-    suffix = "_rerun" if rerun_of else ""
+    suffix = "_rerun" if rerun_of else (f"_x{args.repeat}" if args.repeat > 1 else "")
     out_path = args.out_dir / f"{datetime.now():%Y%m%d-%H%M%S}_{settings.case_plan_prompt_version}{suffix}.jsonl"
     print(
         f"{len(runs)} lan chay | prompt {settings.case_plan_prompt_version} | planner {client.provider}/{client.model} | "

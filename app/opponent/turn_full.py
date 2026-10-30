@@ -21,7 +21,8 @@ Chi LOG: bo do muc LOW, cau co chu so / "%" ngoai "Giả sử", xung "em".
 Stance Reviewer cho luot noi (Giai doan 3c, muc 2.11): reviewer v1 (stance_reviewer.py, model rieng) nhan motion +
 ai_points (P1..Pn) + speech_text o vi tri "ket luan tong the" — KHONG nhan ai_side; code so voi ai_side.
 side_flip -> retry TRUNG TINH (khong phan hoi, tinh vao TURN_MAX_ATTEMPTS); het luot -> luot THAT BAI, KHONG BAO GIO
-tra bai noi bi bao lat phe. "khong_ro" / reviewer loi 2 lan -> unclear, chi log.
+tra bai noi bi bao lat phe. "khong_ro" (phan doan that) -> chi log; reviewer LOI 2 lan -> reviewer_unavailable, retry
+trung tinh nhu side_flip (fail-closed, muc 2.14).
 
 Gon token (muc 2.11): khong co bai learner moi -> prompt ghi ro, learner_claims / premises BI EP rong; closing khong
 phan tich tien de -> premises rong, target_premise null (log neu model tra khong rong).
@@ -44,6 +45,12 @@ from app.opponent.turn_generators import (
     FULL_V1,
     FULL_V2,
     FULL_V3,
+    FULL_V4,
+    FULL_V4_NOBURDEN,
+    FULL_V5,
+    FULL_V5_NOBURDEN,
+    FULL_V6,
+    FULL_V6_NOBURDEN,
     ROUND_LABEL,
     SIDE_LABEL,
     LLMCaller,
@@ -70,6 +77,50 @@ NATURAL_SPEECH_RULE = (
     "hay trích nguyên văn nhãn phân tích."
 )
 # v3: tran 17:38 luot 1 noi "Đây là một quy định cố định, không mở rộng hay thu hẹp hơn." — doc lai khoi rang buoc.
+# turn_full_v5 (muc 2.18) — 3 rang buoc moi, nguyen van spec.
+V5_RULES = (
+    "- Mọi trường trong JSON, kể cả ai_points, viết bằng tiếng Việt.",
+    "- ai_points là các khẳng định ngắn, không mở đầu bằng 'Mình sẽ…', 'Mình nhấn mạnh rằng…'. Bài nói diễn đạt các ý "
+    "đó bằng lời nói tự nhiên, không chép nguyên văn dàn ý.",
+    "- Không lặp lại cùng một câu hay cùng một ý hai lần.",
+)
+FIELD_ORDER_V5 = ("premises", "target_premise", "ai_points", "speech_text")  # v5: KHONG con learner_claims
+# v5: do dai CHI retry khi ngoai [0,5x; 1,5x] muc tieu; trong khoang nay ma ngoai [0,7x; 1,25x] -> chap nhan ngay (log)
+RETRY_MIN_RATIO, RETRY_MAX_RATIO = 0.5, 1.5
+
+
+def is_v6(version: str) -> bool:
+    return version in (FULL_V6, FULL_V6_NOBURDEN)
+
+
+def is_v5(version: str) -> bool:
+    """v5 TRO LEN (v6 giu moi thay doi cua v5)."""
+    return version in (FULL_V5, FULL_V5_NOBURDEN) or is_v6(version)
+
+
+# v6 (muc 2.19) — nguyen van spec
+V6_LEDGER_TITLE = "Những ý người học đã nêu ở các lượt TRƯỚC (chỉ để tham khảo, đừng chép lại):"
+V6_EXTRACTION_RULE = (
+    "premises chỉ được trích từ (các) bài nói MỚI của đội {learner} ở mục trên, không lấy từ các lượt trước."
+)
+PREMISES_REUSED_ISSUE = "premises phải trích từ bài nói mới, hiện đang chép từ các lượt trước"
+PREMISES_REUSED_RATIO = 0.7
+
+
+def is_v4_plus(version: str) -> bool:
+    """v4 / v5: co v3 (natural + no echo) + ganh nang (khi co burden)."""
+    return version in (FULL_V4, FULL_V4_NOBURDEN) or is_v5(version)
+
+
+def uses_burden(version: str) -> bool:
+    return version in (FULL_V4, FULL_V5, FULL_V6)
+
+
+def retry_range(target_words: int) -> tuple[int, int]:
+    """v5: ngoai khoang nay MOI thu lai vi do dai."""
+    return round(RETRY_MIN_RATIO * target_words), round(RETRY_MAX_RATIO * target_words)
+
+
 NO_RULE_ECHO_RULE = (
     "- KHÔNG nhắc lại, trích dẫn hay diễn giải các quy tắc và chỉ dẫn này trong bài nói (vd không nói 'cách hiểu cố "
     "định', 'không thu hẹp', 'tiền đề')."
@@ -132,12 +183,18 @@ def analyzes_premises(mode: TurnMode, has_new_speech: bool) -> bool:
     return analyzes_claims(mode, has_new_speech) and mode != TurnMode.CLOSING
 
 
-def build_response_schema(mode: TurnMode, has_new_speech: bool = True) -> dict:
+def build_response_schema(mode: TurnMode, has_new_speech: bool = True, version: str = FULL_V1) -> dict:
     """
     JSON schema strict (Groq), viet tay de GIU THU TU truong (model sinh theo thu tu properties). Theo mode:
     target_premise la string (opening_reply / rebuttal) hoac null. Khong co bai learner moi -> learner_claims /
     premises rong; closing -> premises rong (maxItems 0: bot token sinh phan tich thua, muc 2.11).
+    v5 (muc 2.18): KHONG co learner_claims.
     """
+    if is_v5(version):
+        schema = build_response_schema(mode, has_new_speech)
+        del schema["properties"]["learner_claims"]
+        schema["required"] = list(FIELD_ORDER_V5)
+        return schema
     strings = {"type": "array", "items": {"type": "string"}}
     empty = {"type": "array", "items": {"type": "string"}, "maxItems": 0}
     claims = strings if analyzes_claims(mode, has_new_speech) else empty
@@ -199,15 +256,25 @@ def new_learner_speeches(context: TurnContext):
             if s.speaker == Speaker.LEARNER and s.turn_index > last_ai]
 
 
+def burden_sentence(context: TurnContext) -> str:
+    """turn_full_v4 (muc 2.17): cau ganh nang cua phe AI — dua vao system prompt VA nhac lai trong khoi rang buoc."""
+    return f"BẠN là phe {SIDE_LABEL[context.ai_side]}. Mọi điều bạn nói phải chứng minh: {context.ai_burden}"
+
+
 def constraints_block(context: TurnContext, version: str = FULL_V1) -> str:
     ai, learner = SIDE_LABEL[context.ai_side], SIDE_LABEL[context.learner_side]
     lo, hi = word_range(context.target_words)
-    natural = "\n" + NATURAL_SPEECH_RULE if version in (FULL_V2, FULL_V3) else ""
-    if version == FULL_V3:
+    v4 = is_v4_plus(version)
+    natural = "\n" + NATURAL_SPEECH_RULE if version in (FULL_V2, FULL_V3) or v4 else ""
+    if version == FULL_V3 or v4:
         natural += "\n" + NO_RULE_ECHO_RULE
+    if is_v5(version):
+        natural += "\n" + "\n".join(V5_RULES)
+    burden_line = f"\n- {burden_sentence(context)}" if uses_burden(version) and context.ai_burden else ""
+    reading_ref = "cách hiểu ở trên" if is_v6(version) else "cách hiểu cố định ở trên"  # v6: bo "cố định" (muc 2.19)
     return f"""Ràng buộc bắt buộc:
-- Bạn thuộc phe {ai} và phải bảo vệ phe này đến hết trận.
-- KHÔNG thu hẹp, mở rộng hay định nghĩa lại kiến nghị so với cách hiểu cố định ở trên.
+- Bạn thuộc phe {ai} và phải bảo vệ phe này đến hết trận.{burden_line}
+- KHÔNG thu hẹp, mở rộng hay định nghĩa lại kiến nghị so với {reading_ref}.
 - KHÔNG đề xuất như giải pháp của mình một phương án mà đội {learner} đã đưa ra hoặc gần giống với lập trường của họ. \
 Có thể thừa nhận ngắn gọn tối đa một ý đúng của đối phương, sau đó phải chỉ ra vì sao phe bạn vẫn đúng.
 - KHÔNG mâu thuẫn với những điều bạn đã khẳng định ở các lượt trước.
@@ -227,13 +294,56 @@ def build_full_prompt(
     THUAN: (system, user). User theo thu tu (a) case (b) ai_points cu (c) learner_claims cu + tien de da tan cong
     (d) bai learner moi, ngoi thu ba (e) nhiem vu + dinh dang JSON [phan hoi retry] (f) khoi rang buoc — LUON cuoi.
     """
+    system, before, new, after, constraints = _prompt_sections(mode, context, feedback, version)
+    learner = SIDE_LABEL[context.learner_side]
+    speeches = [f"Đội {learner} vừa phát biểu ({ROUND_LABEL[s.round_type]}):\n«{s.text}»" for s in new] or [NO_NEW_SPEECH]
+    return system, "\n\n".join(before + speeches + after + [constraints])
+
+
+def build_variant_prompt(
+    mode: TurnMode, context: TurnContext, feedback: str | None = None, version: str = FULL_V1, *,
+    second_person: bool = False, final_constraints: bool = True,
+) -> tuple[str, list[dict]]:
+    """
+    CHI cho thi nghiem do do vung lap truong (Giai doan 3d) — san pham KHONG dung. Tra (system, messages), noi dung GIONG
+    build_full_prompt, chi khac:
+    - second_person (nhanh C): moi bai learner MOI la 1 tin role=user rieng, NGUYEN VAN (bo nhan "Đội X vừa phát biểu
+      («…»)"); messages = [user: case + ledger] + [user: bai learner]... + [user: nhiem vu (+ phan hoi) (+ rang buoc)].
+    - final_constraints=False (nhanh E): KHONG dat khoi rang buoc o cuoi tin user; khoi rang buoc (nguyen van) chuyen len
+      CUOI system prompt (v6 khong co rang buoc o system -> neu bo han thi nhanh E mat luon rang buoc, xem dev log 3.1).
+    """
+    system, before, new, after, constraints = _prompt_sections(mode, context, feedback, version)
+    tail = [constraints] if final_constraints else []
+    if not final_constraints:
+        system += "\n\n" + constraints
+    if second_person and new:
+        messages = [{"role": "user", "content": "\n\n".join(before)}]
+        messages += [{"role": "user", "content": s.text} for s in new]
+        messages.append({"role": "user", "content": "\n\n".join(after + tail)})
+        return system, messages
+    learner = SIDE_LABEL[context.learner_side]
+    speeches = [f"Đội {learner} vừa phát biểu ({ROUND_LABEL[s.round_type]}):\n«{s.text}»" for s in new] or [NO_NEW_SPEECH]
+    return system, [{"role": "user", "content": "\n\n".join(before + speeches + after + tail)}]
+
+
+def _prompt_sections(
+    mode: TurnMode, context: TurnContext, feedback: str | None, version: str
+) -> tuple[str, list[str], list, list[str], str]:
+    """(system, [case + ledger], [bai learner MOI], [nhiem vu (+ phan hoi)], khoi rang buoc)."""
     case = context.case_file or {}
     ai, learner = SIDE_LABEL[context.ai_side], SIDE_LABEL[context.learner_side]
+    # v5 (muc 2.18): bo chu "CỐ ĐỊNH" (tran 18:03 luot 1: "Đề xuất cố định yêu cầu…")
+    reading_line = (
+        f"Cách hiểu kiến nghị trong trận này: '{case.get('motion_reading', '')}'." if is_v5(version)
+        else f"Cách hiểu kiến nghị của trận này là CỐ ĐỊNH: '{case.get('motion_reading', '')}'."
+    )
     system = (
         f"Bạn là một debater đang thi đấu, thuộc phe {ai} về kiến nghị: '{context.motion}'.\n"
-        f"Cách hiểu kiến nghị của trận này là CỐ ĐỊNH: '{case.get('motion_reading', '')}'.\n"
+        f"{reading_line}\n"
         f"Người học thuộc phe {learner}. Phe của bạn không bao giờ thay đổi."
     )
+    if uses_burden(version) and context.ai_burden:
+        system += "\n" + burden_sentence(context)
 
     parts = [
         "Case của bạn (đã chuẩn bị trước trận):\n"
@@ -246,15 +356,14 @@ def build_full_prompt(
     ledger = context.ledger
     if ledger.ai_points:
         parts.append("Những điều bạn ĐÃ khẳng định ở các lượt trước (không được mâu thuẫn):\n" + _bullets(ledger.ai_points))
-    if ledger.learner_claims:
-        parts.append("Các luận điểm người học đã nêu trước đó:\n" + _bullets(ledger.learner_claims))
+    learner_items = ledger.learner_premises if is_v5(version) else ledger.learner_claims  # v5: tu premises.explicit
+    if learner_items:
+        # v6: tieu de KHONG trung ten truong output ("tien de" / premises) — v5 bi model chep lai (muc 2.19)
+        title = V6_LEDGER_TITLE if is_v6(version) else "Các luận điểm người học đã nêu trước đó:"
+        parts.append(title + "\n" + _bullets(learner_items))
     if ledger.attacked_premises:
         parts.append("Các tiền đề bạn đã tấn công:\n" + _bullets(ledger.attacked_premises))
     new = new_learner_speeches(context)
-    for s in new:
-        parts.append(f"Đội {learner} vừa phát biểu ({ROUND_LABEL[s.round_type]}):\n«{s.text}»")
-    if not new:
-        parts.append(NO_NEW_SPEECH)
 
     task = "Nhiệm vụ lượt này: " + MODE_TASK[mode].format(learner=learner)
     if needs_target(mode):
@@ -278,19 +387,18 @@ def build_full_prompt(
         "tiền đề bạn chọn để tấn công (một câu, lấy từ premises)" if needs_target(mode)
         else "null (lượt này không chọn tiền đề để tấn công)"
     )
+    if is_v6(version) and analyzes_premises(mode, bool(new)):
+        task += "\n\n" + V6_EXTRACTION_RULE.format(learner=learner)  # dat NGAY TRUOC mo ta JSON (muc 2.19)
     task += (
         "\n\nTrả về JSON, ĐÚNG thứ tự trường sau (phân tích trước, lập dàn ý, rồi mới viết bài):"
-        f"\n- learner_claims: {claims_rule}."
-        f"\n- premises: {{\"explicit\": [...], \"implicit\": [...]}} — {premises_rule}."
+        + ("" if is_v5(version) else f"\n- learner_claims: {claims_rule}.")
+        + f"\n- premises: {{\"explicit\": [...], \"implicit\": [...]}} — {premises_rule}."
         f"\n- target_premise: {target_rule}."
         "\n- ai_points: dàn ý 2–4 ý bạn sẽ nói trong lượt này, mỗi ý một câu."
         "\n- speech_text: bài nói hoàn chỉnh, viết theo dàn ý ai_points."
     )
-    parts.append(task)
-    if feedback:
-        parts.append(feedback.strip())
-    parts.append(constraints_block(context, version))
-    return system, "\n\n".join(parts)
+    after = [task] + ([feedback.strip()] if feedback else [])
+    return system, parts, new, after, constraints_block(context, version)
 
 
 # ---------------- validator ----------------
@@ -355,8 +463,16 @@ def _validation_issues(e: ValidationError, data: object) -> list[str]:
     return issues + (_key_issues(data) if isinstance(data, dict) else [])
 
 
-def validate_turn_data(data: object, mode: TurnMode, target_words: int) -> TurnOutput:
+def _without_claims(data: object, version: str) -> object:
+    """v5: model KHONG sinh learner_claims -> dien [] (va bo neu model van tra) truoc khi dung chung TurnOutput."""
+    if is_v5(version) and isinstance(data, dict):
+        return {**data, "learner_claims": []}
+    return data
+
+
+def validate_turn_data(data: object, mode: TurnMode, target_words: int, version: str = FULL_V1) -> TurnOutput:
     """Nem _Invalid (kem phan hoi tieng Viet) neu khong hop le."""
+    data = _without_claims(data, version)
     try:
         out = TurnOutput.model_validate(data)
     except ValidationError as e:
@@ -393,7 +509,7 @@ def validate_turn_data(data: object, mode: TurnMode, target_words: int) -> TurnO
     return out
 
 
-def parse_turn_output(raw: str | None, mode: TurnMode, target_words: int) -> TurnOutput:
+def parse_turn_output(raw: str | None, mode: TurnMode, target_words: int, version: str = FULL_V1) -> TurnOutput:
     try:
         data = extract_json(raw or "")
     except LLMOutputParseError as e:
@@ -401,10 +517,10 @@ def parse_turn_output(raw: str | None, mode: TurnMode, target_words: int) -> Tur
             TurnFailure.INVALID_JSON, str(e),
             ["Output không phải một JSON object hợp lệ (có thể bị cắt ngắn, hoặc có text / markdown thừa ngoài JSON)."],
         ) from e
-    return validate_turn_data(data, mode, target_words)
+    return validate_turn_data(data, mode, target_words, version)
 
 
-def _repair_rejected(call, mode: TurnMode, target_words: int) -> TurnOutput:
+def _repair_rejected(call, mode: TurnMode, target_words: int, version: str = FULL_V1) -> TurnOutput:
     """
     Groq tu choi schema -> sua TAT DINH roi validate CUC BO (khong goi lai LLM). Khong duoc -> _Invalid schema_rejected.
     1. "Mang tach" (json_repair, muc 2.12): dung lai object; khong qua schema cuc bo -> xu ly nhu schema_rejected; qua
@@ -414,16 +530,18 @@ def _repair_rejected(call, mode: TurnMode, target_words: int) -> TurnOutput:
     m = _JSONSCHEMA_DETAIL.search(call.error or "")
     issues = [
         f"Output bị nhà cung cấp từ chối vì không khớp JSON schema{f' ({m.group(1)})' if m else ''}. Kiểm tra lại "
-        "đúng 5 trường theo thứ tự, đúng kiểu, không thêm trường lạ. Trả về MỘT object JSON (không phải mảng)."
+        f"đúng {4 if is_v5(version) else 5} trường theo thứ tự, đúng kiểu, không thêm trường lạ. Trả về MỘT object "
+        "JSON (không phải mảng)."
     ]
-    repaired = repair_split_array(call.raw_output, FIELD_ORDER)
+    repaired = repair_split_array(call.raw_output, FIELD_ORDER_V5 if is_v5(version) else FIELD_ORDER)
     if repaired is not None:
         data, info = repaired
+        data = _without_claims(data, version)
         renames = repair_keys(data)
         if _key_diffs(data):
             raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + _key_issues(data))
         try:
-            out = validate_turn_data(data, mode, target_words)
+            out = validate_turn_data(data, mode, target_words, version)
         except _Invalid as e:
             if e.kind == TurnFailure.SCHEMA_VALIDATION:
                 raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + e.issues, e.speech) from None
@@ -436,10 +554,11 @@ def _repair_rejected(call, mode: TurnMode, target_words: int) -> TurnOutput:
         raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues) from None
     if not isinstance(data, dict):
         raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues)
+    data = _without_claims(data, version)
     renames = repair_keys(data)
     if not renames or _key_diffs(data):
         raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + _key_issues(data))
-    out = validate_turn_data(data, mode, target_words)  # co the nem _Invalid khac (HIGH...) -> retry nhu thuong
+    out = validate_turn_data(data, mode, target_words, version)  # co the nem _Invalid khac (HIGH...) -> retry nhu thuong
     call.key_repairs = {"event": "key_repaired", "renames": renames, "provider_error": (call.error or "")[:1000]}
     return out
 
@@ -452,13 +571,67 @@ _DIGIT_OR_PERCENT = re.compile(r"\d|%")
 _EM_PRONOUN = re.compile(r"\bem\b", re.IGNORECASE)
 
 
-def speech_checks(text: str) -> dict:
+# v6 (muc 2.19): so KHONG phai so lieu — bo qua khi kiem tra "so ngoai Giả sử" (tran 001136: "thế kỷ 21" bi log nham)
+_NON_STAT_NUMBER = re.compile(
+    r"\bthế\s+kỷ\s+(?:\d+|[ivxlc]+)\b|\b(?:thứ|lớp|khối|số|phần|lượt|năm\s+thứ)\s+\d+\b", re.IGNORECASE
+)
+
+
+def speech_checks(text: str, ignore_non_stat_numbers: bool = False) -> dict:
     sentences = [s for s in _SENTENCE_SPLIT.split(text) if s.strip()]
     nfc = [unicodedata.normalize("NFC", s) for s in sentences]
+
+    def has_number(s: str) -> bool:
+        return bool(_DIGIT_OR_PERCENT.search(_NON_STAT_NUMBER.sub(" ", s) if ignore_non_stat_numbers else s))
+
     return {
-        "numbers_without_gia_su": [s for s in nfc if _DIGIT_OR_PERCENT.search(s) and "giả sử" not in s.casefold()],
+        "numbers_without_gia_su": [s for s in nfc if has_number(s) and "giả sử" not in s.casefold()],
         "em_pronoun": [s for s in nfc if _EM_PRONOUN.search(s)],
     }
+
+
+# --- v5 (muc 2.18): them kiem tra CHI LOG ---
+_TOI_PRONOUN = re.compile(r"\btôi\b", re.IGNORECASE)  # AI phai xung "mình" (tran 17:35 luot 4: "Tôi đồng ý…")
+_WORD = re.compile(r"[^\W\d_]+")
+_ASCII_WORD = re.compile(r"[A-Za-z]+")
+ENGLISH_RATIO = 0.5  # ai_point co >= 50% tu la tu ASCII (khong dau) -> nghi la tieng Anh
+ENGLISH_MIN_WORDS = 3
+
+
+def english_ratio(text: str) -> float:
+    words = _WORD.findall(text)
+    if not words:
+        return 0.0
+    return sum(1 for w in words if _ASCII_WORD.fullmatch(w)) / len(words)
+
+
+def _sentence_key(sentence: str) -> str:
+    return " ".join(_WORD.findall(unicodedata.normalize("NFC", sentence).casefold()))
+
+
+def speech_checks_v5(text: str, ai_points: list[str], ignore_non_stat_numbers: bool = False) -> dict:
+    """speech_checks + "toi_pronoun" (cau co "tôi"), "ai_points_english" (y dan y nghi tieng Anh), "repeated_sentences"
+    (cau xuat hien >= 2 lan, so sanh bo dau / hoa thuong). CHI LOG, khong reject."""
+    checks = speech_checks(text, ignore_non_stat_numbers)
+    sentences = [unicodedata.normalize("NFC", s) for s in _SENTENCE_SPLIT.split(text) if s.strip()]
+    seen: dict[str, int] = {}
+    for s in sentences:
+        key = _sentence_key(s)
+        if key:
+            seen[key] = seen.get(key, 0) + 1
+    repeated, listed = [], set()
+    for s in sentences:
+        key = _sentence_key(s)
+        if seen.get(key, 0) >= 2 and key not in listed:
+            repeated.append(s)
+            listed.add(key)
+    checks.update(
+        toi_pronoun=[s for s in sentences if _TOI_PRONOUN.search(s)],
+        ai_points_english=[p for p in ai_points
+                           if len(_WORD.findall(p)) >= ENGLISH_MIN_WORDS and english_ratio(p) >= ENGLISH_RATIO],
+        repeated_sentences=repeated,
+    )
+    return checks
 
 
 TRUNCATED_ISSUE = (
@@ -484,10 +657,57 @@ def coerce_analysis(out: TurnOutput, mode: TurnMode, has_new_speech: bool) -> di
     return dropped
 
 
-def _log_speech(call, speech: str | None) -> None:
+def _log_speech(call, speech: str | None, version: str = FULL_V1, ai_points: list[str] | None = None) -> None:
     if speech:
         call.vague_evidence = [h.to_log() for h in vague_detector.detect_speech(speech)]
-        call.speech_checks = speech_checks(speech)
+        call.speech_checks = (
+            speech_checks_v5(speech, ai_points or [], ignore_non_stat_numbers=is_v6(version)) if is_v5(version)
+            else speech_checks(speech)
+        )
+
+
+# ---------------- v6: chep tien de + chuan hoa xung ho ----------------
+
+
+def _norm_item(text: str) -> str:
+    return " ".join(_WORD.findall(unicodedata.normalize("NFC", text).casefold()))
+
+
+def premises_reuse_ratio(explicit: list[str], previous: list[str]) -> float:
+    """Ti le muc premises.explicit TRUNG (sau chuan hoa: NFC, hoa thuong, bo dau cau) voi y nguoi hoc o ledger."""
+    if not explicit or not previous:
+        return 0.0
+    seen = {_norm_item(p) for p in previous}
+    return sum(1 for e in explicit if _norm_item(e) in seen) / len(explicit)
+
+
+# "tôi" la dai tu ngoi 1 -> "mình". KHONG thay: trong ngoac kep / « » (trich dan), tu ghep "tôi luyện", "tôi tớ".
+_QUOTED = re.compile(r"«[^»]*»|\"[^\"]*\"|“[^”]*”")
+_TOI = re.compile(r"\b([Tt])ôi\b(?!\s+(?:luyện|tớ)\b)")
+
+
+def normalize_first_person(text: str) -> tuple[str, int]:
+    """Thay "Tôi"/"tôi" (dai tu) -> "Mình"/"mình" ngoai trich dan. Tra (van ban moi, so lan thay)."""
+    text = unicodedata.normalize("NFC", text)
+    count = 0
+
+    def fix(segment: str) -> str:
+        nonlocal count
+
+        def sub(m: re.Match) -> str:
+            nonlocal count
+            count += 1
+            return "Mình" if m.group(1) == "T" else "mình"
+
+        return _TOI.sub(sub, segment)
+
+    out, last = [], 0
+    for q in _QUOTED.finditer(text):
+        out.append(fix(text[last:q.start()]))
+        out.append(q.group(0))  # trich dan: giu nguyen
+        last = q.end()
+    out.append(fix(text[last:]))
+    return "".join(out), count
 
 
 # ---------------- bo sinh ----------------
@@ -504,7 +724,13 @@ class FullTurnGenerator:
 
     version = FULL_V1
 
-    def __init__(self, client: LLMClient, settings: Settings, reviewer_client: LLMClient | None = None):
+    def __init__(
+        self, client: LLMClient, settings: Settings, reviewer_client: LLMClient | None = None, *,
+        second_person: bool = False, final_constraints: bool = True,
+    ):
+        """second_person / final_constraints: CHI harness Giai doan 3d truyen (nhanh C / E, build_variant_prompt); san
+        pham dung mac dinh = build_full_prompt."""
+        self.second_person, self.final_constraints = second_person, final_constraints
         self.settings = settings
         self.temperature = settings.turn_temperature
         self.caller = LLMCaller(client, settings)
@@ -524,17 +750,25 @@ class FullTurnGenerator:
             result.error, result.failure_kind = f"{self.version} can case file (session READY)", MISSING_CASE_FILE
             return result
         has_new = bool(new_learner_speeches(context))
-        schema = build_response_schema(mode, has_new) if settings.case_plan_use_json_schema else None
+        schema = build_response_schema(mode, has_new, self.version) if settings.case_plan_use_json_schema else None
         feedback = None
         length_retries = 0
         candidates: list[tuple[int, int, TurnOutput, object]] = []  # (khoang cach, thu tu, output, call) — sai do dai
         for attempt_no in range(1, settings.turn_max_attempts + 1):
             last = attempt_no == settings.turn_max_attempts
-            system, user = build_full_prompt(mode, context, feedback, self.version)
+            messages = None
+            if self.second_person or not self.final_constraints:
+                system, messages = build_variant_prompt(
+                    mode, context, feedback, self.version,
+                    second_person=self.second_person, final_constraints=self.final_constraints,
+                )
+                user = None
+            else:
+                system, user = build_full_prompt(mode, context, feedback, self.version)
             try:
                 call = await self.caller.complete(
                     system, user, temperature=self.temperature, max_tokens=settings.turn_max_tokens,
-                    prompt_version=self.version, json_schema=schema,
+                    prompt_version=self.version, json_schema=schema, messages=messages,
                 )
             except TurnLLMError as e:
                 result.error, result.failure_kind = str(e), TurnFailure.PROVIDER_ERROR
@@ -543,15 +777,15 @@ class FullTurnGenerator:
                 if call.truncated:
                     raise _Invalid(TurnFailure.TRUNCATED, call.error or TurnFailure.TRUNCATED, [TRUNCATED_ISSUE])
                 if call.schema_rejected:
-                    out = _repair_rejected(call, mode, context.target_words)
+                    out = _repair_rejected(call, mode, context.target_words, self.version)
                     call.success, call.error, call.failure_kind = True, None, None
                     logger.info("Luot %d: %s, khong goi lai LLM: %s", context.turn_index,
                                 call.key_repairs.get("event"), call.key_repairs)
                 else:
-                    out = parse_turn_output(call.raw_output, mode, context.target_words)
+                    out = parse_turn_output(call.raw_output, mode, context.target_words, self.version)
             except _Invalid as e:
                 call.success, call.error, call.failure_kind = False, e.error[:4000], e.kind
-                _log_speech(call, e.speech)
+                _log_speech(call, e.speech, self.version)
                 logger.warning("Luot %d lan thu %d khong hop le (%s): %s", context.turn_index, attempt_no, e.kind, e.error)
                 if last:
                     return self._give_up(result, candidates, context, e.error, e.kind)
@@ -559,7 +793,19 @@ class FullTurnGenerator:
                 call.retry_feedback = feedback.strip()
                 continue
 
-            _log_speech(call, out.speech_text)
+            _log_speech(call, out.speech_text, self.version, out.ai_points)
+            if is_v6(self.version) and analyzes_premises(mode, has_new):
+                # v6 (muc 2.19): premises phai trich tu bai MOI (chi luot co bai learner moi va phan tich tien de). >= 70% trung y o ledger -> reject, retry co phan hoi.
+                ratio = premises_reuse_ratio(out.premises.explicit, context.ledger.learner_premises)
+                if ratio >= PREMISES_REUSED_RATIO:
+                    call.success, call.failure_kind = False, TurnFailure.PREMISES_REUSED
+                    call.error = f"{TurnFailure.PREMISES_REUSED}: {ratio:.0%} premises.explicit trung y cac luot truoc"
+                    logger.warning("Luot %d lan thu %d: %s", context.turn_index, attempt_no, call.error)
+                    if last:
+                        return self._give_up(result, candidates, context, call.error, TurnFailure.PREMISES_REUSED)
+                    feedback = build_retry_feedback([PREMISES_REUSED_ISSUE])
+                    call.retry_feedback = feedback.strip()
+                    continue
             dropped = coerce_analysis(out, mode, has_new)
             if dropped:
                 call.speech_checks = {**(call.speech_checks or {}), ANALYSIS_COERCED: dropped}
@@ -577,6 +823,16 @@ class FullTurnGenerator:
                     feedback = None  # retry TRUNG TINH: prompt goc, khong noi "ban da lat phe" (muc 2.4m)
                     call.reviewer_detail = {**detail, "retry": "side_flip_neutral_retry"}
                     continue
+                if stance_reviewer.is_reviewer_failure(detail):
+                    # FAIL-CLOSED (muc 2.14): reviewer khong tra duoc verdict -> KHONG chap nhan, retry trung tinh.
+                    call.success, call.failure_kind = False, TurnFailure.REVIEWER_UNAVAILABLE
+                    call.error = f"{TurnFailure.REVIEWER_UNAVAILABLE}: {detail['reviewer_error'][:500]}"
+                    logger.warning("Luot %d lan thu %d: reviewer khong tra duoc verdict", context.turn_index, attempt_no)
+                    if last:
+                        return self._give_up(result, candidates, context, call.error, TurnFailure.REVIEWER_UNAVAILABLE)
+                    feedback = None
+                    call.reviewer_detail = {**detail, "retry": "reviewer_unavailable_neutral_retry"}
+                    continue
                 if verdict == ReviewerVerdict.UNCLEAR:
                     logger.warning("Luot %d: stance review khong ro: %s", context.turn_index, detail)
 
@@ -584,7 +840,13 @@ class FullTurnGenerator:
             distance = length_distance(n, context.target_words)
             if distance == 0:
                 call.success, call.error, call.failure_kind = True, None, None
-                return self._accept(result, out)
+                return self._accept(result, out, call)
+            if is_v5(self.version):
+                r_lo, r_hi = retry_range(context.target_words)
+                if r_lo <= n <= r_hi:
+                    # v5 (muc 2.18): lech nhung trong [0,5x; 1,5x] -> CHAP NHAN NGAY, KHONG goi lai LLM (tran 18:10 luot 6:
+                    # 363 tu, retry vi do dai roi van dung ban cu)
+                    return self._soft_accept(result, [(distance, attempt_no, out, call)], context)
             # Loi MEM: do dai
             lo, hi = accept_range(context.target_words)
             call.success, call.failure_kind = False, TurnFailure.WORD_COUNT
@@ -646,10 +908,14 @@ class FullTurnGenerator:
         result.error, result.failure_kind = error, kind
         return result
 
-    @staticmethod
-    def _accept(result: TurnResult, out: TurnOutput) -> TurnResult:
+    def _accept(self, result: TurnResult, out: TurnOutput, call=None) -> TurnResult:
+        if is_v6(self.version):
+            # v6 (muc 2.19): chuan hoa xung ho SAU khi chap nhan; ghi so lan thay
+            out.speech_text, replaced = normalize_first_person(out.speech_text)
+            if call is not None:
+                call.speech_checks = {**(call.speech_checks or {}), "toi_replaced": replaced}
         result.text = out.speech_text
-        result.learner_claims = out.learner_claims
+        result.learner_claims = None if is_v5(self.version) else out.learner_claims  # v5: cot DB de null
         result.premises = out.premises.model_dump()
         result.target_premise = out.target_premise
         result.ai_points = out.ai_points
@@ -663,7 +929,7 @@ class FullTurnGenerator:
         call.speech_checks = {**(call.speech_checks or {}),
                               LENGTH_SOFT_ACCEPT: {"word_count": n, "accept_min": lo, "accept_max": hi}}
         logger.info("Luot %d: %s word_count=%d (chap nhan [%d, %d])", context.turn_index, LENGTH_SOFT_ACCEPT, n, lo, hi)
-        return self._accept(result, out)
+        return self._accept(result, out, call)
 
 
 class FullTurnGeneratorV2(FullTurnGenerator):
@@ -676,3 +942,55 @@ class FullTurnGeneratorV3(FullTurnGenerator):
     """v2 + rang buoc NO_RULE_ECHO_RULE (muc 2.12). Moi thu khac giong v1 / v2."""
 
     version = FULL_V3
+
+
+class FullTurnGeneratorV4(FullTurnGenerator):
+    """
+    v3 + ganh nang chung minh cua phe AI (muc 2.17): khi context.ai_burden co -> them "BẠN là phe {X}. Mọi điều bạn nói
+    phải chứng minh: {burden}" vao system prompt VA khoi rang buoc (ngay sau dong "Bạn thuộc phe…"). Khong co burden
+    (session cu / TURN_BURDEN_ENABLED=false) -> prompt = v3, version ghi "turn_full_v4_noburden" (phan biet khi ablation).
+    """
+
+    version = FULL_V4
+
+    async def generate(self, mode: TurnMode, context: TurnContext) -> TurnResult:
+        self.version = FULL_V4 if context.ai_burden else FULL_V4_NOBURDEN
+        return await super().generate(mode, context)
+
+
+class FullTurnGeneratorV5(FullTurnGenerator):
+    """
+    v4 + sua loi tu 4 tran thu 30/09 (muc 2.18):
+    1. system: "Cách hiểu kiến nghị trong trận này: '…'." (bo chu "CỐ ĐỊNH"); rang buoc khong dinh nghia lai giu o cuoi;
+    2. KHONG con learner_claims trong output (schema + prompt); ledger "luan diem nguoi hoc" tu premises.explicit;
+       cot DB learner_claims = NULL;
+    3. 3 rang buoc moi (V5_RULES): JSON tieng Viet ke ca ai_points; ai_points ngan, bai noi khong chep dan y; khong lap;
+    4. CHI LOG: "tôi", ai_points tieng Anh, cau lap nguyen van (speech_checks_v5);
+    5. do dai: CHI retry ngoai [0,5x; 1,5x]; trong do ma ngoai [0,7x; 1,25x] -> chap nhan ngay (length_soft_accept);
+    6. ganh nang nhu v4; khong burden -> "turn_full_v5_noburden".
+    """
+
+    version = FULL_V5
+
+    async def generate(self, mode: TurnMode, context: TurnContext) -> TurnResult:
+        self.version = FULL_V5 if context.ai_burden else FULL_V5_NOBURDEN
+        return await super().generate(mode, context)
+
+
+class FullTurnGeneratorV6(FullTurnGenerator):
+    """
+    v5 + sua loi chep tien de (muc 2.19; tran 20261002 luot 4 chep nguyen premises.explicit cua luot 2):
+    1. ledger y nguoi hoc: tieu de V6_LEDGER_TITLE (khong goi la "tien de", "dung chep lai");
+    2. V6_EXTRACTION_RULE ngay truoc mo ta JSON (khi co bai learner moi va luot phan tich tien de);
+    3. >= 70% premises.explicit trung ledger -> reject "premises_reused", retry co phan hoi (khong ap dung khi khong co
+       bai moi);
+    4. "tôi" -> "mình" sau khi chap nhan (ngoai trich dan), ghi speech_checks.toi_replaced;
+    5. rang buoc cuoi: "…so với cách hiểu ở trên";
+    6. kiem tra so ngoai "Giả sử" bo qua "thế kỷ 21/XXI", so thu tu (thứ 2, lớp 12…) — chi log.
+    """
+
+    version = FULL_V6
+
+    async def generate(self, mode: TurnMode, context: TurnContext) -> TurnResult:
+        self.version = FULL_V6 if context.ai_burden else FULL_V6_NOBURDEN
+        return await super().generate(mode, context)

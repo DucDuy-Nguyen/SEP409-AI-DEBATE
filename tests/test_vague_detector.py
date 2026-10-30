@@ -183,3 +183,31 @@ async def test_low_is_only_logged():
     assert outcome.case_file is not None and len(fake.calls) == 1
     assert {e["rule"] for e in outcome.attempts[0].vague_evidence} == {"thong_ke", "phan_tram", "nghien_cuu"}
     assert all(e["level"] == "low" for e in outcome.attempts[0].vague_evidence)
+
+
+# ---- dev log 3.1 (sau smoke test 3d 20261002-112511): da_chung_minh khong bat tu tham chieu cua nguoi noi ----
+
+
+@pytest.mark.parametrize("text", [
+    "Điều này làm gián đoạn tập trung và giảm hiệu quả ghi nhớ, như mình đã chứng minh ở luận điểm A1.",  # nguyen van
+    "Sự gián đoạn liên tục sẽ làm giảm thời gian tập trung, điều mà mình đã chứng minh ở lập luận trước.",  # nguyen van
+    "Như bạn đã chứng minh, điều đó không đúng.",
+    "Như tôi đã chứng minh, lệnh cấm có cơ chế rõ.",
+    "Như em đã chứng minh trước đó.",
+    "Điều này đã được chứng minh ở trên.",
+    "Lập luận đã chứng minh ở phần mở màn vẫn đứng vững.",
+    "Ý này đã chứng minh ở lượt trước.",
+])
+def test_da_chung_minh_self_reference_not_flagged(text):
+    assert "da_chung_minh" not in {h.rule for h in vd.detect_speech(text)}
+
+
+@pytest.mark.parametrize("text", [
+    "Cuối cùng, việc duy trì một hệ thống phức tạp như vậy không cần thiết khi cấm hoàn toàn đã chứng minh được khả "
+    "năng ngăn chặn thông báo.",  # nguyen van smoke test nhanh D — VAN bat
+    "Hiệu quả của mô hình này đã được chứng minh.",
+    "Mình nghĩ giải pháp này đã chứng minh hiệu quả.",  # "mình" KHONG ngay truoc "đã"
+])
+def test_da_chung_minh_still_flagged(text):
+    hits = [h for h in vd.detect_speech(text) if h.rule == "da_chung_minh"]
+    assert hits and hits[0].level == vd.HIGH

@@ -26,6 +26,18 @@ PRO, CON = DebateSide.PRO, DebateSide.CON
 UH, PD = "ung_ho_kien_nghi", "phan_doi_kien_nghi"
 
 
+# Mac dinh tu muc 2.18 la turn_full_v5. File nay kiem tra hanh vi v4 tro xuong -> GHIM v4 cho test qua API (test tu dat
+# Settings rieng thi khong bi ghi de vi fixture nay chay TRUOC than test).
+V4_SETTINGS = Settings(_env_file=None, turn_generator_version="turn_full_v4")
+
+
+@pytest.fixture(autouse=True)
+def pin_turn_full_v4(request):
+    if "client" in request.fixturenames:
+        request.getfixturevalue("client")
+        app.dependency_overrides[get_settings] = lambda: V4_SETTINGS
+
+
 def _flipped(ids=("P1", "P2")) -> str:
     """Output reviewer v1: moi muc UNG HO kien nghi (= nguoc phe AI con)."""
     return json.dumps({"arguments": [{"id": i, "position": UH, "reason": "lat"} for i in ids],
@@ -154,17 +166,44 @@ async def test_unclear_is_accepted_and_logged(client, db_session, fake_llm, fake
     assert turn_row.reviewer_detail["unclear_ids"] == ["P2"]
 
 
-async def test_reviewer_error_twice_counts_as_unclear(client, db_session, fake_llm, fake_reviewer):
+async def test_reviewer_error_twice_is_fail_closed_neutral_retry(client, db_session, fake_llm, fake_reviewer):
+    # Muc 2.14: reviewer khong tra duoc verdict -> KHONG chap nhan bai noi, sinh lai trung tinh
     ext = await _ready_session(client, fake_llm, fake_reviewer, "con")
-    fake_reviewer.responses = ["khong phai json", RuntimeError("503 reviewer down")]
-    fake_llm.responses = [_out(TurnMode.OPENING_REPLY)]
+    fake_reviewer.responses = ["khong phai json", RuntimeError("401 reviewer key")]
+    fake_llm.responses = [_out(TurnMode.OPENING_REPLY), _out(TurnMode.OPENING_REPLY)]
     assert (await _turn(client, ext, 2, [_learner(1)])).status_code == 201
     rows = await _calls(db_session, ext)
     assert [(r.purpose.value, r.success, r.failure_kind) for r in rows] == [
-        ("turn", True, None), ("stance_review", False, "reviewer_error"), ("stance_review", False, "provider_error"),
+        ("turn", False, "reviewer_unavailable"), ("stance_review", False, "reviewer_error"),
+        ("stance_review", False, "provider_error"), ("turn", True, None), ("stance_review", True, None),
     ]
-    assert rows[0].reviewer_verdict == ReviewerVerdict.UNCLEAR and "reviewer_error" in rows[0].reviewer_detail
-    assert len(_planner_calls(fake_llm)) == 1  # reviewer loi KHONG tinh vao TURN_MAX_ATTEMPTS
+    assert "reviewer_error" in rows[0].reviewer_detail
+    assert rows[0].reviewer_detail["retry"] == "reviewer_unavailable_neutral_retry"
+    first, second = _planner_calls(fake_llm)
+    assert second["user"] == first["user"]  # TRUNG TINH
+    assert rows[3].reviewer_verdict == ReviewerVerdict.PASS
+
+
+async def test_reviewer_unavailable_every_attempt_is_502_no_speech(client, db_session, fake_llm, fake_reviewer):
+    ext = await _ready_session(client, fake_llm, fake_reviewer, "con")
+    fake_reviewer.responses = ["khong phai json"] * 6
+    fake_llm.responses = [_out(TurnMode.OPENING_REPLY)] * 3
+    resp = await _turn(client, ext, 2, [_learner(1)])
+    assert resp.status_code == 502 and "reviewer_unavailable" in resp.json()["detail"]
+    sid = await _session_id(db_session, ext)
+    assert await db_session.scalar(select(OpponentSpeech).where(OpponentSpeech.session_id == sid,
+                                                               OpponentSpeech.turn_index == 2)) is None
+
+
+async def test_reviewer_empty_output_on_turn_is_truncated(client, db_session, fake_llm, fake_reviewer):
+    from tests.conftest import SchemaRejected
+
+    ext = await _ready_session(client, fake_llm, fake_reviewer, "con")
+    fake_reviewer.responses = [SchemaRejected(""), SchemaRejected("")]
+    fake_llm.responses = [_out(TurnMode.OPENING_REPLY), _out(TurnMode.OPENING_REPLY)]
+    assert (await _turn(client, ext, 2, [_learner(1)])).status_code == 201
+    reviews = [r for r in await _calls(db_session, ext) if r.purpose == LLMCallPurpose.STANCE_REVIEW]
+    assert [r.failure_kind for r in reviews[:2]] == ["truncated_max_tokens"] * 2
 
 
 # ---------------- baseline + tat reviewer ----------------

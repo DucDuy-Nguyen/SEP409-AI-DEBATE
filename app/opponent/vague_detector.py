@@ -49,9 +49,17 @@ class Rule:
     reason: str  # giai thich cho phan hoi retry
     pattern: re.Pattern
     exclude_subject: re.Pattern | None = None  # chu the dung truoc (<= 6 tu) khien khong tinh
+    # Giai doan 3d (dev log 3.1, sau smoke test 20261002-112511): tu tham chieu lap luan CUA CHINH nguoi noi
+    exclude_prev: re.Pattern | None = None  # khop o CUOI text truoc vung khop -> khong tinh
+    exclude_next: re.Pattern | None = None  # khop o DAU text sau vung khop -> khong tinh
 
 
 _SELF_SUBJECT = re.compile(r"(chúng tôi|chúng ta|phe|đội)(?:[^\w.!?;]+\w+){0,6}[^\w.!?;]*$")
+# "như mình đã chứng minh ở luận điểm A1" / "điều mà mình đã chứng minh ở lập luận trước" (smoke test 3d nhanh C):
+# nguoi noi nhac lai lap luan CUA MINH, khong phai vien dan bang chung. Dai tu NGAY TRUOC "đã", hoac theo sau la
+# "ở trên / luận điểm / lập luận / phần / lượt / ý".
+_PRONOUN_RIGHT_BEFORE = re.compile(r"\b(?:mình|bạn|chúng ta|tôi|em)\s+$")
+_SELF_REFERENCE_AFTER = re.compile(r"^\s+ở\s+(?:trên|luận điểm|lập luận|phần|lượt|ý)\b")
 
 RULES: tuple[Rule, ...] = (
     Rule(
@@ -80,6 +88,8 @@ RULES: tuple[Rule, ...] = (
         "khẳng định điều gì đó 'đã được chứng minh' mà không có cơ chế",
         re.compile(r"đã\s+(?:được\s+)?chứng minh"),
         exclude_subject=_SELF_SUBJECT,
+        exclude_prev=_PRONOUN_RIGHT_BEFORE,
+        exclude_next=_SELF_REFERENCE_AFTER,
     ),
     Rule(
         "chuyen_gia_nhan_dinh", HIGH, "chuyên gia … cho rằng / khuyến cáo / nhận định / đánh giá",
@@ -145,6 +155,10 @@ def _detect_field(field: str, raw: str, scope: str, scan_numbers: bool = True) -
             if any(s <= start < e or s < end <= e or (start <= s and end >= e) for s, e in taken):
                 continue
             if rule.exclude_subject is not None and rule.exclude_subject.search(text[:start]):
+                continue
+            if rule.exclude_prev is not None and rule.exclude_prev.search(text[:start]):
+                continue
+            if rule.exclude_next is not None and rule.exclude_next.search(text[end:]):
                 continue
             level = rule.level if (rule.level == LOW or scope == "ai") else LOW
             taken.append((start, end))

@@ -10,6 +10,9 @@ from scripts import try_match as tm
 from tests.conftest import VALID_CASE_FILE, FakeLLMClient, FakeStanceReviewer, RateLimited
 from tests.test_turn_full import _out
 
+# turn_full_v6 (mac dinh, muc 2.19) reject luot 4 neu premises chep y luot 2 -> luot 4 tra premises MOI.
+NEW_PREMISES = {"explicit": ["Có phòng máy và thư viện để học."], "implicit": ["Học sinh tự gửi điện thoại được."]}
+
 
 @pytest.fixture(autouse=True)
 def no_real_sleep(monkeypatch):
@@ -54,7 +57,7 @@ async def test_failed_turn_stops_cleanly_with_calls_and_total_429_wait(db_sessio
 
 
 async def test_full_match_prints_analysis_and_wait_total(db_session):
-    responses = [_out(TurnMode.OPENING_REPLY), _out(TurnMode.REBUTTAL), _out(TurnMode.CLOSING)]
+    responses = [_out(TurnMode.OPENING_REPLY), _out(TurnMode.REBUTTAL, premises=NEW_PREMISES), _out(TurnMode.CLOSING)]
     result, printed, _ = await _run(db_session, responses, "try-match-test-ok")
     assert result["ok"] and result["failed_turn"] is None
     assert [x["turn_index"] for x in result["transcript"] if x["speaker"] == "ai"] == [2, 4, 5]
@@ -77,7 +80,7 @@ async def test_per_turn_429_wait_printed(db_session):
     from tests.conftest import RateLimited as _RL
 
     responses = [_RL("Please try again in 2s."), _RL("Please try again in 1s."), _out(TurnMode.OPENING_REPLY),
-                 _out(TurnMode.REBUTTAL), _out(TurnMode.CLOSING)]
+                 _out(TurnMode.REBUTTAL, premises=NEW_PREMISES), _out(TurnMode.CLOSING)]
     result, printed, _ = await _run(db_session, responses, "try-match-test-wait")
     assert result["ok"] and "cho 429 3.0s" in printed
     assert result["transcript"][1]["rate_limit_wait_ms"] == 3000

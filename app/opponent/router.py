@@ -84,7 +84,7 @@ async def create_session(
         session, created = await service.create_session_and_plan(
             db, req, llm_client_factory, settings, reviewer_factory
         )
-    except service.InvalidSidesError as e:
+    except (service.InvalidSidesError, service.InvalidMotionSpecError) as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except service.LLMNotConfiguredError as e:
         logger.error("Khong khoi tao duoc LLM client: %s", e)

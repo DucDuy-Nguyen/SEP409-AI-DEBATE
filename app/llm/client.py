@@ -25,6 +25,8 @@ Khac ban goc (thay doi toi thieu):
   (da kiem chung voi openai/gpt-oss-120b); provider khac bo qua va giu JSON mode cu.
 - THEM generate_chat(): hoi thoai nhieu tin (role user / assistant), output VAN BAN THUAN (khong JSON mode) —
   cho bai noi trong tran (Giai doan 3). Ban goc khong co vi Evaluation chi cham 1 lan, tra JSON.
+- generate_chat() nhan them `json_schema` tuy chon (Giai doan 3d, nhanh C "ngoi thu hai": prompt nhieu tin + output JSON
+  strict). CHI GroqClient dung; provider khac bo qua. Khong truyen -> van ban thuan nhu cu.
 - generate() / generate_chat() nhan them `reasoning_effort` ("low" / "medium" / "high"; None = khong gui, provider
   dung mac dinh). CHI GroqClient gui (gpt-oss tren Groq, mac dinh "medium" — dev log muc 2.10); provider khac bo qua.
 - Moi client ghi them `last_finish_reason` ("stop" / "length" / ...; Anthropic "max_tokens" va Gemini "MAX_TOKENS"
@@ -71,6 +73,7 @@ class LLMClient(ABC):
         temperature: float | None = None,
         max_tokens: int | None = None,
         reasoning_effort: str | None = None,
+        json_schema: dict | None = None,
     ) -> str:
         """
         Hoi thoai: messages = [{"role": "user" | "assistant", "content": str}, ...], tin cuoi nen la "user".
@@ -121,7 +124,9 @@ class OpenAIClient(LLMClient):
             raise RuntimeError("OpenAI tra ve noi dung rong")
         return content
 
-    def generate_chat(self, system_prompt, messages, temperature=None, max_tokens=None, reasoning_effort=None) -> str:
+    def generate_chat(
+        self, system_prompt, messages, temperature=None, max_tokens=None, reasoning_effort=None, json_schema=None
+    ) -> str:
         self.last_usage, self.last_finish_reason = None, None
         response = self._client.chat.completions.create(
             model=self.model,
@@ -176,7 +181,9 @@ class AnthropicClient(LLMClient):
             raise RuntimeError("Anthropic tra ve noi dung rong")
         return content
 
-    def generate_chat(self, system_prompt, messages, temperature=None, max_tokens=None, reasoning_effort=None) -> str:
+    def generate_chat(
+        self, system_prompt, messages, temperature=None, max_tokens=None, reasoning_effort=None, json_schema=None
+    ) -> str:
         self.last_usage, self.last_finish_reason = None, None
         response = self._client.messages.create(
             model=self.model,
@@ -244,7 +251,9 @@ class GeminiClient(LLMClient):
             raise RuntimeError("Gemini tra ve noi dung rong")
         return content
 
-    def generate_chat(self, system_prompt, messages, temperature=None, max_tokens=None, reasoning_effort=None) -> str:
+    def generate_chat(
+        self, system_prompt, messages, temperature=None, max_tokens=None, reasoning_effort=None, json_schema=None
+    ) -> str:
         self.last_usage, self.last_finish_reason = None, None
         types = self._types
         response = self._client.models.generate_content(
@@ -344,15 +353,24 @@ class GroqClient(LLMClient):
             raise RuntimeError(f"Groq tra ve noi dung rong (finish_reason={self.last_finish_reason})")
         return content
 
-    def generate_chat(self, system_prompt, messages, temperature=None, max_tokens=None, reasoning_effort=None) -> str:
+    def generate_chat(
+        self, system_prompt, messages, temperature=None, max_tokens=None, reasoning_effort=None, json_schema=None
+    ) -> str:
         self.last_usage, self.last_finish_reason = None, None
-        # Van ban thuan: KHONG response_format. Loi 429 nem thang cho service (nhu generate()).
+        # Mac dinh van ban thuan: KHONG response_format. json_schema (3d nhanh C) -> structured output strict nhu
+        # generate(). Loi 429 nem thang cho service (nhu generate()).
+        extra = (
+            {"response_format": {"type": "json_schema",
+                                 "json_schema": {"name": "response", "schema": json_schema, "strict": True}}}
+            if json_schema is not None else {}
+        )
         response = self._client.chat.completions.create(
             model=self.model,
             messages=_chat_messages(system_prompt, messages),
             temperature=self._temperature if temperature is None else temperature,
             max_tokens=max_tokens or self._max_tokens,
             **_effort(reasoning_effort),
+            **extra,
         )
         self.last_usage = _openai_usage(response)
         self.last_finish_reason = response.choices[0].finish_reason

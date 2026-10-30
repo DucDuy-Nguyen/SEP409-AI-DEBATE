@@ -45,6 +45,14 @@ class OpponentDifficulty(str, enum.Enum):
     HARD = "hard"
 
 
+class MotionType(str, enum.Enum):
+    """Loai kien nghi (thi nghiem case_plan_v6, muc 2.13) — Main Flow gui kem motion_reading da duyet."""
+
+    POLICY = "policy"  # chinh sach: co co che thuc hien
+    COMPARATIVE = "comparative"  # so sanh 2 lua chon
+    VALUE = "value"  # can nhac / gia tri, khong co chinh sach cu the
+
+
 class SessionStatus(str, enum.Enum):
     CREATED = "created"  # chi con o du lieu cu (Phase 1 ban dau); session moi tao thang o PLANNING
     PLANNING = "planning"  # dang goi LLM sinh case file
@@ -124,6 +132,14 @@ class OpponentSession(Base):
         _pg_enum(OpponentDifficulty, "opponent_difficulty"), nullable=False
     )
     language: Mapped[str] = mapped_column(String(10), nullable=False, server_default="vi")
+    # Tuy chon (migration 0012, muc 2.13): loai kien nghi + cach hieu da duoc ban to chuc duyet. Co ca hai + prompt
+    # case_plan_v6 -> dung nguyen van cach hieu nay. NULL ca hai = hanh vi cu. Nam trong so sanh idempotent (409).
+    motion_type: Mapped[MotionType | None] = mapped_column(_pg_enum(MotionType, "motion_type"), nullable=True)
+    motion_reading_provided: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Tuy chon (migration 0013, muc 2.15, thi nghiem case_plan_v6b): dieu moi phe phai chung minh. Di cung nhau va cung
+    # motion_type. Nam trong so sanh idempotent (409).
+    burden_pro: Mapped[str | None] = mapped_column(Text, nullable=True)
+    burden_con: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[SessionStatus] = mapped_column(
         _pg_enum(SessionStatus, "opponent_session_status"),
         nullable=False,

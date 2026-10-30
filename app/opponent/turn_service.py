@@ -25,6 +25,7 @@ from app.llm.client import LLMClient
 from app.opponent import match_format as mf
 from app.opponent.match_format import InvalidTurnError, RoundType, Speaker, TurnMode
 from app.opponent.models import (
+    DebateSide,
     LLMCallPurpose,
     OpponentLLMCall,
     OpponentSession,
@@ -169,6 +170,13 @@ def _llm_call_rows(session_id: uuid.UUID, calls: list[TurnCall], turn_id: uuid.U
     ]
 
 
+def _ai_burden(session: OpponentSession, settings: Settings) -> str | None:
+    """Ganh nang cua phe AI (muc 2.17) — None neu TURN_BURDEN_ENABLED=false hoac session khong co burden."""
+    if not settings.turn_burden_enabled or not (session.burden_pro and session.burden_con):
+        return None
+    return session.burden_pro if session.ai_side == DebateSide.PRO else session.burden_con
+
+
 async def build_ledger(db: AsyncSession, session_id: uuid.UUID, before_turn: int) -> Ledger:
     """
     Dung lai tu opponent_turns MOI luot (khong luu bang rieng): learner_claims, ai_points, target_premise cua cac luot
@@ -182,6 +190,8 @@ async def build_ledger(db: AsyncSession, session_id: uuid.UUID, before_turn: int
     ledger = Ledger()
     for t in turns:
         ledger.learner_claims += [c for c in (t.learner_claims or []) if isinstance(c, str)]
+        explicit = (t.premises or {}).get("explicit", []) if isinstance(t.premises, dict) else []
+        ledger.learner_premises += [p for p in explicit if isinstance(p, str)]  # turn_full_v5 (muc 2.18)
         ledger.ai_points += [p for p in (t.ai_points or []) if isinstance(p, str)]
         if t.target_premise:
             ledger.attacked_premises.append(t.target_premise)
@@ -279,6 +289,7 @@ async def generate_turn(
         ],
         case_file=case_file.content if case_file else None,
         ledger=await build_ledger(db, session.id, req.turn_index),
+        ai_burden=_ai_burden(session, settings),
     )
     session_id = session.id  # doc truoc: sau rollback, doi tuong ORM co the bi expire
     result = await _run_generator(context, mode, client, settings, reviewer_client)

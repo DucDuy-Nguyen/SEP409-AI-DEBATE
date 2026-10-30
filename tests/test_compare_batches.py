@@ -117,7 +117,8 @@ def test_metrics():
     assert m == {
         "n": 3, "success": 2, "runs_with_side_flip": 1, "side_flip_attempts": 1, "schema_rejected": 1,
         "banned_phrase_rejected": 1, "avg_content_retries": round(2 / 3, 2), "rate_limit_waits": 1,
-        "avg_latency_ms": 2000,
+        "avg_latency_ms": 2000, "avg_tokens_in": 0,
+        "final_not_pass": 2,  # 2 lan chay ready khong co final_reviewer_verdict = khong review -> phai doc tay
     }
 
 
@@ -167,3 +168,32 @@ async def test_batch_prompt_version_v3(tmp_path):
     [record] = await run_batch(runs, planner, None, settings, tmp_path / "x.jsonl", log=lambda _: None)
 
     assert record["prompt_version"] == "case_plan_v3" and record["final_status"] == "ready"
+
+
+def test_final_not_pass_counted_and_listed_from_all_runs(tmp_path):
+    from scripts.compare_case_plan_batches import not_passed
+
+    def ready(motion, side, verdict, detail, run_index):
+        rec = _run(motion, side, "easy", run_index=run_index)
+        rec["motion_id"], rec["final_reviewer_verdict"] = motion, verdict
+        rec["attempts"] = [{**_attempt(), "reviewer_verdict": verdict, "reviewer_detail": detail}]
+        return rec
+
+    v5 = [
+        ready("V3", "con", "unclear", {"reviewer_error": "BadRequestError: json_validate_failed"}, 0),  # loi reviewer
+        ready("M1", "pro", "unclear", {"unclear_ids": ["A2"]}, 1),  # khong_ro that
+        ready("M2", "pro", "pass", {}, 2),
+        ready("ONLY5", "con", None, None, 3),  # khong review; chi co o nhanh v5
+    ]
+    v6 = [ready("V3", "con", "pass", {}, 0), ready("M1", "pro", "pass", {}, 1), ready("M2", "pro", "pass", {}, 2)]
+    items = not_passed(v5)
+    assert [(x["motion_id"], x["why"][:12]) for x in items] == [
+        ("V3", "reviewer LOI"), ("M1", "khong_ro: ['"), ("ONLY5", "khong review")]
+    assert metrics(v5)["final_not_pass"] == 3 and metrics(v6)["final_not_pass"] == 0
+
+    text = compare({"v5": [_write(tmp_path / "a.jsonl", v5)], "v6": [_write(tmp_path / "b.jsonl", v6)]})
+    assert "Case file cuoi KHONG duoc reviewer cham pass (unclear/loi)" in text
+    listing = text.split("DOC TAY")[1]
+    assert "  v5: 3" in listing and "  v6: 0" in listing
+    assert "- ONLY5 con easy | khong review | a.jsonl:3" in listing  # ca chi co o 1 nhom van duoc liet ke
+    assert "- V3 con easy | reviewer LOI: BadRequestError: json_validate_failed | a.jsonl:0" in listing

@@ -23,6 +23,18 @@ TARGET = {TurnMode.OPENING_FIRST: 400, TurnMode.OPENING_REPLY: 400, TurnMode.REB
 CASE = {**VALID_CASE_FILE, "motion_reading": "Cấm mang và dùng điện thoại trong suốt thời gian ở trường."}
 
 
+# Mac dinh tu muc 2.18 la turn_full_v5. File nay kiem tra hanh vi v4 tro xuong -> GHIM v4 cho test qua API (test tu dat
+# Settings rieng thi khong bi ghi de vi fixture nay chay TRUOC than test).
+V4_SETTINGS = Settings(_env_file=None, turn_generator_version="turn_full_v4")
+
+
+@pytest.fixture(autouse=True)
+def pin_turn_full_v4(request):
+    if "client" in request.fixturenames:
+        request.getfixturevalue("client")
+        app.dependency_overrides[get_settings] = lambda: V4_SETTINGS
+
+
 def _words(n: int, word: str = "lập") -> str:
     return " ".join([word] * (n - 1) + ["luận."])
 
@@ -239,7 +251,7 @@ async def test_full_match_ai_pro_three_turns_builds_ledger(client, db_session, f
     sid = await _session_id(db_session, ext)
     turns = (await db_session.scalars(select(OpponentTurn).where(OpponentTurn.session_id == sid)
                                       .order_by(OpponentTurn.turn_index))).all()
-    assert [t.generator_version for t in turns] == ["turn_full_v3"] * 3  # mac dinh tu muc 2.12
+    assert [t.generator_version for t in turns] == ["turn_full_v4_noburden"] * 3  # mac dinh v4 (muc 2.17); session test khong co burden
     assert turns[0].target_premise is None and turns[0].learner_claims == [] and turns[0].ai_points == t1["ai_points"]
     assert turns[1].target_premise == "Trường không có thiết bị thay thế."
     assert turns[1].premises == t3["premises"] and turns[1].learner_claims == t3["learner_claims"]
@@ -391,7 +403,7 @@ def test_v2_adds_natural_speech_rule_v1_unchanged():
     assert v2.endswith("- Chỉ trả về JSON hợp lệ.")
     _, user = tf.build_full_prompt(TurnMode.REBUTTAL, ctx, version="turn_full_v2")
     assert user.endswith(v2)
-    assert Settings(_env_file=None).turn_generator_version == "turn_full_v3"  # mac dinh tu muc 2.12
+    assert Settings(_env_file=None).turn_generator_version == "turn_full_v6"  # mac dinh tu muc 2.19
 
 
 async def test_v1_still_selectable(client, db_session, fake_llm, fake_reviewer):

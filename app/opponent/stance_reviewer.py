@@ -383,5 +383,14 @@ def judge(
 
 
 def reviewer_failure(error: str, prompt_version: str = PROMPT_VERSION) -> tuple[ReviewerVerdict, dict]:
-    """Reviewer loi (goi LLM that bai / output sai): KHONG chan Case Planning — coi nhu unclear + ghi ly do."""
+    """
+    Reviewer loi (goi LLM that bai / output sai / rong) sau MAX_CALLS lan: KHONG co phan doan nao. Luu verdict
+    "unclear" + reviewer_error de giu dinh dang cot cu, nhung NGUOI GOI phai coi la is_reviewer_failure() — FAIL-CLOSED
+    (muc 2.14): khong chap nhan output, sinh lai trung tinh. KHAC "khong_ro" do reviewer tra that (la phan doan).
+    """
     return ReviewerVerdict.UNCLEAR, {"prompt_version": prompt_version, "reviewer_error": error[:2000]}
+
+
+def is_reviewer_failure(detail: dict | None) -> bool:
+    """True neu ket qua review la LOI reviewer (khong co phan doan), khong phai verdict that."""
+    return bool(detail) and "reviewer_error" in detail

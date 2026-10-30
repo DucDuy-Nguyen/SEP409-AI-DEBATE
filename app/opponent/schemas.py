@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.opponent.models import DebateSide, OpponentDifficulty, RoundType, SessionStatus, TurnMode
+from app.opponent.models import DebateSide, MotionType, OpponentDifficulty, RoundType, SessionStatus, TurnMode
 
 # Moi CaseArgument.example phai bat dau bang cum nay (prompt v3).
 EXAMPLE_PREFIX = "Giả sử"
@@ -97,6 +97,14 @@ class CreateSessionRequest(BaseModel):
     difficulty: OpponentDifficulty = OpponentDifficulty.MEDIUM
     # Prompt v2 bat buoc noi dung tieng Viet -> chi nhan "vi". Mo rong can prompt moi.
     language: Literal["vi"] = "vi"
+    # Tuy chon, PHAI di cung nhau (thieu 1 trong 2 -> 400 o service). Thieu ca hai = hanh vi cu. Muc 2.13.
+    motion_type: MotionType | None = Field(default=None, description="policy | comparative | value")
+    motion_reading: str | None = Field(
+        default=None, max_length=2000, description="Cach hieu kien nghi da duoc duyet (case_plan_v6 dung nguyen van)"
+    )
+    # Tuy chon (muc 2.15 v6b, 2.16 v7): dieu moi phe phai chung minh. Phai gui CA HAI (400 neu khong); motion_type tuy chon.
+    burden_pro: str | None = Field(default=None, max_length=2000, description="Phe De xuat phai chung minh dieu gi")
+    burden_con: str | None = Field(default=None, max_length=2000, description="Phe Phan doi phai chung minh dieu gi")
 
     @field_validator("external_session_id", "motion")
     @classmethod
@@ -105,6 +113,12 @@ class CreateSessionRequest(BaseModel):
         if not v:
             raise ValueError("khong duoc de trong")
         return v
+
+    @field_validator("motion_reading", "burden_pro", "burden_con")
+    @classmethod
+    def blank_reading_is_missing(cls, v: str | None) -> str | None:
+        v = unicodedata.normalize("NFC", v).strip() if v is not None else None
+        return v or None
     # learner_side != ai_side KHONG validate o day: spec yeu cau 400 (Pydantic se tra 422) -> kiem tra o service.
 
 
@@ -141,6 +155,10 @@ class SessionResponse(BaseModel):
     difficulty: OpponentDifficulty
     language: str
     status: SessionStatus
+    motion_type: MotionType | None = None
+    motion_reading_provided: str | None = None
+    burden_pro: str | None = None
+    burden_con: str | None = None
     created_at: datetime
     updated_at: datetime
     case_file: CaseFileResponse | None = None

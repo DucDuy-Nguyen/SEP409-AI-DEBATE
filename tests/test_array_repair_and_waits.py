@@ -240,7 +240,7 @@ def test_v3_adds_no_rule_echo_line_on_top_of_v2():
     assert rule in v3 and rule not in v2 and rule not in v1
     assert v3.replace("\n" + rule, "") == v2  # dung 1 dong them vao
     assert tf.NATURAL_SPEECH_RULE in v3 and v3.endswith("- Chỉ trả về JSON hợp lệ.")
-    assert Settings(_env_file=None).turn_generator_version == "turn_full_v3"
+    assert Settings(_env_file=None).turn_generator_version == "turn_full_v6"  # mac dinh tu muc 2.19
 
 
 async def test_v1_v2_still_selectable(client, db_session, fake_llm, fake_reviewer):

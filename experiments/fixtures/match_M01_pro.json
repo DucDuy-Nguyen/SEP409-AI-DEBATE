@@ -2,6 +2,9 @@
   "motion_id": "M01",
   "motion": "Nên cấm học sinh sử dụng điện thoại trong trường học",
   "learner_side": "pro",
+  "burden_pro": "Nên cấm học sinh sử dụng điện thoại di động trong toàn bộ thời gian ở trường, kể cả giờ ra chơi, trừ trường hợp khẩn cấp được giáo viên cho phép.",
+  "burden_con": "Không nên áp dụng lệnh cấm học sinh sử dụng điện thoại di động trong toàn bộ thời gian ở trường.",
+  "burden_source": "experiments/motions_v3.json P1",
   "note": "Bài nói learner viết sẵn (chất lượng trung bình, như học sinh), cố định — KHÔNG phản hồi nội dung cụ thể của AI; phần phản bác nhắm vào các luận điểm phổ biến của phe kia. Dùng bởi scripts/try_match.py.",
   "speeches": [
     {
