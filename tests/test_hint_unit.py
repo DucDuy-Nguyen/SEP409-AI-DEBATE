@@ -159,12 +159,25 @@ def test_schema_enum_and_counts():
      "fabricated_evidence"),
     (OUT(S(), S(claim="Cấm giúp giảm bắt nạt", attack="counterexample",
                 evidence="Nghiên cứu của trường đại học cho thấy điều ngược lại")), "fabricated_evidence"),
+    # direction cung bi kiem tra (ca that 2026-10-31: "vi nghien cuu cho thay..." lot qua o direction)
+    (OUT(S(), S(claim="Cấm giúp giảm bắt nạt", attack="counterexample",
+                direction="Chỉ ra giả định tự giác chưa được chứng minh, vì nghiên cứu cho thấy tuổi teen thiếu tự kiểm soát.")),
+     "fabricated_evidence"),
+    (OUT(S(), S(claim="Cấm giúp giảm bắt nạt", attack="counterexample", direction="Nêu rằng 70% vụ bắt nạt xảy ra ở nhà.")),
+     "fabricated_evidence"),
     (OUT(S(), S(claim="điện thoại  làm học sinh MẤT tập trung!")), "duplicate_strategy"),  # trung sau chuan hoa
 ])
 def test_validator_rejects(raw, kind):
     with pytest.raises(h.InvalidHint) as e:
         h.parse_hint_output(raw)
     assert e.value.kind == kind and e.value.issues
+
+
+def test_validator_feedback_names_direction_field():
+    raw = OUT(S(), S(claim="Cấm giúp giảm bắt nạt", attack="counterexample", direction="Theo thống kê 2023, bắt nạt tăng."))
+    with pytest.raises(h.InvalidHint) as e:
+        h.parse_hint_output(raw)
+    assert len(e.value.issues) == 1 and "`strategies.1.direction`" in e.value.issues[0]
 
 
 def test_validator_accepts_boundaries():

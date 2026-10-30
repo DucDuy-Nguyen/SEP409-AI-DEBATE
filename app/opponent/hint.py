@@ -12,7 +12,8 @@ va ban nhap cua learner. File nay khong import case file / ledger (test kiem tra
 Validator (loi -> thu lai co phan hoi, toi da HINT_MAX_ATTEMPTS; KHONG tu va JSON / ten truong, theo spec):
 - JSON / schema: 2-3 chien luoc, attack_type trong enum, du truong;
 - direction <= 60 tu (huong di, khong phai doan van mau);
-- evidence_to_look_for: chi LOAI dan chung — cam chu so / %, URL, vien dan nghien cuu muc HIGH (vague_detector);
+- direction + evidence_to_look_for: cam chu so / %, URL, vien dan nghien cuu muc HIGH (vague_detector) — evidence chi
+  LOAI dan chung;
 - 2 chien luoc khong duoc trung CA attack_type LAN target_claim (so sau chuan hoa).
 Stance Reviewer v1 (neu bat): moi chien luoc la 1 muc, phai bao ve phe LEARNER. Lat phe -> thu lai trung tinh; reviewer
 loi -> fail-closed, thu lai trung tinh (giong luot noi, dev log muc 2.14). Het luot -> that bai (502).
@@ -248,24 +249,25 @@ def validate_strategies(strategies: list[HintStrategy]) -> list[HintStrategy]:
             [f"`strategies.{i}.direction` dài {n} từ — tối đa {MAX_DIRECTION_WORDS} từ; chỉ nêu hướng, không viết đoạn văn."
              for i, n in long],
         )
+    # direction cung kiem tra: chay that 2026-10-31 co "vi nghien cuu cho thay..." lot qua o direction (dev log muc 4.2).
     bad = []
     for i, s in enumerate(strategies):
-        ev = s.evidence_to_look_for or ""
-        reasons = []
-        if _DIGIT_OR_PERCENT.search(ev):
-            reasons.append("có con số / phần trăm")
-        if _URL.search(ev):
-            reasons.append("có đường link / tên miền")
-        high = [h.match for h in vague_detector.detect_speech(ev, "evidence_to_look_for") if h.level == vague_detector.HIGH]
-        if high:
-            reasons.append(f"viện dẫn nguồn mơ hồ \"{high[0]}\"")
-        if reasons:
-            bad.append((i, reasons))
+        for name, text in (("direction", s.direction), ("evidence_to_look_for", s.evidence_to_look_for or "")):
+            reasons = []
+            if _DIGIT_OR_PERCENT.search(text):
+                reasons.append("có con số / phần trăm")
+            if _URL.search(text):
+                reasons.append("có đường link / tên miền")
+            high = [h.match for h in vague_detector.detect_speech(text, name) if h.level == vague_detector.HIGH]
+            if high:
+                reasons.append(f"viện dẫn nguồn mơ hồ \"{high[0]}\"")
+            if reasons:
+                bad.append((i, name, reasons))
     if bad:
         raise InvalidHint(
-            HintFailure.FABRICATED_EVIDENCE, f"evidence_to_look_for khong hop le: {bad}",
-            [f"`strategies.{i}.evidence_to_look_for` {', '.join(r)} — chỉ mô tả LOẠI dẫn chứng, không số liệu / nguồn cụ thể."
-             for i, r in bad],
+            HintFailure.FABRICATED_EVIDENCE, f"direction / evidence_to_look_for khong hop le: {bad}",
+            [f"`strategies.{i}.{name}` {', '.join(r)} — không đưa số liệu / nguồn cụ thể (kể cả \"nghiên cứu cho thấy\"); "
+             "chỉ nêu hướng lập luận và LOẠI dẫn chứng cần tìm." for i, name, r in bad],
         )
     seen: dict[tuple, int] = {}
     for i, s in enumerate(strategies):

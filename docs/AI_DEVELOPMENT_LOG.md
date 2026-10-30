@@ -1877,7 +1877,8 @@ Spec: `SPEC_AI_HINT_WF02.md`. Endpoint `POST /opponent/sessions/{external_sessio
 4. **Validator** (lỗi → retry kèm phản hồi; không tự vá JSON / tên trường, theo spec):
    - Schema: 2–3 chiến lược, `attack_type` thuộc enum.
    - `direction` ≤ 60 từ.
-   - `evidence_to_look_for`: cấm chữ số / `%`, URL / tên miền, và cụm bị bộ dò bằng chứng gắn mức HIGH.
+   - `evidence_to_look_for` **và `direction`**: cấm chữ số / `%`, URL / tên miền, và cụm bị bộ dò bằng chứng gắn mức
+     HIGH. Ban đầu chỉ kiểm tra `evidence_to_look_for`; từ 2026-10-31 kiểm tra thêm `direction` (lý do ở mục 4.2).
    - Hai chiến lược không được trùng cả `attack_type` lẫn `target_claim` (so sau chuẩn hóa).
    - Mục 5.1 ("nhắm vào nội dung AI thật sự đã nói") không kiểm được chắc chắn bằng code: chỉ đưa vào prompt, và log
      `speech_checks.target_overlap` (tỷ lệ từ của `target_claim` có trong bài target).
@@ -1896,9 +1897,9 @@ Spec: `SPEC_AI_HINT_WF02.md`. Endpoint `POST /opponent/sessions/{external_sessio
    - `opponent_hints` lưu tổng `tokens_in` / `tokens_out` / `latency_ms`.
    - Hint thất bại không được lưu, nên gọi lại cùng `request_id` sẽ sinh mới.
 
-**Test:** `tests/test_hint_unit.py` (42) + `tests/test_hints_api.py` (27), LLM giả. **Chưa chạy LLM thật.**
+**Test:** `tests/test_hint_unit.py` (45) + `tests/test_hints_api.py` (27), LLM giả.
 
-### 4.2. Kiểm tra chất lượng thủ công (CHƯA làm)
+### 4.2. Kiểm tra chất lượng thủ công (đã chạy LLM thật, CHƯA chấm)
 
 - Chạy `python -m scripts.try_hint <external_session_id ...>` trên 10 phiên mẫu (tạo bằng `scripts/try_match.py`), có
   cả learner pro và con.
@@ -1908,6 +1909,27 @@ Spec: `SPEC_AI_HINT_WF02.md`. Endpoint `POST /opponent/sessions/{external_sessio
   - Không viết hộ?
   - Không bịa số liệu?
 - Ghi kết quả vào đây.
+
+**Lần chạy 2026-10-31** (`experiments/hints/20261031-011507_hints.jsonl`, chạy trước khi sửa validator):
+- 10 phiên, đều motion M01: 5 learner pro (2 hint/phiên), 5 learner con (3 hint/phiên, riêng `con-20260930-173838`
+  chỉ có 1). 6/10 phiên được sinh bằng `turn_full_v2` / `v3`.
+- **21/23 hint thành công.** Mỗi hint 2,5–8 giây, phần lớn 3–4 giây; tokens vào / ra khoảng 2–5k / 1–3k.
+- 2 hint thất bại (`con-181042` lượt 4, `con-095708` lượt 5): cả 3 lần thử đều bị reviewer báo `side_flip`. Đọc log
+  thì phần lớn là **reviewer chấm nhầm**. Các chiến lược bác giải pháp thay thế của AI (*"trường thiếu ngân sách mua
+  thiết bị chung"*) là đúng phe con, nhưng câu phủ định kép bị đọc thành ủng hộ cấm. Có 1 ca lật phe thật (*"cho phép
+  giờ giải lao vẫn gây gián đoạn"*).
+- Đọc lướt (chưa chấm chính thức): ít nhất 2 chiến lược đã được cho qua có vẻ ngược phe learner
+  (`pro-002320` lượt 6 [2], `con-011149` lượt 4 [2]). Như vậy reviewer vừa chặn nhầm vừa bỏ sót.
+- Có số liệu bịa lọt qua ở `direction` (`pro-011048` lượt 3 [2]: *"vì nghiên cứu cho thấy tuổi teen thường thiếu
+  khả năng tự kiểm soát"*), vì lúc đó validator chỉ kiểm tra `evidence_to_look_for`. **Đã sửa (2026-10-31):** kiểm tra
+  cả `direction`. Đã chạy thủ công một lần (không lưu script) bộ dò bằng chứng và kiểm tra chữ số / `%` trên `direction`
+  của 21 hint thành công: chỉ bắt đúng ca này, không chặn nhầm ca nào. Phần kiểm tra URL chưa chạy lại (không có
+  `direction` nào chứa link). Prompt
+  `hint_v1` giữ nguyên; model nhận phản hồi khi thử lại.
+- Phụ: `evidence_to_look_for` gần như luôn là "tình huống thực tế ở trường" / "nghiên cứu về…", ít giá trị cho learner.
+  Chiến lược `counterexample` hay khuyên "đưa ra ví dụ trường đã…", nên learner dễ bị đẩy sang tự bịa ví dụ.
+- Việc tiếp theo: người dùng chấm 4 cột. Trước khi sửa reviewer phải ghi quy tắc quyết định cho hint_v2 (ngưỡng lật phe
+  lọt qua và tỷ lệ thất bại trên cùng bộ phiên).
 
 ---
 
@@ -2180,3 +2202,5 @@ Spec: `SPEC_AI_HINT_WF02.md`. Endpoint `POST /opponent/sessions/{external_sessio
   `opponent_hints` (migration 0014), không đọc case plan (3 test), validator 5 luật, Stance Reviewer theo phe learner,
   `HINT_MAX_TOKENS=2000` / reasoning low, quá thời gian → 502, khóa advisory chống gọi LLM 2 lần. 69 test mới (LLM giả). CHƯA chạy LLM thật; chấm thủ
   công 10 phiên còn treo.
+- 2026-10-31: Mục 4.2 — chạy thử hint với LLM thật trên 10 phiên M01 (21/23 thành công; reviewer vừa chặn nhầm vừa bỏ
+  sót). Validator kiểm tra thêm `direction` (cấm số liệu / URL / "nghiên cứu cho thấy"), +3 test. Chưa chấm thủ công.
