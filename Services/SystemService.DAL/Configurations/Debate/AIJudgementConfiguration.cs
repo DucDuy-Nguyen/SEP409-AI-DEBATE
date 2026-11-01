@@ -23,7 +23,7 @@ namespace SystemService.DAL.Configurations.Debate
             builder.HasOne(e => e.DebateSession)
                 .WithMany(s => s.AIJudgements)
                 .HasForeignKey(e => e.DebateSessionId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
 
             builder.HasOne(e => e.WinnerParticipant)
                 .WithMany()

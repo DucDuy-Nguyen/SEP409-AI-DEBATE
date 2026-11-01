@@ -16,7 +16,7 @@ namespace SystemService.DAL.Configurations.Debate
             builder.HasOne(e => e.Round)
                    .WithMany(r => r.Arguments)
                    .HasForeignKey(e => e.RoundId)
-                   .OnDelete(DeleteBehavior.Cascade);
+                   .OnDelete(DeleteBehavior.NoAction);
 
             builder.HasOne(e => e.Participant)
                    .WithMany(p => p.Arguments)

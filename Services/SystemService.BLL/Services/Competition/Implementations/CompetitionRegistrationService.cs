@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SystemService.BLL.Common.Responses;
+using SystemService.BLL.Services.Competition;
 using SystemService.BLL.DTOs.Competition.Registration;
 using SystemService.BLL.Services.Competition.Interfaces;
 using SystemService.DAL.Entities.Competition;
@@ -42,10 +43,28 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration is not open for this competition.");
             }
 
+            var now = DateTime.UtcNow;
+            if (now < competition.RegistrationStart || now >= competition.RegistrationEnd)
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration is outside its scheduled window.", CompetitionErrorCodes.Conflict);
+
+            if ((await _competitionRepository.GetRoundsWithMatchesAsync(competitionId, cancellationToken)).Count > 0)
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration is closed after bracket creation.", CompetitionErrorCodes.Conflict);
+
             var existing = await _registrationRepository.GetByCompetitionAndUserAsync(competitionId, currentUserId, cancellationToken);
-            if (existing != null)
+            if (existing != null && existing.Status != "Rejected" && existing.Status != "Cancelled")
             {
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("User has already registered for this competition.");
+            }
+
+            if (existing != null)
+            {
+                existing.Status = "Pending";
+                existing.Note = null;
+                existing.ReviewedBy = null;
+                existing.ReviewedAt = null;
+                existing.RegisteredAt = now;
+                await _registrationRepository.UpdateAsync(existing, cancellationToken);
+                return ApiResponse<CompetitionRegistrationResponse>.SuccessResponse(MapToResponse(existing), "Registration resubmitted successfully.");
             }
 
             var registration = new CompetitionRegistration
@@ -75,7 +94,7 @@ namespace SystemService.BLL.Services.Competition.Implementations
             var registration = await _registrationRepository.GetByIdAsync(registrationId, cancellationToken);
             if (registration == null || registration.CompetitionId != competitionId)
             {
-                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration not found for the specified competition.");
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration not found for the specified competition.", CompetitionErrorCodes.NotFound);
             }
 
             return ApiResponse<CompetitionRegistrationResponse>.SuccessResponse(MapToResponse(registration));
@@ -86,15 +105,25 @@ namespace SystemService.BLL.Services.Competition.Implementations
             var registration = await _registrationRepository.GetByIdAsync(registrationId, cancellationToken);
             if (registration == null || registration.CompetitionId != competitionId)
             {
-                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration not found for the specified competition.");
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration not found for the specified competition.", CompetitionErrorCodes.NotFound);
             }
+
+            var competition = await _competitionRepository.GetByIdAsync(competitionId, cancellationToken);
+            if (competition == null)
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Competition not found.", CompetitionErrorCodes.NotFound);
+            if (competition.CreatedBy != reviewerUserId)
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Only the competition creator may review registrations.", CompetitionErrorCodes.Forbidden);
+            if (DateTime.UtcNow >= competition.RegistrationEnd
+                || (competition.Status != "OpenRegistration" && competition.Status != "RegistrationClosed"))
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration approvals are closed.", CompetitionErrorCodes.Conflict);
+            if ((await _competitionRepository.GetRoundsWithMatchesAsync(competitionId, cancellationToken)).Count > 0)
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registrations cannot change after bracket creation.", CompetitionErrorCodes.Conflict);
 
             if (registration.Status != "Pending")
             {
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Only Pending registrations can be approved.");
             }
 
-            var competition = await _competitionRepository.GetByIdAsync(competitionId, cancellationToken);
             if (competition != null && competition.CompetitionType == "INDIVIDUAL" && competition.MaxParticipants.HasValue)
             {
                 int approvedCount = await _registrationRepository.GetApprovedCountAsync(competitionId, cancellationToken);
@@ -122,8 +151,19 @@ namespace SystemService.BLL.Services.Competition.Implementations
             var registration = await _registrationRepository.GetByIdAsync(registrationId, cancellationToken);
             if (registration == null || registration.CompetitionId != competitionId)
             {
-                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration not found for the specified competition.");
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration not found for the specified competition.", CompetitionErrorCodes.NotFound);
             }
+
+            var competition = await _competitionRepository.GetByIdAsync(competitionId, cancellationToken);
+            if (competition == null)
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Competition not found.", CompetitionErrorCodes.NotFound);
+            if (competition.CreatedBy != reviewerUserId)
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Only the competition creator may review registrations.", CompetitionErrorCodes.Forbidden);
+            if (DateTime.UtcNow >= competition.RegistrationEnd
+                || (competition.Status != "OpenRegistration" && competition.Status != "RegistrationClosed"))
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration review is closed.", CompetitionErrorCodes.Conflict);
+            if ((await _competitionRepository.GetRoundsWithMatchesAsync(competitionId, cancellationToken)).Count > 0)
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registrations cannot change after bracket creation.", CompetitionErrorCodes.Conflict);
 
             if (registration.Status != "Pending")
             {
@@ -151,6 +191,14 @@ namespace SystemService.BLL.Services.Competition.Implementations
             {
                 return ApiResponse<object>.FailureResponse("Registration not found.");
             }
+
+            var competition = await _competitionRepository.GetByIdAsync(competitionId, cancellationToken);
+            if (competition == null || DateTime.UtcNow >= competition.RegistrationEnd
+                || (competition.Status != "OpenRegistration" && competition.Status != "RegistrationClosed"))
+                return ApiResponse<object>.FailureResponse("Registration changes are closed.", CompetitionErrorCodes.Conflict);
+
+            if ((await _competitionRepository.GetRoundsWithMatchesAsync(competitionId, cancellationToken)).Count > 0)
+                return ApiResponse<object>.FailureResponse("Registrations cannot change after bracket creation.", CompetitionErrorCodes.Conflict);
 
             if (registration.Status != "Pending" && registration.Status != "Approved")
             {
@@ -182,8 +230,19 @@ namespace SystemService.BLL.Services.Competition.Implementations
             var registration = await _registrationRepository.GetByIdAsync(registrationId, cancellationToken);
             if (registration == null || registration.CompetitionId != competitionId)
             {
-                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration not found for the specified competition.");
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration not found for the specified competition.", CompetitionErrorCodes.NotFound);
             }
+
+            var competition = await _competitionRepository.GetByIdAsync(competitionId, cancellationToken);
+            if (competition == null)
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Competition not found.", CompetitionErrorCodes.NotFound);
+            if (competition.CreatedBy != operatorUserId)
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Only the competition creator may remove participants.", CompetitionErrorCodes.Forbidden);
+            if (DateTime.UtcNow >= competition.RegistrationEnd
+                || (competition.Status != "OpenRegistration" && competition.Status != "RegistrationClosed"))
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration changes are closed.", CompetitionErrorCodes.Conflict);
+            if ((await _competitionRepository.GetRoundsWithMatchesAsync(competitionId, cancellationToken)).Count > 0)
+                return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registrations cannot change after bracket creation.", CompetitionErrorCodes.Conflict);
 
             if (registration.Status != "Approved")
             {

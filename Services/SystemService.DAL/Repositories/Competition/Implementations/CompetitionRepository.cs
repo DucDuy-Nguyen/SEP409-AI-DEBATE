@@ -96,5 +96,35 @@ namespace SystemService.DAL.Repositories.Competition.Implementations
         {
             return await _context.Competitions.AnyAsync(c => c.CompetitionId == id, cancellationToken);
         }
+
+        public async Task<List<CompetitionRound>> GetRoundsWithMatchesAsync(int competitionId, CancellationToken cancellationToken = default)
+        {
+            return await _context.CompetitionRounds.AsNoTracking()
+                .Where(r => r.CompetitionId == competitionId)
+                .Include(r => r.Matches).ThenInclude(m => m.Participants)
+                .OrderBy(r => r.RoundNumber)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<bool> StartWithReadyMatchesAsync(int competitionId, CancellationToken cancellationToken = default)
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+            var changed = await _context.Competitions
+                .Where(c => c.CompetitionId == competitionId && c.Status == "RegistrationClosed")
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, "Ongoing")
+                    .SetProperty(c => c.UpdatedAt, DateTime.UtcNow), cancellationToken);
+            if (changed != 1) return false;
+
+            await _context.CompetitionMatches
+                .Where(m => m.CompetitionId == competitionId && m.Status == "Scheduled" && m.Participants.Count == 2)
+                .ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, "Ready")
+                    .SetProperty(m => m.UpdatedAt, DateTime.UtcNow), cancellationToken);
+            await _context.CompetitionRounds
+                .Where(r => r.CompetitionId == competitionId && r.Status == "Pending"
+                    && r.Matches.Any(m => m.Status == "Ready"))
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, "Ongoing"), cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return true;
+        }
     }
 }

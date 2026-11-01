@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SystemService.BLL.Common.Responses;
+using SystemService.BLL.Services.Competition;
 using SystemService.BLL.DTOs.Competition.Team;
 using SystemService.BLL.Services.Competition.Interfaces;
 using SystemService.DAL.Entities.Competition;
@@ -48,6 +49,9 @@ namespace SystemService.BLL.Services.Competition.Implementations
             {
                 return ApiResponse<CompetitionTeamRequestResponse>.FailureResponse("Competition registration is not open.");
             }
+
+            if (!await CanChangeRosterAsync(competition, cancellationToken))
+                return ApiResponse<CompetitionTeamRequestResponse>.FailureResponse("Team registration is closed or the bracket already exists.", CompetitionErrorCodes.Conflict);
 
             var team = await _teamRepository.GetByIdAsync(teamId, cancellationToken);
             if (team == null || team.CompetitionId != competitionId)
@@ -141,6 +145,9 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<object>.FailureResponse("Team not found for the specified competition.");
             }
 
+            if (!await CanChangeRosterAsync(competitionId, cancellationToken))
+                return ApiResponse<object>.FailureResponse("Team registration is closed or the bracket already exists.", CompetitionErrorCodes.Conflict);
+
             if (team.Status != "Active")
             {
                 return ApiResponse<object>.FailureResponse("Cannot join a non-active team.");
@@ -179,8 +186,11 @@ namespace SystemService.BLL.Services.Competition.Implementations
 
             if (request.UserId != currentUserId)
             {
-                return ApiResponse<object>.FailureResponse("You can only respond to your own invitations.");
+                return ApiResponse<object>.FailureResponse("You can only respond to your own invitations.", CompetitionErrorCodes.Forbidden);
             }
+
+            if (request.Team == null || request.Team.CompetitionId != competitionId)
+                return ApiResponse<object>.FailureResponse("Invitation request not found for the specified competition.", CompetitionErrorCodes.NotFound);
 
             if (request.Status != "Pending")
             {
@@ -213,6 +223,9 @@ namespace SystemService.BLL.Services.Competition.Implementations
             {
                 return ApiResponse<CompetitionTeamRequestResponse>.FailureResponse("Competition registration is not open.");
             }
+
+            if (!await CanChangeRosterAsync(competition, cancellationToken))
+                return ApiResponse<CompetitionTeamRequestResponse>.FailureResponse("Team registration is closed or the bracket already exists.", CompetitionErrorCodes.Conflict);
 
             var team = await _teamRepository.GetByIdAsync(teamId, cancellationToken);
             if (team == null || team.CompetitionId != competitionId)
@@ -295,6 +308,9 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<object>.FailureResponse("Only the team captain can approve join requests.");
             }
 
+            if (!await CanChangeRosterAsync(competitionId, cancellationToken))
+                return ApiResponse<object>.FailureResponse("Team registration is closed or the bracket already exists.", CompetitionErrorCodes.Conflict);
+
             var request = await _requestRepository.GetByIdAsync(requestId, cancellationToken);
             if (request == null || request.RequestType != "JoinRequest" || request.TeamId != teamId)
             {
@@ -360,6 +376,20 @@ namespace SystemService.BLL.Services.Competition.Implementations
 
             await _requestRepository.UpdateRequestAsync(request, cancellationToken);
             return ApiResponse<object>.SuccessResponse(new { }, "Join request rejected successfully.");
+        }
+
+        private async Task<bool> CanChangeRosterAsync(int competitionId, CancellationToken cancellationToken)
+        {
+            var competition = await _competitionRepository.GetByIdAsync(competitionId, cancellationToken);
+            return competition != null && await CanChangeRosterAsync(competition, cancellationToken);
+        }
+
+        private async Task<bool> CanChangeRosterAsync(SystemService.DAL.Entities.Competition.Competition competition, CancellationToken cancellationToken)
+        {
+            var now = DateTime.UtcNow;
+            return competition.Status == "OpenRegistration"
+                && now >= competition.RegistrationStart && now < competition.RegistrationEnd
+                && (await _competitionRepository.GetRoundsWithMatchesAsync(competition.CompetitionId, cancellationToken)).Count == 0;
         }
 
         private static CompetitionTeamRequestResponse MapToResponse(CompetitionTeamRequest r)

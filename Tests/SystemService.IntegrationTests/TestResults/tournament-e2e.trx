@@ -1,0 +1,415 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="0e3ca8cc-64c2-4418-82bd-e552065b1db1" name="ACER@THANH-SANGG 2026-10-30 02:05:11" runUser="THANH-SANGG\ACER" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-30T02:05:11.4929474+07:00" queuing="2026-10-30T02:05:11.4929478+07:00" start="2026-10-30T02:05:09.1547805+07:00" finish="2026-10-30T02:05:11.5052895+07:00" />
+  <TestSettings name="default" id="72076011-36ce-4346-a0e9-5d409161943d">
+    <Deployment runDeploymentRoot="ACER_THANH-SANGG_2026-10-30_02_05_11" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="20ddaed9-3ac4-437c-9fc8-f16d64a4ce55" testId="535202fe-6721-1f1e-8d6f-f1d8df0bbbf0" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentGeneration_CreatesOneBracketWithoutPartialRounds" computerName="THANH-SANGG" duration="00:00:00.0017067" startTime="2026-10-30T02:05:11.3793802+07:00" endTime="2026-10-30T02:05:11.3794748+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="20ddaed9-3ac4-437c-9fc8-f16d64a4ce55">
+      <Output>
+        <ErrorInfo>
+          <Message>System.InvalidOperationException : Instance failure.</Message>
+          <StackTrace>   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 715&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 749&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 695&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 702&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentGeneration_CreatesOneBracketWithoutPartialRounds() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 443&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="e4da1e1b-c9ca-40b9-ac02-10a3ca535249" testId="41067f61-f2f9-938c-fb90-cf13a7316233" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentCompetitionStart_OnlyOneRequestWins" computerName="THANH-SANGG" duration="00:00:00.0017795" startTime="2026-10-30T02:05:11.3841806+07:00" endTime="2026-10-30T02:05:11.3842335+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e4da1e1b-c9ca-40b9-ac02-10a3ca535249">
+      <Output>
+        <ErrorInfo>
+          <Message>System.InvalidOperationException : Instance failure.</Message>
+          <StackTrace>   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 715&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 749&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 695&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 702&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentCompetitionStart_OnlyOneRequestWins() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 468&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="b06fcba0-5396-4206-b5f9-2facdfa9350b" testId="7b2907e4-7022-0e76-488d-aa95b6e02c33" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentJudgeFinalize_OneOfficialResultAndOneChampion" computerName="THANH-SANGG" duration="00:00:00.0040352" startTime="2026-10-30T02:05:11.3869729+07:00" endTime="2026-10-30T02:05:11.3870298+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b06fcba0-5396-4206-b5f9-2facdfa9350b">
+      <Output>
+        <ErrorInfo>
+          <Message>System.InvalidOperationException : Instance failure.</Message>
+          <StackTrace>   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 715&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 749&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 695&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 702&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentJudgeFinalize_OneOfficialResultAndOneChampion() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 567&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="3c72a215-2ade-4b6d-b15e-ae0b4802164e" testId="ee15c578-4857-3c3f-94d5-8dd8718b707b" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_Individual_CreateRegisterApproveCloseThroughChampion" computerName="THANH-SANGG" duration="00:00:00.0023287" startTime="2026-10-30T02:05:11.3884497+07:00" endTime="2026-10-30T02:05:11.3885037+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3c72a215-2ade-4b6d-b15e-ae0b4802164e">
+      <Output>
+        <ErrorInfo>
+          <Message>System.InvalidOperationException : Instance failure.</Message>
+          <StackTrace>   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 715&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 749&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 695&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 702&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_Individual_CreateRegisterApproveCloseThroughChampion() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 544&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="e78062dc-2070-49ea-9356-910aa3ba16dd" testId="c53c6cd8-2613-cb80-ef5e-9e31c0021d77" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_TwoTeams_FourDistinctUsers_OfficialTeamChampion" computerName="THANH-SANGG" duration="00:00:00.0018044" startTime="2026-10-30T02:05:11.3829375+07:00" endTime="2026-10-30T02:05:11.3829976+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e78062dc-2070-49ea-9356-910aa3ba16dd">
+      <Output>
+        <ErrorInfo>
+          <Message>System.InvalidOperationException : Instance failure.</Message>
+          <StackTrace>   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 715&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 749&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 695&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 702&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_TwoTeams_FourDistinctUsers_OfficialTeamChampion() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 416&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="54c3ba68-4490-4497-b600-0a3498ac7479" testId="1c03cf45-a067-7d07-1496-fe0c62fecc77" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_RejectsNonCreatorAndIncompleteTeamWithoutWritingBracket" computerName="THANH-SANGG" duration="00:00:00.0017707" startTime="2026-10-30T02:05:11.3812684+07:00" endTime="2026-10-30T02:05:11.3813588+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="54c3ba68-4490-4497-b600-0a3498ac7479">
+      <Output>
+        <ErrorInfo>
+          <Message>System.InvalidOperationException : Instance failure.</Message>
+          <StackTrace>   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 715&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 749&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 695&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 702&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_RejectsNonCreatorAndIncompleteTeamWithoutWritingBracket() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 498&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="d8b1ae2e-7ab6-451e-bd67-cc1e46420a4b" testId="c321b799-8a29-3c16-c2be-b4c839067b80" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ThreeIndividuals_ByeDebatesAndChampion" computerName="THANH-SANGG" duration="00:00:00.0038284" startTime="2026-10-30T02:05:11.3772437+07:00" endTime="2026-10-30T02:05:11.3774229+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d8b1ae2e-7ab6-451e-bd67-cc1e46420a4b">
+      <Output>
+        <ErrorInfo>
+          <Message>System.InvalidOperationException : Instance failure.</Message>
+          <StackTrace>   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 715&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 749&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 695&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 702&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ThreeIndividuals_ByeDebatesAndChampion() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 362&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="4441fcdc-f03f-4868-b8a2-d2d41e802e18" testId="38f1a50b-05bc-6a10-2946-0fa6e58be613" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes" computerName="THANH-SANGG" duration="00:00:01.4770277" startTime="2026-10-30T02:05:09.8520773+07:00" endTime="2026-10-30T02:05:11.3631530+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4441fcdc-f03f-4868-b8a2-d2d41e802e18">
+      <Output>
+        <ErrorInfo>
+          <Message>System.InvalidOperationException : Instance failure.</Message>
+          <StackTrace>   at Microsoft.Data.SqlClient.TdsParser.Connect(ServerInfo serverInfo, SqlInternalConnectionTds connHandler, Boolean ignoreSniOpenTimeout, Int64 timerExpire, SqlConnectionString connectionOptions, Boolean withFailover)&#xD;
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)&#xD;
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)&#xD;
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)&#xD;
+   at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)&#xD;
+   at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+   at Microsoft.Data.ProviderBase.DbConnectionPool.WaitForPendingOpen()&#xD;
+--- End of stack trace from previous location ---&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 715&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 749&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 695&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 702&#xD;
+   at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes() in D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs:line 601&#xD;
+--- End of stack trace from previous location ---</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="4cf7b24e-1879-4bbb-9e5a-f363a20a2b94" testId="990b97f3-da14-5d26-9a15-a900d4552cbd" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_LiveAiEvaluation_HumanJudgeConfirmsChampion" computerName="THANH-SANGG" duration="00:00:00.0010000" startTime="2026-10-30T02:05:11.3852638+07:00" endTime="2026-10-30T02:05:11.3856084+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4cf7b24e-1879-4bbb-9e5a-f363a20a2b94">
+      <Output>
+        <ErrorInfo>
+          <Message>Opt in with ADPP_RUN_SQLSERVER_TESTS=1, ADPP_RUN_LIVE_AI_TESTS=1 and ADPP_AI_EVALUATOR_URL.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ThreeIndividuals_ByeDebatesAndChampion" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="c321b799-8a29-3c16-c2be-b4c839067b80">
+      <Execution id="d8b1ae2e-7ab6-451e-bd67-cc1e46420a4b" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_ThreeIndividuals_ByeDebatesAndChampion" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_LiveAiEvaluation_HumanJudgeConfirmsChampion" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="990b97f3-da14-5d26-9a15-a900d4552cbd">
+      <Execution id="4cf7b24e-1879-4bbb-9e5a-f363a20a2b94" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_LiveAiEvaluation_HumanJudgeConfirmsChampion" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_TwoTeams_FourDistinctUsers_OfficialTeamChampion" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="c53c6cd8-2613-cb80-ef5e-9e31c0021d77">
+      <Execution id="e78062dc-2070-49ea-9356-910aa3ba16dd" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_TwoTeams_FourDistinctUsers_OfficialTeamChampion" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_Individual_CreateRegisterApproveCloseThroughChampion" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="ee15c578-4857-3c3f-94d5-8dd8718b707b">
+      <Execution id="3c72a215-2ade-4b6d-b15e-ae0b4802164e" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_Individual_CreateRegisterApproveCloseThroughChampion" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentJudgeFinalize_OneOfficialResultAndOneChampion" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="7b2907e4-7022-0e76-488d-aa95b6e02c33">
+      <Execution id="b06fcba0-5396-4206-b5f9-2facdfa9350b" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_ConcurrentJudgeFinalize_OneOfficialResultAndOneChampion" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentGeneration_CreatesOneBracketWithoutPartialRounds" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="535202fe-6721-1f1e-8d6f-f1d8df0bbbf0">
+      <Execution id="20ddaed9-3ac4-437c-9fc8-f16d64a4ce55" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_ConcurrentGeneration_CreatesOneBracketWithoutPartialRounds" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentCompetitionStart_OnlyOneRequestWins" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="41067f61-f2f9-938c-fb90-cf13a7316233">
+      <Execution id="e4da1e1b-c9ca-40b9-ac02-10a3ca535249" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_ConcurrentCompetitionStart_OnlyOneRequestWins" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_RejectsNonCreatorAndIncompleteTeamWithoutWritingBracket" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="1c03cf45-a067-7d07-1496-fe0c62fecc77">
+      <Execution id="54c3ba68-4490-4497-b600-0a3498ac7479" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_RejectsNonCreatorAndIncompleteTeamWithoutWritingBracket" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="38f1a50b-05bc-6a10-2946-0fa6e58be613">
+      <Execution id="4441fcdc-f03f-4868-b8a2-d2d41e802e18" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="535202fe-6721-1f1e-8d6f-f1d8df0bbbf0" executionId="20ddaed9-3ac4-437c-9fc8-f16d64a4ce55" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="41067f61-f2f9-938c-fb90-cf13a7316233" executionId="e4da1e1b-c9ca-40b9-ac02-10a3ca535249" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7b2907e4-7022-0e76-488d-aa95b6e02c33" executionId="b06fcba0-5396-4206-b5f9-2facdfa9350b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ee15c578-4857-3c3f-94d5-8dd8718b707b" executionId="3c72a215-2ade-4b6d-b15e-ae0b4802164e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c53c6cd8-2613-cb80-ef5e-9e31c0021d77" executionId="e78062dc-2070-49ea-9356-910aa3ba16dd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1c03cf45-a067-7d07-1496-fe0c62fecc77" executionId="54c3ba68-4490-4497-b600-0a3498ac7479" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c321b799-8a29-3c16-c2be-b4c839067b80" executionId="d8b1ae2e-7ab6-451e-bd67-cc1e46420a4b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="38f1a50b-05bc-6a10-2946-0fa6e58be613" executionId="4441fcdc-f03f-4868-b8a2-d2d41e802e18" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="990b97f3-da14-5d26-9a15-a900d4552cbd" executionId="4cf7b24e-1879-4bbb-9e5a-f363a20a2b94" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="9" executed="8" passed="0" failed="8" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.4+50e68bbb8b (64-bit .NET 8.0.25)&#xD;
+[xUnit.net 00:00:00.07]   Discovering: SystemService.IntegrationTests&#xD;
+[xUnit.net 00:00:00.11]   Discovered:  SystemService.IntegrationTests&#xD;
+[xUnit.net 00:00:00.13]   Starting:    SystemService.IntegrationTests&#xD;
+[xUnit.net 00:00:01.67]       System.InvalidOperationException : Instance failure.&#xD;
+[xUnit.net 00:00:01.67]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.67]            at Microsoft.Data.SqlClient.TdsParser.Connect(ServerInfo serverInfo, SqlInternalConnectionTds connHandler, Boolean ignoreSniOpenTimeout, Int64 timerExpire, SqlConnectionString connectionOptions, Boolean withFailover)&#xD;
+[xUnit.net 00:00:01.67]            at Microsoft.Data.SqlClient.SqlInternalConnectionTds.AttemptOneLogin(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean ignoreSniOpenTimeout, TimeoutTimer timeout, Boolean withFailover)&#xD;
+[xUnit.net 00:00:01.67]            at Microsoft.Data.SqlClient.SqlInternalConnectionTds.LoginNoFailover(ServerInfo serverInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString connectionOptions, SqlCredential credential, TimeoutTimer timeout)&#xD;
+[xUnit.net 00:00:01.67]            at Microsoft.Data.SqlClient.SqlInternalConnectionTds.OpenLoginEnlist(TimeoutTimer timeout, SqlConnectionString connectionOptions, SqlCredential credential, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance)&#xD;
+[xUnit.net 00:00:01.67]            at Microsoft.Data.SqlClient.SqlInternalConnectionTds..ctor(DbConnectionPoolIdentity identity, SqlConnectionString connectionOptions, SqlCredential credential, Object providerInfo, String newPassword, SecureString newSecurePassword, Boolean redirectedUserInstance, SqlConnectionString userConnectionOptions, SessionData reconnectSessionData, Boolean applyTransientFaultHandling, String accessToken, DbConnectionPool pool)&#xD;
+[xUnit.net 00:00:01.67]            at Microsoft.Data.SqlClient.SqlConnectionFactory.CreateConnection(DbConnectionOptions options, DbConnectionPoolKey poolKey, Object poolGroupProviderInfo, DbConnectionPool pool, DbConnection owningConnection, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.67]            at Microsoft.Data.ProviderBase.DbConnectionFactory.CreatePooledConnection(DbConnectionPool pool, DbConnection owningObject, DbConnectionOptions options, DbConnectionPoolKey poolKey, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.67]            at Microsoft.Data.ProviderBase.DbConnectionPool.CreateObject(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)&#xD;
+[xUnit.net 00:00:01.67]            at Microsoft.Data.ProviderBase.DbConnectionPool.UserCreateRequest(DbConnection owningObject, DbConnectionOptions userOptions, DbConnectionInternal oldConnection)&#xD;
+[xUnit.net 00:00:01.67]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.67]            at Microsoft.Data.ProviderBase.DbConnectionPool.WaitForPendingOpen()&#xD;
+[xUnit.net 00:00:01.67]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.67]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(715,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.67]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(749,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.67]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(695,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.67]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(702,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.67]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(601,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes()&#xD;
+[xUnit.net 00:00:01.67]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.68]       System.InvalidOperationException : Instance failure.&#xD;
+[xUnit.net 00:00:01.68]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+[xUnit.net 00:00:01.68]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.68]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(715,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.68]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(749,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.68]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(695,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.68]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(702,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.68]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(362,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ThreeIndividuals_ByeDebatesAndChampion()&#xD;
+[xUnit.net 00:00:01.68]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.68]       System.InvalidOperationException : Instance failure.&#xD;
+[xUnit.net 00:00:01.68]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+[xUnit.net 00:00:01.68]            at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+[xUnit.net 00:00:01.68]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.68]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(715,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.68]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(749,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.68]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(695,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.68]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(702,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.68]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(443,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentGeneration_CreatesOneBracketWithoutPartialRounds()&#xD;
+[xUnit.net 00:00:01.68]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.69]       System.InvalidOperationException : Instance failure.&#xD;
+[xUnit.net 00:00:01.69]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+[xUnit.net 00:00:01.69]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(715,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(749,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(695,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(702,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(498,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_RejectsNonCreatorAndIncompleteTeamWithoutWritingBracket()&#xD;
+[xUnit.net 00:00:01.69]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.69]       System.InvalidOperationException : Instance failure.&#xD;
+[xUnit.net 00:00:01.69]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+[xUnit.net 00:00:01.69]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(715,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(749,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(695,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(702,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(416,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_TwoTeams_FourDistinctUsers_OfficialTeamChampion()&#xD;
+[xUnit.net 00:00:01.69]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.69]       System.InvalidOperationException : Instance failure.&#xD;
+[xUnit.net 00:00:01.69]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+[xUnit.net 00:00:01.69]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(715,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(749,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(695,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(702,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(468,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentCompetitionStart_OnlyOneRequestWins()&#xD;
+[xUnit.net 00:00:01.69]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.69]       Opt in with ADPP_RUN_SQLSERVER_TESTS=1, ADPP_RUN_LIVE_AI_TESTS=1 and ADPP_AI_EVALUATOR_URL.&#xD;
+[xUnit.net 00:00:01.69]       System.InvalidOperationException : Instance failure.&#xD;
+[xUnit.net 00:00:01.69]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+[xUnit.net 00:00:01.69]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(715,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(749,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(695,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(702,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(567,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentJudgeFinalize_OneOfficialResultAndOneChampion()&#xD;
+[xUnit.net 00:00:01.69]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.69]       System.InvalidOperationException : Instance failure.&#xD;
+[xUnit.net 00:00:01.69]       Stack Trace:&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, UInt32 waitForMultipleObjectsTimeout, Boolean allowCreate, Boolean onlyOneCheckConnection, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionPool.TryGetConnection(DbConnection owningObject, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionFactory.TryGetConnection(DbConnection owningConnection, TaskCompletionSource`1 retry, DbConnectionOptions userOptions, DbConnectionInternal oldConnection, DbConnectionInternal&amp; connection)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionInternal.TryOpenConnectionInternal(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.ProviderBase.DbConnectionClosed.TryOpenConnection(DbConnection outerConnection, DbConnectionFactory connectionFactory, TaskCompletionSource`1 retry, DbConnectionOptions userOptions)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.SqlClient.SqlConnection.TryOpen(TaskCompletionSource`1 retry, SqlConnectionOverrides overrides)&#xD;
+[xUnit.net 00:00:01.69]            at Microsoft.Data.SqlClient.SqlConnection.InternalOpenAsync(CancellationToken cancellationToken)&#xD;
+[xUnit.net 00:00:01.69]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(715,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(749,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.ValidateTargetAndSchemaAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(695,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(702,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.SqlFixture.CreateAsync()&#xD;
+[xUnit.net 00:00:01.69]         D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\SqlServerCompetitionDebateTests.cs(544,0): at SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_Individual_CreateRegisterApproveCloseThroughChampion()&#xD;
+[xUnit.net 00:00:01.69]         --- End of stack trace from previous location ---&#xD;
+[xUnit.net 00:00:01.70]   Finished:    SystemService.IntegrationTests&#xD;
+Test 'SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_LiveAiEvaluation_HumanJudgeConfirmsChampion' was skipped in the test run.&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="THANH-SANGG" outcome="Error" timestamp="2026-10-30T02:05:11.3670306+07:00">
+        <Text>[xUnit.net 00:00:01.67]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Error" timestamp="2026-10-30T02:05:11.3779505+07:00">
+        <Text>[xUnit.net 00:00:01.68]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ThreeIndividuals_ByeDebatesAndChampion [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Error" timestamp="2026-10-30T02:05:11.3799661+07:00">
+        <Text>[xUnit.net 00:00:01.68]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentGeneration_CreatesOneBracketWithoutPartialRounds [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Error" timestamp="2026-10-30T02:05:11.3816697+07:00">
+        <Text>[xUnit.net 00:00:01.69]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_RejectsNonCreatorAndIncompleteTeamWithoutWritingBracket [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Error" timestamp="2026-10-30T02:05:11.3832312+07:00">
+        <Text>[xUnit.net 00:00:01.69]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_TwoTeams_FourDistinctUsers_OfficialTeamChampion [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Error" timestamp="2026-10-30T02:05:11.3844381+07:00">
+        <Text>[xUnit.net 00:00:01.69]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentCompetitionStart_OnlyOneRequestWins [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Warning" timestamp="2026-10-30T02:05:11.3864799+07:00">
+        <Text>[xUnit.net 00:00:01.69]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_LiveAiEvaluation_HumanJudgeConfirmsChampion [SKIP]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Error" timestamp="2026-10-30T02:05:11.3874231+07:00">
+        <Text>[xUnit.net 00:00:01.69]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentJudgeFinalize_OneOfficialResultAndOneChampion [FAIL]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Error" timestamp="2026-10-30T02:05:11.3887390+07:00">
+        <Text>[xUnit.net 00:00:01.69]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_Individual_CreateRegisterApproveCloseThroughChampion [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

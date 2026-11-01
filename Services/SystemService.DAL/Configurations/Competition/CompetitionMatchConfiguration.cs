@@ -15,6 +15,10 @@ namespace SystemService.DAL.Configurations.Competition
                 .IsUnique()
                 .HasDatabaseName("UQ_CompetitionMatches");
 
+            builder.HasIndex(e => new { e.CompetitionRoundId, e.BracketPosition })
+                .IsUnique()
+                .HasDatabaseName("UQ_CompetitionMatches_Round_Position");
+
             builder.Property(e => e.MatchNumber).IsRequired();
             builder.Property(e => e.BracketPosition).HasDefaultValue(1).IsRequired();
             builder.Property(e => e.Status).HasMaxLength(30).HasDefaultValue("Scheduled").IsRequired();
@@ -34,7 +38,7 @@ namespace SystemService.DAL.Configurations.Competition
             builder.HasOne(e => e.DebateSession)
                 .WithMany()
                 .HasForeignKey(e => e.DebateSessionId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.ClientNoAction);
 
             builder.HasOne(e => e.NextMatch)
                 .WithMany()

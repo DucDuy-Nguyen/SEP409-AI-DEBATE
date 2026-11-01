@@ -92,6 +92,7 @@ builder.Services.AddScoped<ICompetitionTeamService, CompetitionTeamService>();
 builder.Services.AddScoped<ICompetitionTeamRequestService, CompetitionTeamRequestService>();
 builder.Services.AddScoped<ICompetitionJudgeService, CompetitionJudgeService>();
 builder.Services.AddScoped<ICompetitionDebateBridgeService, CompetitionDebateBridgeService>();
+builder.Services.AddScoped<ICompetitionTournamentService, CompetitionTournamentService>();
 
 builder.Services.AddScoped<IPaymentGateway, PayOSPaymentGateway>();
 builder.Services.AddScoped<IWalletService, WalletService>();

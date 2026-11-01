@@ -33,7 +33,7 @@ namespace SystemService.Controllers.Competition
             var result = await _requestService.SendInvitationAsync(id, teamId, captainUserId, request, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -65,7 +65,7 @@ namespace SystemService.Controllers.Competition
             var result = await _requestService.AcceptInvitationAsync(id, requestId, currentUserId, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -83,7 +83,7 @@ namespace SystemService.Controllers.Competition
             var result = await _requestService.RejectInvitationAsync(id, requestId, currentUserId, request, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -101,7 +101,7 @@ namespace SystemService.Controllers.Competition
             var result = await _requestService.CreateJoinRequestAsync(id, teamId, currentUserId, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -119,7 +119,7 @@ namespace SystemService.Controllers.Competition
             var result = await _requestService.GetTeamJoinRequestsAsync(id, teamId, captainUserId, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -137,7 +137,7 @@ namespace SystemService.Controllers.Competition
             var result = await _requestService.ApproveJoinRequestAsync(id, teamId, requestId, captainUserId, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -155,7 +155,7 @@ namespace SystemService.Controllers.Competition
             var result = await _requestService.RejectJoinRequestAsync(id, teamId, requestId, captainUserId, request, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }

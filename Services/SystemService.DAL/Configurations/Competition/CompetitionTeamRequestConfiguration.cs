@@ -11,6 +11,11 @@ namespace SystemService.DAL.Configurations.Competition
             builder.ToTable("CompetitionTeamRequests");
             builder.HasKey(e => e.RequestId);
 
+            builder.HasIndex(e => new { e.TeamId, e.UserId })
+                .IsUnique()
+                .HasFilter("[Status] = 'Pending'")
+                .HasDatabaseName("UQ_CompetitionTeamRequests_Pending");
+
             builder.Property(e => e.RequestType).HasMaxLength(20).IsRequired();
             builder.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("Pending").IsRequired();
             builder.Property(e => e.Note).HasMaxLength(500);
