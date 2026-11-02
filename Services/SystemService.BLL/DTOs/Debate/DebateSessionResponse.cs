@@ -39,6 +39,9 @@ namespace SystemService.BLL.DTOs.Debate
         public DebateStage Stage { get; set; }
         public DebateSide Side { get; set; }
         public int TurnOrder { get; set; }
+
+        // 0-based index into DebateTurnOrder for 1v1 sessions (send as turnIndex to /ai-arguments); null for 2v2.
+        public int? TurnIndex { get; set; }
         public int TimeLimitSeconds { get; set; }
         public TurnStatus Status { get; set; }
         public DateTime? StartedAt { get; set; }

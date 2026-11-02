@@ -13,6 +13,7 @@ namespace SystemService.BLL.Services.Debate.Interfaces
         Task<ApiResponse<DebateSessionResponse>> JoinP2pSessionAsync(int userId, int sessionId, JoinSessionRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<DebateSessionResponse>> GetSessionDetailsAsync(int userId, int sessionId, CancellationToken cancellationToken = default);
         Task<ApiResponse<DebateSessionResponse>> SubmitArgumentAsync(int userId, int sessionId, SubmitArgumentRequest request, CancellationToken cancellationToken = default);
+        Task<ApiResponse<SubmitAiArgumentResponse>> SubmitAiArgumentAsync(int userId, int sessionId, SubmitAiArgumentRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<DebateSessionResponse>> Create2v2SessionAsync(int userId, Create2v2SessionRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<DebateSessionResponse>> Join2v2SessionAsync(int userId, int sessionId, Join2v2SessionRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<DebateTranscriptResponse>> GetTranscriptAsync(int userId, int sessionId, CancellationToken cancellationToken = default);

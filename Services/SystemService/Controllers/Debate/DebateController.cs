@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using SystemService.BLL.Common.Debate;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.Debate.Interfaces;
@@ -141,6 +143,24 @@ namespace SystemService.Controllers.Debate
             return Ok(result);
         }
 
+        [HttpPost("{sessionId:int}/ai-arguments")]
+        public async Task<IActionResult> SubmitAiArgument(
+            int sessionId, [FromBody] SubmitAiArgumentRequest request, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized(ApiResponse<object>.FailureResponse("Unauthorized access."));
+            }
+
+            var result = await _debateService.SubmitAiArgumentAsync(userId.Value, sessionId, request, cancellationToken);
+            if (!result.Success)
+            {
+                return MapTurnFailure(result);
+            }
+            return Ok(result);
+        }
+
         [HttpGet("{sessionId:int}/transcript")]
         public async Task<IActionResult> GetTranscript(int sessionId, CancellationToken cancellationToken)
         {
@@ -260,6 +280,21 @@ namespace SystemService.Controllers.Debate
                 return userId;
             }
             return null;
+        }
+
+        private IActionResult MapTurnFailure<T>(ApiResponse<T> result)
+        {
+            var code = (result.Errors as ApiErrorDetail)?.Code;
+            return code switch
+            {
+                DebateErrorCodes.SessionNotFound => NotFound(result),
+                DebateErrorCodes.NotParticipant => StatusCode(StatusCodes.Status403Forbidden, result),
+                DebateErrorCodes.TurnOutOfOrder
+                    or DebateErrorCodes.SessionNotInProgress
+                    or DebateErrorCodes.SessionCompleted
+                    or DebateErrorCodes.ConcurrentSubmission => Conflict(result),
+                _ => BadRequest(result)
+            };
         }
 
         #endregion

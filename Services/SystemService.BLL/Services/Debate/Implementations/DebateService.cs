@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using SystemService.BLL.Common.Debate;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.Debate.Interfaces;
@@ -18,6 +20,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
     public class DebateService : IDebateService
     {
         private static readonly ConcurrentDictionary<string, SideSwapRequestModel> _pendingSwapRequests = new();
+
+        // User arguments have no length limit today; this caps AI speeches (~500 words) with generous headroom.
+        private const int MaxAiArgumentLength = 10000;
 
         private readonly IDebateRepository _debateRepository;
         private readonly IUserRepository _userRepository;
@@ -235,93 +240,61 @@ namespace SystemService.BLL.Services.Debate.Implementations
             using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
             try
             {
+                await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
                 var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
                 if (session == null)
                 {
-                    return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.");
+                    return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.", new ApiErrorDetail(DebateErrorCodes.SessionNotFound));
                 }
 
                 if (session.Status != SessionStatus.InProgress)
                 {
-                    return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session is not currently in progress.");
+                    return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session is not currently in progress.", new ApiErrorDetail(DebateErrorCodes.SessionNotInProgress));
                 }
 
                 var participant = session.Participants.FirstOrDefault(p => p.UserId == userId);
                 if (participant == null)
                 {
-                    return ApiResponse<DebateSessionResponse>.FailureResponse("You are not a participant in this debate session.");
+                    return ApiResponse<DebateSessionResponse>.FailureResponse("You are not a participant in this debate session.", new ApiErrorDetail(DebateErrorCodes.NotParticipant));
                 }
 
-                int maxArgsPerRound = session.Format?.MaxParticipants > 0 ? session.Format.MaxParticipants : 2;
+                // 2v2 has 4 speakers per round and does not follow DebateTurnOrder; keep its original logic.
+                if (!IsOneVsOne(session))
+                {
+                    return await SubmitTeamArgumentAsync(userId, sessionId, session, participant, request, transaction, cancellationToken);
+                }
 
-                var currentRound = session.DebateRounds
-                    .OrderBy(r => r.RoundNumber)
-                    .FirstOrDefault(r => r.Arguments.Count < maxArgsPerRound);
-
-                if (currentRound == null)
+                int submittedCount = CountArguments(session);
+                var nextTurn = DebateTurnOrder.GetNextTurn(submittedCount);
+                if (nextTurn == null)
                 {
                     session.Status = SessionStatus.Completed;
                     session.EndTime = DateTime.UtcNow;
                     await _debateRepository.UpdateSessionAsync(session, cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
-                    return ApiResponse<DebateSessionResponse>.FailureResponse("All rounds in this debate session have already been completed.");
+                    return ApiResponse<DebateSessionResponse>.FailureResponse(
+                        $"All {DebateTurnOrder.TotalTurns} turns in this debate session have already been completed.",
+                        new ApiErrorDetail(DebateErrorCodes.SessionCompleted));
                 }
 
-                var expectedTurnSide = DebateSide.PRO;
-                if (currentRound.Arguments.Any())
+                if (participant.Side != nextTurn.Side)
                 {
-                    var lastSubmittedSide = currentRound.Arguments.Last().Participant.Side;
-                    expectedTurnSide = lastSubmittedSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+                    return ApiResponse<DebateSessionResponse>.FailureResponse(
+                        $"It is not your turn to submit an argument. Current turn belongs to {SideName(nextTurn.Side)}.",
+                        new ApiErrorDetail(DebateErrorCodes.NotYourTurn));
                 }
 
-                if (participant.Side != expectedTurnSide)
+                string trimmedContent = request.Content?.Trim() ?? string.Empty;
+                if (trimmedContent.Length == 0)
                 {
-                    return ApiResponse<DebateSessionResponse>.FailureResponse($"It is not your turn to submit an argument. Current turn belongs to {expectedTurnSide}.");
+                    return ApiResponse<DebateSessionResponse>.FailureResponse("Argument content must not be empty.", new ApiErrorDetail(DebateErrorCodes.InvalidRequest));
                 }
 
-                if (currentRound.Arguments.Any(a => a.ParticipantId == participant.ParticipantId))
+                var argument = await AddTurnArgumentAsync(session, participant, nextTurn, submittedCount, trimmedContent, isTimed: true, cancellationToken);
+                if (argument == null)
                 {
-                    return ApiResponse<DebateSessionResponse>.FailureResponse("You have already submitted an argument for this round.");
-                }
-
-                string trimmedContent = request.Content.Trim();
-                int wordCount = trimmedContent.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
-
-                int durationSeconds = 30;
-                if (currentRound.StartTime.HasValue)
-                {
-                    durationSeconds = (int)Math.Max(1, (DateTime.UtcNow - currentRound.StartTime.Value).TotalSeconds);
-                }
-
-                var argument = new Argument
-                {
-                    RoundId = currentRound.RoundId,
-                    ParticipantId = participant.ParticipantId,
-                    Content = trimmedContent,
-                    WordCount = wordCount,
-                    DurationSeconds = durationSeconds,
-                    SubmittedAt = DateTime.UtcNow
-                };
-
-                await _debateRepository.AddArgumentAsync(argument, cancellationToken);
-
-                if (currentRound.Arguments.Count + 1 >= maxArgsPerRound)
-                {
-                    currentRound.EndTime = DateTime.UtcNow;
-                    await _debateRepository.UpdateRoundAsync(currentRound, cancellationToken);
-
-                    var nextRound = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == currentRound.RoundNumber + 1);
-                    if (nextRound != null)
-                    {
-                        nextRound.StartTime = DateTime.UtcNow;
-                        await _debateRepository.UpdateRoundAsync(nextRound, cancellationToken);
-                    }
-                    else
-                    {
-                        session.Status = SessionStatus.Completed;
-                        session.EndTime = DateTime.UtcNow;
-                        await _debateRepository.UpdateSessionAsync(session, cancellationToken);
-                    }
+                    return ApiResponse<DebateSessionResponse>.FailureResponse($"Round {nextTurn.RoundNumber} is missing for this debate session.");
                 }
 
                 await transaction.CommitAsync(cancellationToken);
@@ -332,13 +305,199 @@ namespace SystemService.BLL.Services.Debate.Implementations
             catch (DbUpdateException)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                return ApiResponse<DebateSessionResponse>.FailureResponse("An argument for this turn has already been submitted or a concurrent submission occurred.");
+                return ApiResponse<DebateSessionResponse>.FailureResponse("An argument for this turn has already been submitted or a concurrent submission occurred.", new ApiErrorDetail(DebateErrorCodes.ConcurrentSubmission));
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
                 return ApiResponse<DebateSessionResponse>.FailureResponse($"Failed to submit argument: {ex.Message}");
             }
+        }
+
+        public async Task<ApiResponse<SubmitAiArgumentResponse>> SubmitAiArgumentAsync(
+            int userId, int sessionId, SubmitAiArgumentRequest request, CancellationToken cancellationToken = default)
+        {
+            string content = request?.Content?.Trim() ?? string.Empty;
+            if (content.Length == 0)
+            {
+                return AiArgumentFailure("AI argument content must not be empty.", DebateErrorCodes.InvalidRequest);
+            }
+
+            if (content.Length > MaxAiArgumentLength)
+            {
+                return AiArgumentFailure($"AI argument content must not exceed {MaxAiArgumentLength} characters.", DebateErrorCodes.InvalidRequest);
+            }
+
+            var turn = request!.TurnIndex.HasValue ? DebateTurnOrder.GetTurn(request.TurnIndex.Value) : null;
+            if (turn == null)
+            {
+                return AiArgumentFailure($"turnIndex is required and must be between 0 and {DebateTurnOrder.TotalTurns - 1}.", DebateErrorCodes.InvalidRequest);
+            }
+
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                // Serializes concurrent retries for the same turn so the idempotency check below sees the first insert.
+                await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
+                var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+                if (session == null)
+                {
+                    return AiArgumentFailure("Debate session not found.", DebateErrorCodes.SessionNotFound);
+                }
+
+                var participant = session.Participants.FirstOrDefault(p => p.UserId == userId && p.ParticipantType == ParticipantType.USER);
+                if (participant == null)
+                {
+                    return AiArgumentFailure("You are not a participant in this debate session.", DebateErrorCodes.NotParticipant);
+                }
+
+                var aiParticipant = IsOneVsOne(session)
+                    ? session.Participants.FirstOrDefault(p => p.ParticipantType == ParticipantType.AI)
+                    : null;
+                if (aiParticipant == null)
+                {
+                    return AiArgumentFailure("AI arguments can only be recorded for 1v1 AI practice sessions.", DebateErrorCodes.NotAiSession);
+                }
+
+                if (turn.Side != aiParticipant.Side)
+                {
+                    return AiArgumentFailure(
+                        $"Turn {turn.TurnIndex} belongs to {SideName(turn.Side)}, not to the AI ({SideName(aiParticipant.Side)}).",
+                        DebateErrorCodes.NotAiTurn);
+                }
+
+                var orderedArguments = GetOrderedArguments(session);
+
+                // Idempotent retry: the AI argument for this turn already exists, return it unchanged.
+                // Checked before the status check so a retry of the final turn still succeeds after the session completed.
+                if (turn.TurnIndex < orderedArguments.Count)
+                {
+                    var existing = orderedArguments[turn.TurnIndex];
+                    if (existing.ParticipantId != aiParticipant.ParticipantId)
+                    {
+                        return AiArgumentFailure($"Turn {turn.TurnIndex} is already recorded for another participant.", DebateErrorCodes.TurnOutOfOrder);
+                    }
+
+                    var existingRound = session.DebateRounds.First(r => r.RoundId == existing.RoundId);
+                    return await AiArgumentSuccessAsync(userId, sessionId, turn.TurnIndex, existing, existingRound, aiParticipant,
+                        alreadyRecorded: true, "AI argument for this turn was already recorded.", cancellationToken);
+                }
+
+                if (session.Status != SessionStatus.InProgress)
+                {
+                    return AiArgumentFailure("Debate session is not currently in progress.", DebateErrorCodes.SessionNotInProgress);
+                }
+
+                if (turn.TurnIndex > orderedArguments.Count)
+                {
+                    var expectedTurn = DebateTurnOrder.GetNextTurn(orderedArguments.Count)!;
+                    return AiArgumentFailure(
+                        $"Turn {turn.TurnIndex} is not the next turn. Expected turn {expectedTurn.TurnIndex} ({SideName(expectedTurn.Side)}).",
+                        DebateErrorCodes.TurnOutOfOrder);
+                }
+
+                var argument = await AddTurnArgumentAsync(session, aiParticipant, turn, orderedArguments.Count, content, isTimed: false, cancellationToken);
+                if (argument == null)
+                {
+                    return AiArgumentFailure($"Round {turn.RoundNumber} is missing for this debate session.", DebateErrorCodes.InvalidRequest);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+
+                var round = session.DebateRounds.First(r => r.RoundNumber == turn.RoundNumber);
+                return await AiArgumentSuccessAsync(userId, sessionId, turn.TurnIndex, argument, round, aiParticipant,
+                    alreadyRecorded: false, "AI argument recorded successfully.", cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return AiArgumentFailure("A concurrent submission occurred for this turn. Retry the request.", DebateErrorCodes.ConcurrentSubmission);
+            }
+            // Other exceptions propagate to ExceptionMiddleware (logged, 500, message hidden outside Development);
+            // the undisposed transaction is rolled back when it is disposed.
+        }
+
+        private async Task<ApiResponse<DebateSessionResponse>> SubmitTeamArgumentAsync(
+            int userId, int sessionId, DebateSession session, DebateParticipant participant, SubmitArgumentRequest request,
+            IDbContextTransaction transaction, CancellationToken cancellationToken)
+        {
+            int maxArgsPerRound = GetMaxArgsPerRound(session);
+
+            var currentRound = session.DebateRounds
+                .OrderBy(r => r.RoundNumber)
+                .FirstOrDefault(r => r.Arguments.Count < maxArgsPerRound);
+
+            if (currentRound == null)
+            {
+                session.Status = SessionStatus.Completed;
+                session.EndTime = DateTime.UtcNow;
+                await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return ApiResponse<DebateSessionResponse>.FailureResponse("All rounds in this debate session have already been completed.");
+            }
+
+            var expectedTurnSide = DebateSide.PRO;
+            if (currentRound.Arguments.Any())
+            {
+                var lastSubmittedSide = currentRound.Arguments.Last().Participant.Side;
+                expectedTurnSide = lastSubmittedSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+            }
+
+            if (participant.Side != expectedTurnSide)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse($"It is not your turn to submit an argument. Current turn belongs to {expectedTurnSide}.");
+            }
+
+            if (currentRound.Arguments.Any(a => a.ParticipantId == participant.ParticipantId))
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("You have already submitted an argument for this round.");
+            }
+
+            string trimmedContent = request.Content.Trim();
+            int wordCount = trimmedContent.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
+
+            int durationSeconds = 30;
+            if (currentRound.StartTime.HasValue)
+            {
+                durationSeconds = (int)Math.Max(1, (DateTime.UtcNow - currentRound.StartTime.Value).TotalSeconds);
+            }
+
+            var argument = new Argument
+            {
+                RoundId = currentRound.RoundId,
+                ParticipantId = participant.ParticipantId,
+                Content = trimmedContent,
+                WordCount = wordCount,
+                DurationSeconds = durationSeconds,
+                SubmittedAt = DateTime.UtcNow
+            };
+
+            await _debateRepository.AddArgumentAsync(argument, cancellationToken);
+
+            if (currentRound.Arguments.Count + 1 >= maxArgsPerRound)
+            {
+                currentRound.EndTime = DateTime.UtcNow;
+                await _debateRepository.UpdateRoundAsync(currentRound, cancellationToken);
+
+                var nextRound = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == currentRound.RoundNumber + 1);
+                if (nextRound != null)
+                {
+                    nextRound.StartTime = DateTime.UtcNow;
+                    await _debateRepository.UpdateRoundAsync(nextRound, cancellationToken);
+                }
+                else
+                {
+                    session.Status = SessionStatus.Completed;
+                    session.EndTime = DateTime.UtcNow;
+                    await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+                }
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+
+            var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Argument submitted successfully.");
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> Create2v2SessionAsync(
@@ -572,16 +731,166 @@ namespace SystemService.BLL.Services.Debate.Implementations
             };
         }
 
+        private static int GetMaxArgsPerRound(DebateSession session)
+        {
+            return session.Format?.MaxParticipants > 0 ? session.Format.MaxParticipants : 2;
+        }
+
+        // 1v1 sessions (User vs AI, P2P 1v1, Direct1v1) follow DebateTurnOrder; 2v2 does not.
+        private static bool IsOneVsOne(DebateSession session)
+        {
+            return GetMaxArgsPerRound(session) == 2 && session.Participants.Count <= 2;
+        }
+
+        private static int CountArguments(DebateSession session)
+        {
+            return session.DebateRounds.Sum(r => r.Arguments.Count);
+        }
+
+        private static List<Argument> GetOrderedArguments(DebateSession session)
+        {
+            return session.DebateRounds
+                .OrderBy(r => r.RoundNumber)
+                .SelectMany(r => r.Arguments.OrderBy(a => a.SubmittedAt).ThenBy(a => a.ArgumentId))
+                .ToList();
+        }
+
+        // DebateSide has duplicate values (PRO/Affirmative, CON/Negative), so ToString() is ambiguous.
+        private static string SideName(DebateSide side)
+        {
+            return side == DebateSide.CON ? "CON" : "PRO";
+        }
+
+        /// <summary>
+        /// Saves the argument for <paramref name="turn"/> and advances round/session state.
+        /// <paramref name="submittedCount"/> is the argument count before this insert; it is used instead of
+        /// round.Arguments.Count because EF fixup may already have added the new argument to that collection.
+        /// Returns null if the round for this turn does not exist.
+        /// </summary>
+        private async Task<Argument?> AddTurnArgumentAsync(
+            DebateSession session, DebateParticipant participant, DebateTurnSlot turn, int submittedCount,
+            string content, bool isTimed, CancellationToken cancellationToken)
+        {
+            var round = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == turn.RoundNumber);
+            if (round == null)
+            {
+                return null;
+            }
+
+            int wordCount = content.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
+
+            int? durationSeconds = null;
+            if (isTimed)
+            {
+                durationSeconds = 30;
+                if (round.StartTime.HasValue)
+                {
+                    durationSeconds = (int)Math.Max(1, (DateTime.UtcNow - round.StartTime.Value).TotalSeconds);
+                }
+            }
+
+            var argument = new Argument
+            {
+                RoundId = round.RoundId,
+                ParticipantId = participant.ParticipantId,
+                Content = content,
+                WordCount = wordCount,
+                DurationSeconds = durationSeconds,
+                SubmittedAt = DateTime.UtcNow
+            };
+
+            await _debateRepository.AddArgumentAsync(argument, cancellationToken);
+
+            var followingTurn = DebateTurnOrder.GetNextTurn(submittedCount + 1);
+            if (followingTurn != null && followingTurn.RoundNumber == turn.RoundNumber)
+            {
+                return argument;
+            }
+
+            var now = DateTime.UtcNow;
+            round.EndTime = now;
+            await _debateRepository.UpdateRoundAsync(round, cancellationToken);
+
+            if (followingTurn == null)
+            {
+                session.Status = SessionStatus.Completed;
+                session.EndTime = now;
+                await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+            }
+            else
+            {
+                var nextRound = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == followingTurn.RoundNumber);
+                if (nextRound != null)
+                {
+                    nextRound.StartTime = now;
+                    await _debateRepository.UpdateRoundAsync(nextRound, cancellationToken);
+                }
+            }
+
+            return argument;
+        }
+
+        private ArgumentDetailDto MapToArgumentDetail(Argument argument, DebateRound round, DebateParticipant participant)
+        {
+            return new ArgumentDetailDto
+            {
+                ArgumentId = argument.ArgumentId,
+                TurnOrder = round.RoundNumber,
+                Stage = MapRoundTypeToStage(round.RoundType),
+                Side = participant.Side,
+                SpeakerName = participant.ParticipantType == ParticipantType.AI ? "AI Opponent" : (participant.User?.FullName ?? "Unknown User"),
+                IsAI = participant.ParticipantType == ParticipantType.AI,
+                Content = argument.Content,
+                SubmittedAt = argument.SubmittedAt
+            };
+        }
+
+        private static ApiResponse<SubmitAiArgumentResponse> AiArgumentFailure(string message, string code)
+        {
+            return ApiResponse<SubmitAiArgumentResponse>.FailureResponse(message, new ApiErrorDetail(code));
+        }
+
+        private async Task<ApiResponse<SubmitAiArgumentResponse>> AiArgumentSuccessAsync(
+            int userId, int sessionId, int turnIndex, Argument argument, DebateRound round, DebateParticipant aiParticipant,
+            bool alreadyRecorded, string message, CancellationToken cancellationToken)
+        {
+            var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            var response = new SubmitAiArgumentResponse
+            {
+                TurnIndex = turnIndex,
+                AlreadyRecorded = alreadyRecorded,
+                Argument = MapToArgumentDetail(argument, round, aiParticipant),
+                Session = MapToSessionResponse(updatedSession!, userId)
+            };
+            return ApiResponse<SubmitAiArgumentResponse>.SuccessResponse(response, message);
+        }
+
         private DebateSessionResponse MapToSessionResponse(DebateSession session, int currentUserId)
         {
-            int maxArgs = session.Format?.MaxParticipants > 0 ? session.Format.MaxParticipants : 2;
-            var currentRound = session.DebateRounds.OrderBy(r => r.RoundNumber).FirstOrDefault(r => r.Arguments.Count < maxArgs);
-
+            DebateRound? currentRound;
             var currentTurnSide = DebateSide.PRO;
-            if (currentRound != null && currentRound.Arguments.Any())
+            int? currentTurnIndex = null;
+
+            if (IsOneVsOne(session))
             {
-                var lastSubmittedSide = currentRound.Arguments.Last().Participant.Side;
-                currentTurnSide = lastSubmittedSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+                var nextTurn = DebateTurnOrder.GetNextTurn(CountArguments(session));
+                currentRound = nextTurn == null ? null : session.DebateRounds.FirstOrDefault(r => r.RoundNumber == nextTurn.RoundNumber);
+                if (nextTurn != null)
+                {
+                    currentTurnSide = nextTurn.Side;
+                    currentTurnIndex = nextTurn.TurnIndex;
+                }
+            }
+            else
+            {
+                int maxArgs = GetMaxArgsPerRound(session);
+                currentRound = session.DebateRounds.OrderBy(r => r.RoundNumber).FirstOrDefault(r => r.Arguments.Count < maxArgs);
+
+                if (currentRound != null && currentRound.Arguments.Any())
+                {
+                    var lastSubmittedSide = currentRound.Arguments.Last().Participant.Side;
+                    currentTurnSide = lastSubmittedSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+                }
             }
 
             return new DebateSessionResponse
@@ -613,6 +922,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     Stage = MapRoundTypeToStage(currentRound.RoundType),
                     Side = currentTurnSide,
                     TurnOrder = currentRound.RoundNumber,
+                    TurnIndex = currentTurnIndex,
                     TimeLimitSeconds = session.TurnTimeLimitSeconds > 0 ? session.TurnTimeLimitSeconds : (session.Format?.RoundDurationSeconds ?? 180),
                     Status = session.Status == SessionStatus.InProgress ? TurnStatus.Active : TurnStatus.Pending,
                     StartedAt = currentRound.StartTime

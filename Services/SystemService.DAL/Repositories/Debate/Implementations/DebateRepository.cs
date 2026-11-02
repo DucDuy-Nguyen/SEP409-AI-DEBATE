@@ -64,6 +64,21 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        public async Task LockSessionForUpdateAsync(int debateSessionId, CancellationToken cancellationToken = default)
+        {
+            // Must run inside a transaction: the row update holds an exclusive lock on the session until commit,
+            // so concurrent argument submissions for the same session run one after another and see each other's rows.
+            // Non-relational providers (EF InMemory in tests) have no row locks.
+            if (!_context.Database.IsRelational())
+            {
+                return;
+            }
+
+            await _context.DebateSessions
+                .Where(s => s.DebateSessionId == debateSessionId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.UpdatedAt, System.DateTime.UtcNow), cancellationToken);
+        }
+
         public async Task AddParticipantAsync(DebateParticipant participant, CancellationToken cancellationToken = default)
         {
             await _context.DebateParticipants.AddAsync(participant, cancellationToken);
