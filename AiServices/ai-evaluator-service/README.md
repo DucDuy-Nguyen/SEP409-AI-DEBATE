@@ -143,6 +143,11 @@ tương ứng:
 
 **Không bao giờ commit file `.env`** (đã có trong `.gitignore`).
 
+Mỗi lần gọi LLM khi chấm được ghi vào `EVAL_AUDIT_LOG_PATH` (mặc định
+`logs/eval_audit.jsonl`, để trống = tắt) để truy vết. File này chứa **nguyên văn
+bài nói của learner**, không tự xoay vòng và không tự xoá; khi chạy Docker cần
+mount volume nếu muốn giữ lại.
+
 ### ⚠️ Lỗi "model not found" với free tier
 
 Groq và Gemini **đổi tên / khai tử model free khá thường xuyên** — một model
@@ -239,6 +244,11 @@ nhất 1 lượt của `learner`.
 Response giống cấp Argument, nhưng dùng `round_score` thay cho `overall_score`,
 `consistency_note` (nhận xét tính nhất quán xuyên suốt giai đoạn) thay cho
 `overall_reasoning`, và có thêm field `stage`.
+
+`weaknesses` chỉ gồm các điểm yếu có câu trích dẫn tìm thấy trong transcript của
+round. Có thêm `weakness_evidence` (`text` + `quote`) và `dropped_weakness_count`
+(số điểm yếu bị loại). Quote có thật không chứng minh nhận xét đúng — xem
+`docs/AI_DEVELOPMENT_LOG.md` mục 3.16.
 
 ### 4.3. `POST /evaluate/session` — báo cáo cả phiên
 

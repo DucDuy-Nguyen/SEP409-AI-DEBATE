@@ -1,0 +1,49 @@
+{
+  "source": "DebateSessionId 13, AI practice, learner = PRO",
+  "motion": "AI nên được kiểm soát chặt chẽ bởi luật pháp quốc tế",
+  "learner_side": "pro",
+  "turns": [
+    {
+      "round": 1,
+      "stage": "opening",
+      "side": "pro",
+      "speaker": "learner",
+      "text": "Một mô hình train ở Mỹ có thể bị dùng để tạo deepfake bầu cử ở châu Âu, lừa đảo ở Đông Nam Á, hay tấn công mạng hạ tầng ở bất kỳ đâu. Luật quốc gia chỉ quản được trong lãnh thổ của nó. Vấn đề xuyên biên giới cần cơ chế xuyên biên giới, giống như cách thế giới xử lý biến đổi khí hậu hay hàng không dân dụng.\n\nLập luận 2: Không có luật chung sẽ dẫn đến cuộc đua xuống đáy.\nNếu mỗi nước tự quản, các công ty sẽ chuyển hoạt động sang nơi luật lỏng nhất. Các quốc gia lại có động cơ nới lỏng quy định để giữ chân doanh nghiệp. Kết quả là tiêu chuẩn an toàn bị kéo xuống thấp nhất. Luật quốc tế đặt ra một mặt sàn chung mà không ai được phá.\n\nLập luận 3: Đã có tiền lệ thành công.\nHiệp ước Không phổ biến Vũ khí Hạt nhân (NPT), Công ước Vũ khí Hóa học, hay Nghị định thư Montreal về tầng ozone đều cho thấy cộng đồng quốc tế có thể kiểm soát công nghệ nguy hiểm. Không hoàn hảo, nhưng thế giới an toàn hơn so với khi không có chúng. AI, đặc biệt là vũ khí tự hành và AI quân sự, nằm cùng nhóm rủi ro đó.\n\nLập luận 4: Bảo vệ các nước yếu thế hơn.\nKhông có khung pháp lý quốc tế, vài tập đoàn và cường quốc sẽ tự đặt luật chơi. Các nước đang phát triển không có tiếng nói. Một khung quốc tế cho họ chỗ ngồi trên bàn đàm phán về quyền dữ liệu, minh bạch thuật toán và trách nhiệm khi AI gây hại.\n\nKết luận:\nCâu hỏi không phải là có nên kiểm soát AI hay không, mà là kiểm soát ở cấp nào. Khi rủi ro mang tính toàn cầu, giải pháp cũng phải mang tính toàn cầu."
+    },
+    {
+      "round": 1,
+      "stage": "opening",
+      "side": "con",
+      "speaker": "opponent",
+      "text": "Bạn ơi, mình muốn nhắc lại ba lý do vì sao việc đưa AI vào một khung pháp lý quốc tế chặt chẽ không phải là giải pháp tốt nhất. Thứ nhất, quy định toàn cầu xâm phạm chủ quyền quốc gia. Mỗi nước có nền kinh tế, văn hoá và mức độ phát triển khác nhau, và khi phải tuân theo một bộ luật chung, họ mất khả năng điều chỉnh chính sách AI sao cho phù hợp với thực tiễn nội địa. Điều này không chỉ làm giảm tính linh hoạt mà còn gây ra xung đột giữa luật quốc tế và luật trong nước, khiến việc thực thi trở nên khó khăn. Thứ hai, môi trường pháp lý cứng nhắc sẽ làm chậm tiến độ nghiên cứu và ứng dụng AI. Các nhà khoa học và doanh nghiệp phải dành thời gian và nguồn lực để đáp ứng các yêu cầu pháp lý phức tạp, thay vì tập trung vào sáng tạo và thử nghiệm. Khi quy trình được kéo dài, những cơ hội đổi mới sẽ bị mất và các quốc gia sẽ tụt lại phía sau trong cuộc đua công nghệ. Thứ ba, cơ chế thực thi quốc tế hiện tại không đủ mạnh để bắt buộc và phạt vi phạm. Không có một cơ quan toàn cầu có thẩm quyền thực thi đồng nhất, vì vậy các quốc gia hoặc công ty có thể lựa chọn không tuân thủ mà không chịu hậu quả thực tế. Điều này khiến các quy định trở thành biểu tượng hơn là công cụ kiểm soát thực sự. Cuối cùng, thay vì một khung pháp lý toàn cầu, chúng ta nên duy trì các biện pháp quốc gia và hợp tác đa phương linh hoạt. Các quốc gia có thể học hỏi lẫn nhau, chia sẻ tiêu chuẩn an toàn và thiết lập các thỏa thuận song phương hoặc khu vực mà không phải nhượng bộ toàn bộ quyền tự quyết. Như mình đã chỉ ra, giả sử các công ty sẽ di chuyển sang nơi luật lỏng nhất, thực tế thị trường và danh tiếng sẽ ngăn cản họ vì khách hàng và nhà đầu tư ngày càng quan tâm đến trách nhiệm xã hội và an toàn. Vì vậy, việc ép buộc một khung pháp lý quốc tế chặt chẽ không chỉ không cần thiết mà còn gây hại cho sự phát triển và an toàn của AI."
+    },
+    {
+      "round": 2,
+      "stage": "rebuttal",
+      "side": "pro",
+      "speaker": "learner",
+      "text": "Cảm ơn đội bạn. Tôi xin phản bác các lý do vừa nêu.\n\nVề chủ quyền: ký một hiệp ước là một quyết định có chủ quyền, không phải mất chủ quyền. Các nước tự nguyện tham gia Hiệp định Paris vì biết biến đổi khí hậu không nước nào tự giải quyết được. Luật quốc tế về AI chỉ cần đặt mức sàn, như cấm vũ khí tự hành không có con người kiểm soát, phần còn lại mỗi nước vẫn tự quyết.\n\nVề đổi mới: hàng không và dược phẩm bị quản lý quốc tế rất chặt nhưng vẫn đổi mới liên tục. Một bộ tiêu chuẩn chung còn giúp doanh nghiệp tiết kiệm chi phí, thay vì phải tuân thủ gần 200 bộ luật khác nhau.\n\nVề thực thi: cơ chế yếu là lý do để xây dựng cơ chế, không phải để từ bỏ. IAEA ra đời để giám sát hạt nhân. Với AI, các nền kinh tế lớn có thể kiểm soát xuất khẩu chip và quyền tiếp cận thị trường, đó là công cụ thực thi rất mạnh.\n\nVề thị trường tự điều chỉnh: khủng hoảng 2008 và vụ Cambridge Analytica cho thấy thị trường không tự điều chỉnh được. Và danh tiếng không có ý nghĩa gì với tội phạm mạng.\n\nCuối cùng, các thoả thuận khu vực mà đội bạn đề xuất chính là bước đầu của luật quốc tế. Dừng lại ở đó chỉ để lại những lỗ hổng giữa các khu vực, đúng chỗ kẻ xấu sẽ khai thác."
+    },
+    {
+      "round": 2,
+      "stage": "rebuttal",
+      "side": "con",
+      "speaker": "opponent",
+      "text": "Bạn đã nói rằng luật quốc tế có thể đặt mức sàn và để lại cho mỗi quốc gia tự quyết, và rằng điều này sẽ không cản trở đổi mới. Mình muốn chỉ ra ba vấn đề cơ bản. Thứ nhất, một mức sàn chung buộc mọi quốc gia phải áp dụng cùng một tiêu chuẩn, nhưng các nước có mức độ phát triển và nhu cầu khác nhau. Giả sử một quốc gia đang thử nghiệm mô hình AI y tế mới, nhưng mức sàn yêu cầu kiểm duyệt nghiêm ngặt sẽ làm chậm hoặc ngăn cản thử nghiệm, trong khi quốc gia khác có thể tiến nhanh hơn nếu không bị ràng buộc. Thứ hai, AI bao phủ rất nhiều lĩnh vực từ xử lý ngôn ngữ đến robot công nghiệp, vì vậy việc định nghĩa một mức sàn toàn cầu là công việc phức tạp. Nếu quy định quá rộng, nó sẽ áp đặt các hạn chế không cần thiết lên những ứng dụng an toàn; nếu quá hẹp, nó sẽ để lại lỗ hổng mà các nhà phát triển có thể lạm dụng. Thứ ba, ngay cả khi mức sàn được đặt rất nhẹ, việc tuân thủ vẫn đòi hỏi nguồn lực pháp lý và kỹ thuật mà các doanh nghiệp nhỏ và các nước đang phát triển không có. Kết quả là họ sẽ chuyển hoạt động sang những khu vực ít quy định hơn, tạo ra hiện tượng “đua xuống đáy” mà bạn cho rằng sẽ được ngăn chặn. Cuối cùng, các ví dụ lịch sử cho thấy việc thiết lập mức sàn quốc tế không tự động mang lại hiệu quả thực thi; các quốc gia có thể tìm cách vòng qua các quy định, và những nỗ lực giám sát thường gặp khó khăn trong việc theo dõi công nghệ nhanh thay đổi. Vì vậy, việc đặt mức sàn toàn cầu không chỉ không bảo vệ sự đổi mới mà còn tạo ra rào cản và kém hiệu quả trong thực tiễn."
+    },
+    {
+      "round": 3,
+      "stage": "closing",
+      "side": "con",
+      "speaker": "opponent",
+      "text": "Bạn đã đưa ra ba lợi ích chính của một khung pháp lý quốc tế cho AI: bảo vệ các nước yếu, ngăn cuộc đua xuống đáy và tạo chuẩn mực chung. Mình đồng ý rằng an toàn là quan trọng, nhưng các lợi ích đó không thể bù đắp những bất lợi căn bản mà mình đã nêu. Thứ nhất, quy định chặt chẽ của luật quốc tế xâm phạm chủ quyền quốc gia, vì mỗi nước có điều kiện kinh tế và xã hội khác nhau; khi phải tuân theo một bộ chuẩn duy nhất, họ mất khả năng điều chỉnh chính sách cho phù hợp và bị ràng buộc vào những quy tắc không thực tế. Thứ hai, môi trường pháp lý cứng nhắc làm chậm tiến độ nghiên cứu và ứng dụng AI; các nhà khoa học và doanh nghiệp phải vượt qua thủ tục phức tạp, khiến tốc độ đổi mới giảm sút và cơ hội cạnh tranh quốc tế bị mất. Thứ ba, cơ chế thực thi hiện tại của luật quốc tế yếu kém, không có cơ quan toàn cầu có thẩm quyền bắt buộc và xử phạt vi phạm, vì vậy các quy định sẽ trở thành biểu tượng hơn là công cụ kiểm soát thực tế. Khi xét tổng thể, những rủi ro về mất chủ quyền, kìm hãm sáng tạo và thiếu khả năng thực thi vượt trội so với những lợi ích tiềm năng. Vì vậy, cách tiếp cận dựa trên các biện pháp quốc gia và đa phương không ràng buộc vẫn là lựa chọn khả thi và hiệu quả hơn."
+    },
+    {
+      "round": 3,
+      "stage": "closing",
+      "side": "pro",
+      "speaker": "learner",
+      "text": "Thưa ban giám khảo, tôi xin tổng kết.\n\nThứ nhất, đội bạn đã tự xác nhận luận điểm của chúng tôi. Đội bạn nói quy định sẽ khiến doanh nghiệp chuyển sang khu vực ít quy định hơn. Đó chính là “đua xuống đáy”, và nó chỉ xảy ra khi mỗi nơi một luật. Khi có mức sàn chung, sẽ không còn nơi nào để chạy trốn.\n\nThứ hai, đội bạn phản bác một mức sàn mà chúng tôi không hề đề xuất. Chúng tôi chưa bao giờ nói kiểm duyệt AI y tế. Mức sàn của chúng tôi là cấm những ứng dụng nguy hiểm nhất, như vũ khí tự hành không có con người kiểm soát. Còn việc định nghĩa khó, thì quy định theo mức độ rủi ro như EU AI Act đã chứng minh là làm được.\n\nThứ ba, ở lượt kết luận, đội bạn chỉ nhắc lại ba lý do ban đầu: chủ quyền, đổi mới, thực thi. Đội bạn không trả lời vì sao Hiệp định Paris không làm mất chủ quyền, vì sao hàng không và dược phẩm vẫn đổi mới dưới quản lý quốc tế, hay vì sao IAEA vẫn hiệu quả dù không hoàn hảo.\n\nCả hai phe đều đồng ý rủi ro AI là có thật và cần hợp tác quốc tế. Câu hỏi cuối cùng là hợp tác đó có ràng buộc hay không. Với một công nghệ có thể gây hại ở quy mô toàn cầu, cam kết tự nguyện là không đủ. Vì vậy, phe Ủng hộ khẳng định: AI cần được kiểm soát chặt chẽ bởi luật pháp quốc tế."
+    }
+  ]
+}

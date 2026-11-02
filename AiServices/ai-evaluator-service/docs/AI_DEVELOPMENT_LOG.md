@@ -1055,10 +1055,57 @@ khong co CI day du; (iii) mau 50 bai phan tang, lech diem thap (muc 3.11/3.12).
 `test_session_accepts_mixed_scoring_versions_and_pins_to_the_first_round`). He qua da biet: TB `round_score` van tron hai thang neu rounds khac phien ban; truong `scoring_version` cua Session chi cho biet phien ban cua round dau.
 (b) Ghi muc 4: mo lai so sanh hai bo mo ta Evidence khi co 30-50 bai that tu nguoi dung. (c) Hai commit (xem lich su git cua nhanh `feature/rubric-b-weights`); chua push.
 
+## 3.16. Dieu tra phien AI practice cham sai + fix A, C (2026-11) — C KHONG DAT muc tieu, closing giam; can quyet dinh truoc khi merge
+
+**Boi canh:** phien that (DebateSessionId 13, learner = PRO, motion "AI nen duoc kiem soat chat che boi luat phap quoc te", transcript o `tests/fixtures/session13_ai_regulation.json`) duoc 72 (Opening 8.0, Rebuttal 7.5, Closing 6.0), thap hon 1 phien duoc cho la yeu hon (80), kem nhan xet sai: "khong phan hoi chi tiet... dac biet o vong Rebuttal", "khang dinh doi phuong tu xac nhan ma khong cung cap bang chung". Nghi van ban dau: vong Closing noi CON -> PRO nen gan nham luot.
+
+**Nghi van gan nham phe/luot: DA LOAI TRU.** Cach kiem tra:
+(1) Doc code: FE gan `speaker` theo tung message, khong theo vi tri (`DebateRoom.tsx:1544`, repo FE); service giu nguyen nhan (`build_round_user_prompt`). Khong cho nao gia dinh learner noi truoc.
+(2) DB: phien 13 luu dung thu tu va dung `ParticipantType` (closing: CON/AI roi PRO/USER).
+(3) Test offline `test_closing_round_regression.py`: tung luot giu dung nhan o ca 2 thu tu.
+(4) LLM that voi nhan dung: doc reasoning cua cac lan cham (khong gan loi CON cho learner).
+
+**Sai lam trong luc dieu tra, ghi lai de khong dung nham so lieu:** 28 request dau bi HONG do script tam so sanh `ParticipantType == 2` trong khi DB luu chuoi "AI", nen moi luot deu mang nhan LEARNER. Ket qua do cho thay LLM bao "luot 1 phan doi, luot 2 ung ho" (Logic 2/5). Do la hau qua cua loi script, KHONG phai loi evaluator; toan bo so lieu do da bo, khong xuat hien o muc nay. Ban chat no minh hoa rui ro o P2P: `DebateRoom.tsx:521` gan moi nguoi khong phai AI la `Debater`, roi `:1544` doi thanh `learner` (CHUA kiem chung luong P2P co di qua day khong; thuoc FE, chua sua).
+
+**Do dao dong cung payload: 6-8 diem o round-level.** Cung code, cung transcript, cung temperature 0.2: closing 6.0-8.5 (SD 0.82), rebuttal 6.0-8.0 (SD 0.74), bang duoi. Dot do nho truoc do (n = 10 closing, n = 6 rebuttal) cho closing TB 6.8, rebuttal TB 7.67; dot nay 7.30 va 7.40, nen muc chenh closing/rebuttal 0.87 cua dot nho KHONG lap lai va TB closing tu no lech 0.5 giua 2 dot. **Chenh 72/80 giua 2 phien CHUA DU ket luan:** moi phien la 1 lan cham moi round, va phien 80 chua duoc cham lai. "Phien manh bi cham thap hon phien yeu" chua duoc chung minh; cung chua loai tru.
+
+**Nguyen nhan goc (co bang chung, chua do rieng duoc muc anh huong): round cham TACH ROI, thieu ngu canh.** FE chi gui cac luot cua round do (`DebateRoom.tsx:1531-1533`), schema khong co cho cho ngu canh (`RoundEvaluationRequest`). Closing cua learner phan bac cau cua CON o ROUND 2 ("kiem duyet AI y te", "chuyen sang khu vuc it quy dinh hon") va vien dan Paris/IAEA da phan tich o round 2; cac cau goc do khong co trong payload closing. Da tai hien nhan xet "khang dinh doi phuong 'tu xac nhan' ma khong trich dan cu the" voi nhan dung. **Fix B (gui them cac round truoc): CHUA LAM, cho quyet dinh; can doi ca FE.** Thu nho (n = 3 moi stage, kem luat trich dan trong prompt): closing TB 7.5, rebuttal TB 8.0, khong du de ket luan, can do lai truoc khi chot.
+
+**Fix da ap dung:**
+- **A** (`round_prompt.py`): neu phe doi phuong, dong `[THU TU NOI]`; luot doi phuong noi sau luot cuoi cua learner thi learner chua co co hoi tra loi, khong tru diem. Ly do: rebuttal CON noi sau PRO, da tai hien "phan bien cua doi phuong... chua duoc phan hoi".
+- **C** (`quote_verification.py`, `round_evaluator.py`, CHI cap Round, CHI `weaknesses`): moi diem yeu kem `quote`; code doi chieu voi TUNG luot cua round, khong noi 2 luot (NFC, hoa/thuong, dau ngoac, gach noi, khoang trang; gan dung ratio >= 0.9 va toi da 3 ky tu sai, chi voi quote <= 300 ky tu; toi thieu 5 am tiet; GIU dau tieng Viet). Khong xac minh duoc thi loai, log warning, tra `dropped_weakness_count` + `weakness_evidence`. KHONG doi `round_score`.
+- **Audit log** (`audit_log.py`, ca app that): moi lan goi LLM cua argument/round/session/coaching ghi JSONL vao `EVAL_AUDIT_LOG_PATH` (mac dinh `logs/eval_audit.jsonl`, gitignore): raw output, user prompt, attempt, loi. Khong co token (`generate()` chi tra text); token chi co trong script do.
+
+**Do truoc/sau** (`scripts/run_closing_ab_eval.py`, ket qua `data/closing_ab_results.jsonl`; gpt-oss-120b, temperature 0.2). KHONG chot nguong truoc: dot nay chi mo ta so lieu, quyet dinh thuoc nguoi dung.
+
+| Dieu kien | Stage | n | TB | SD | min | max | Logic TB | Relevance TB | Evidence TB | Diem yeu giu | C loai | Khop "khong phan hoi" |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Truoc | closing | 10 | 7.30 | 0.82 | 6.0 | 8.5 | 3.5 | 4.5 | 2.8 | 30 | — | 0 |
+| Chi A | closing | 10 | 6.85 | 0.78 | 6.0 | 8.0 | 3.2 | 4.3 | 2.6 | 28 | — | 0 |
+| A + C | closing | 10 | 6.50 | 0.41 | 6.0 | 7.0 | 3.0 | 3.9 | 2.6 | 25 | 0 | 6 |
+| Truoc | rebuttal | 10 | 7.40 | 0.74 | 6.0 | 8.0 | 3.7 | 4.5 | 2.9 | 30 | — | 2 |
+| A + C | rebuttal | 10 | 7.60 | 0.66 | 6.5 | 8.5 | 3.7 | 4.5 | 3.2 | 25 | 0 | 1 |
+
+Ngan sach: 52/60 request (51 co ghi + 1 mat khi script loi ghi file lan dau), 0 request loi, 1 lan retry vi JSON sai dinh dang (dot chi A). Token (khong tinh request bi mat): 185.950 = truoc 71.789 + A+C 77.019 + chi A 37.142. Dot "chi A" la phan them de tach nguyen nhan, tat C bang monkeypatch trong script tam, khong sua `app/`.
+
+**Doc ket qua:**
+- **C KHONG DAT muc tieu.** Bang tren do voi bo xac minh ban dau (toi da 6 ky tu sai, doi chieu ca transcript): 0/50 diem yeu bi loai. Sau khi review, ban do cho lot quote mat chu "khong " nen da siet nhu mo ta o tren; cham lai OFFLINE tu raw output da luu (0 request): 3/50 bi loai, ca 3 o closing va deu la cung 1 cau chep sai ("Cung nhu EU AI Act da chung minh la lam duoc"), khong phai nhan xet dao vai; ca 6 nhan xet khop "khong phan hoi" van duoc giu. Diem tong khong doi vi C khong tac dong `round_score`. Model luon trich cau co that roi dien giai sai. Vi du learner chat van "Doi ban khong tra loi vi sao Hiep dinh Paris..." thi model trich dung cau do va ket luan chinh learner "khong tra loi cac cau hoi cua doi phuong". Regex khop 6 nhan xet closing; doc tay it nhat 4 (lan 1, 4, 6, 7) la dao vai kieu nay. Chi A khop 0, nen CHINH yeu cau trich dan co ve lam tang loai nhan xet nay (n = 10, regex tho).
+- **A chua dat het:** van co nhan xet ve luot CON noi sau learner ma regex khong bat (rebuttal lan 2, 6), va 1 nhan xet regex bat duoc (rebuttal lan 5).
+- **Closing giam, rebuttal khong doi:** 7.30 -> 6.85 -> 6.50, trong khi 7.40 -> 7.60. Nhung 7.30 tu no cao hon dot do nho truoc (6.8), nen muc giam thuc co the nho hon; chua phan biet duoc voi dao dong. Gia thuyet CHUA kiem chung: A noi ro doi phuong noi truoc o closing nen model doi learner tra loi bai closing cua CON, trong khi learner dang tra loi round 2 (lai la thieu ngu canh).
+- **SD closing 0.41 (A + C) thap hon nhung khong phai "on dinh hon" theo nghia tot:** diem dong cuc o 6.0-7.0, khong con lan nao >= 7.5.
+- **Gioi han da biet cua C:** quote co that khong chung minh nhan xet dung; `criteria[].reasoning`, `consistency_note` khong duoc xac minh va van vao prompt Session; Session khong co transcript de doi chieu; cap Argument chua ap dung.
+
+**Evidence: giu nguyen theo quy tac muc 3.14.2, CHUA doi mo ta.** Bang chung cho lan mo lai: 15/16 ly do Evidence trong dot dieu tra tru diem hoac han che vi thieu so lieu, du bai co hiep uoc / su kien co ten (NPT, Cong uoc Vu khi Hoa hoc, Nghi dinh thu Montreal, Hiep dinh Paris, IAEA, EU AI Act, khung hoang 2008, Cambridge Analytica). Dem bang regex tren dot do lon: 14/20 (truoc), 16/20 (A + C). Rubric khong yeu cau so lieu; day la cach model hieu "bang chung".
+
 
 ---
 
 ## 4. Viec con treo (chua lam / dang cho)
+
+- [ ] **Quyet dinh giu/bo fix C truoc khi merge nhanh `fix/evaluator-closing-round`** (muc 3.16): chi 3/50 diem yeu bi loai va khong phai nhan xet sai, nhan xet "khong phan hoi" tang, closing giam.
+- [ ] **Fix B: gui them cac round truoc khi cham 1 round** (nguyen nhan goc, muc 3.16). Can them truong tuy chon o evaluator VA doi FE; do lai truoc khi chot.
+- [ ] **Mo lai Evidence khi du 30-50 bai that** (muc 3.14.2): them bang chung 15/16 ly do tru diem vi thieu so lieu du co hiep uoc/su kien co ten (muc 3.16).
+- [ ] Kiem chung luong P2P o FE: nghi moi nguoi choi deu bi gan `learner` (`DebateRoom.tsx:521`, `:1544`; muc 3.16).
 
 - [ ] **UU TIEN CAO: Dieu tra + xu ly score compression** (xem muc 3.6). 2
       huong thu nghiem: (a) tang n len 40-50 bai IBM de co ket luan thong ke
@@ -1114,3 +1161,4 @@ khong co CI day du; (iii) mau 50 bai phan tang, lech diem thap (muc 3.11/3.12).
   Ghi rieng van de diem tong khong vuot 7.2 (tran diem) — xem 3.11.
 - 2026-10: Thu temperature 0 tren 50 bai VI -> SD gop 0.688 vs 0.652 (0.2), khong giam dao dong,
   van khong dat nguong 0.4 — xem 3.12.
+- 2026-11: Dieu tra phien 13: loai tru gan nham phe; nguyen nhan goc la round cham tach roi (fix B cho). Them fix A, C + audit log raw output. C chi loai 3/50 diem yeu (khong phai nhan xet sai), closing giam, can quyet dinh truoc khi merge — xem 3.16.

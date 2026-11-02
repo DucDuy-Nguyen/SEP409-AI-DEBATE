@@ -140,6 +140,13 @@ class RoundEvaluationRequest(BaseModel):
         return v
 
 
+class WeaknessEvidence(BaseModel):
+    """1 diem yeu da xac minh: `quote` co that trong transcript cua round (app/services/quote_verification.py)."""
+
+    text: str
+    quote: str
+
+
 class RoundEvaluationResult(BaseModel):
     """
     Output: cham diem toan bo 1 round, khong phai trung binh don gian cua tung luot —
@@ -164,7 +171,11 @@ class RoundEvaluationResult(BaseModel):
         ..., description="Nhan xet ve tinh nhat quan cua learner xuyen suot round (co giu vung lap truong khong)"
     )
     strengths: list[str] = Field(default_factory=list)
-    weaknesses: list[str] = Field(default_factory=list)
+    weaknesses: list[str] = Field(default_factory=list, description="Chi cac diem yeu da xac minh trich dan")
+    weakness_evidence: list[WeaknessEvidence] = Field(
+        default_factory=list, description="Cung cac diem yeu o 'weaknesses', kem cau trich dan da xac minh"
+    )
+    dropped_weakness_count: int = Field(default=0, description="So diem yeu bi loai vi khong xac minh duoc trich dan")
     suggestions: list[str] = Field(default_factory=list)
     raw_model_output: Optional[str] = None
     scoring_version: str = Field(

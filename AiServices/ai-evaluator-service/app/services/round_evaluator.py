@@ -15,9 +15,10 @@ import logging
 from app.config import Settings, get_settings
 from app.prompts.evaluator_prompt import RUBRIC
 from app.prompts.round_prompt import build_round_evaluation_prompt
-from app.schemas import CriterionScore, RoundEvaluationRequest, RoundEvaluationResult
+from app.schemas import ArgumentTurn, CriterionScore, RoundEvaluationRequest, RoundEvaluationResult
 from app.services.json_utils import EvaluationParseError, call_llm_with_retry
 from app.services.llm_client import LLMClient, get_llm_client
+from app.services.quote_verification import verify_weaknesses
 from app.services.scoring import SCORING_VERSION_CURRENT, compute_weighted_score
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["EvaluationParseError", "evaluate_round"]
 
 
-def _build_round_result(parsed: dict, raw_text: str, stage) -> RoundEvaluationResult:
+def _build_round_result(parsed: dict, raw_text: str, stage, turns: list[ArgumentTurn]) -> RoundEvaluationResult:
     criteria = [CriterionScore(**c) for c in parsed.get("criteria", [])]
 
     if len(criteria) != len(RUBRIC):
@@ -44,13 +45,23 @@ def _build_round_result(parsed: dict, raw_text: str, stage) -> RoundEvaluationRe
     if not consistency_note:
         raise EvaluationParseError("LLM khong tra ve 'consistency_note' — day la field bat buoc cho Round")
 
+    # Diem yeu phai kem quote co that trong transcript, khong thi loai (khong anh huong round_score).
+    weakness_evidence, dropped_weakness_count = verify_weaknesses(parsed.get("weaknesses", []), turns)
+    if dropped_weakness_count:
+        logger.warning(
+            "Round %s: loai %d diem yeu khong xac minh duoc trich dan, giu %d",
+            stage.value, dropped_weakness_count, len(weakness_evidence),
+        )
+
     return RoundEvaluationResult(
         stage=stage,
         round_score=round_score,
         criteria=criteria,
         consistency_note=consistency_note,
         strengths=parsed.get("strengths", []),
-        weaknesses=parsed.get("weaknesses", []),
+        weaknesses=[w.text for w in weakness_evidence],
+        weakness_evidence=weakness_evidence,
+        dropped_weakness_count=dropped_weakness_count,
         suggestions=parsed.get("suggestions", []),
         raw_model_output=raw_text,
         scoring_version=SCORING_VERSION_CURRENT,
@@ -71,5 +82,6 @@ def evaluate_round(
         generate_fn=lambda up: client.generate(system_prompt, up),
         system_prompt=system_prompt,
         user_prompt=user_prompt,
-        build_result_fn=lambda parsed, raw: _build_round_result(parsed, raw, req.stage),
+        build_result_fn=lambda parsed, raw: _build_round_result(parsed, raw, req.stage, req.turns),
+        audit_label="round",
     )

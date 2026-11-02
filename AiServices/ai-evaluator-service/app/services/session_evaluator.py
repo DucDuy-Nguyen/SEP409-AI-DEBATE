@@ -72,4 +72,5 @@ def evaluate_session(
         build_result_fn=lambda parsed, raw: _build_session_result(
             parsed, raw, overall_score, stage_breakdown, req.rounds[0].scoring_version
         ),
+        audit_label="session",
     )

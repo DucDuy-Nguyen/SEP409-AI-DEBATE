@@ -32,9 +32,12 @@ dua ra 1 gia tri rieng (buoc 4 ben duoi va [OUTPUT] JSON da bo yeu cau nay).
 Ly do: AI tung tra round_score=14.0 (vuot thang 0-10) gay ValidationError —
 cung ban chat voi van de o Argument-level. Xem day du trong
 docs/AI_DEVELOPMENT_LOG.md muc 3.8.
+
+Fix A + C (2026-11, docs/AI_DEVELOPMENT_LOG.md muc 3.16): prompt neu phe doi phuong + thu tu noi, luot doi phuong noi
+sau learner khong duoc tinh la "khong phan hoi"; moi diem yeu kem quote, code xac minh trong quote_verification.py.
 """
 from app.prompts.evaluator_prompt import ArgumentContext, GRADING_TIERS, _rubric_as_text, _rubric_for_context
-from app.schemas import RoundEvaluationRequest, TurnSpeaker
+from app.schemas import DebateSide, RoundEvaluationRequest, TurnSpeaker
 
 STAGE_LABEL = {
     "opening": "Mo dau",
@@ -80,9 +83,11 @@ _ROUND_INTRO_BY_CONTEXT: dict[ArgumentContext, str] = {
 _ROUND_CONSISTENCY_STEP_BY_CONTEXT: dict[ArgumentContext, str] = {
     ArgumentContext.INTERACTIVE: (
         "2. Danh gia TINH NHAT QUAN: learner co giu vung lap truong xuyen suot khong, co "
-        "phan ung/phan bien tot voi tung luot noi cua doi phuong khong, hay bi lung lay/doi y "
+        "phan ung/phan bien tot voi cac luot doi phuong noi TRUOC luot cua learner khong, hay bi lung lay/doi y "
         "mot cach khong hop ly (day la loi sycophancy da duoc ghi nhan o cac he thong AI debate "
-        "khac — CAN cham diem thap hon o Logic/Persuasiveness neu phat hien hien tuong nay)."
+        "khac — CAN cham diem thap hon o Logic/Persuasiveness neu phat hien hien tuong nay). "
+        "Xem dong [THU TU NOI]: luot doi phuong noi SAU luot cuoi cua learner trong round nay thi learner "
+        "chua co co hoi tra loi, KHONG tru diem va KHONG nhan xet learner \"khong phan hoi\" luot do."
     ),
     ArgumentContext.SOLO: (
         "2. Danh gia TINH NHAT QUAN: learner co giu vung lap truong xuyen suot cac luot noi "
@@ -129,6 +134,11 @@ khong can ban tinh hay chot.
 - KHONG so sanh voi "bai mau chuan" co dinh — tranh bien la kich ban MO.
 - Danh gia CA ROUND, khong chi luot noi cuoi cung.
 
+[TRICH DAN - BAT BUOC]
+Moi diem yeu trong "weaknesses" phai kem "quote": trich NGUYEN VAN 1 cau trong cac luot noi cua round nay lien quan \
+den diem yeu do. He thong tu doi chieu quote voi transcript, quote khong co that thi diem yeu do bi loai. Khong trich \
+duoc thi KHONG dua ra diem yeu do.
+
 [OUTPUT - CHI tra ve JSON hop le, khong them text nao khac ngoai JSON]
 {{
   "criteria": [
@@ -141,7 +151,7 @@ khong can ban tinh hay chot.
   "consistency_note": "<BAT BUOC, nhan xet TONG HOP ve tinh nhat quan xuyen suot round, tieng \
 Viet — KHONG phai giai thich cho 1 con so round_score rieng, vi diem tong duoc he thong tu tinh>",
   "strengths": ["<diem manh, tieng Viet>", "..."],
-  "weaknesses": ["<diem yeu, chi ro luot noi nao, tieng Viet>", "..."],
+  "weaknesses": [{{"text": "<diem yeu, chi ro luot noi nao, tieng Viet>", "quote": "<cau trich nguyen van>"}}],
   "suggestions": ["<goi y cho round/luot sau, tieng Viet>", "..."]
 }}"""
 
@@ -149,18 +159,21 @@ Viet — KHONG phai giai thich cho 1 con so round_score rieng, vi diem tong duoc
 def build_round_user_prompt(req: RoundEvaluationRequest) -> str:
     stage_label = STAGE_LABEL.get(req.stage.value, req.stage.value)
     side_label = SIDE_LABEL.get(req.side.value, req.side.value.upper())
+    opponent_side = DebateSide.CON if req.side == DebateSide.PRO else DebateSide.PRO
+    speaker_labels = {
+        TurnSpeaker.LEARNER: f"LEARNER (phe {req.side.value.capitalize()})",
+        TurnSpeaker.OPPONENT: f"DOI PHUONG (phe {opponent_side.value.capitalize()})",
+    }
 
-    turns_text = []
-    for i, turn in enumerate(req.turns, start=1):
-        speaker_label = "LEARNER" if turn.speaker == TurnSpeaker.LEARNER else "DOI PHUONG"
-        turns_text.append(f"Luot {i} - {speaker_label}: {turn.text}")
+    turns_text = [f"Luot {i} - {speaker_labels[turn.speaker]}: {turn.text}" for i, turn in enumerate(req.turns, start=1)]
 
-    parts = [
-        f"[MOTION]\n{req.motion}",
-        f"[PHIA CUA LEARNER] {side_label}",
-        f"[GIAI DOAN / ROUND] {stage_label}",
-        "[TOAN BO CAC LUOT NOI TRONG ROUND, THEO THU TU]\n" + "\n\n".join(turns_text),
-    ]
+    parts = [f"[MOTION]\n{req.motion}", f"[PHIA CUA LEARNER] {side_label}"]
+    if infer_round_context(req) == ArgumentContext.INTERACTIVE:
+        order = " -> ".join("LEARNER" if turn.speaker == TurnSpeaker.LEARNER else "DOI PHUONG" for turn in req.turns)
+        parts.append(f"[PHIA CUA DOI PHUONG] {SIDE_LABEL[opponent_side.value]}")
+        parts.append(f"[THU TU NOI] {order}")
+    parts.append(f"[GIAI DOAN / ROUND] {stage_label}")
+    parts.append("[TOAN BO CAC LUOT NOI TRONG ROUND, THEO THU TU]\n" + "\n\n".join(turns_text))
     return "\n\n".join(parts)
 
 

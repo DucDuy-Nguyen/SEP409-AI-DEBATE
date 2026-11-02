@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 2000
     llm_timeout_seconds: int = 60
 
+    # Luu raw output moi lan cham de truy vet (app/services/audit_log.py); de trong = tat
+    eval_audit_log_path: str = "logs/eval_audit.jsonl"
+
     # ---- App ----
     app_name: str = "ADPP AI Evaluator Service"
 
