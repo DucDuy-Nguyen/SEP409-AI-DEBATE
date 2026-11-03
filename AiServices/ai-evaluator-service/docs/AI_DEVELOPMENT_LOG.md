@@ -1137,6 +1137,15 @@ Ban ghi doc tay duoc xep: dao vai #9, #20, #21; luot sau #24, #28, #38; tu xac n
 - Closing van khong cao hon rebuttal (8.25 vs 8.45, chenh trong dao dong).
 - Gioi han khac: 1 motion, 1 transcript, n = 10, 1 model, chua lap lai o dot khac; dot truoc cho thay TB closing lech 0.5 giua cac dot.
 
+## 3.18. `skipped_stages`: giai doan bo trong tinh 0 diem o cap Session (quyet dinh nguoi dung, 2026-11)
+
+Truoc day `overall_score` Session chi la trung binh cac round duoc gui len, nen bo 1 vong khong lam giam diem. Nay `SessionEvaluationRequest.skipped_stages` tuy chon: moi giai doan trong do tinh 0 diem, bang cong thuc toan hoc, khong qua LLM. Vi du opening 7, closing 8, bo trong rebuttal: (7 + 8 + 0) / 3 = 5.0 thay vi 7.5.
+
+- **Vi sao 0:** vong co noi te nhat van duoc 2.0 (moi tieu chi toi thieu 1), nen 0 luon thap hon. **Cai gia da chap nhan:** khong phan biet ly do bo trong (loi mang, het gio, co y), diem tut manh.
+- **`scoring_version` GIU NGUYEN:** phien khong bo vong co diem khong doi, cong thuc round khong doi. Thay vao do response tra lai `skipped_stages` de doc lai diem biet vi sao thap. He qua: 2 Session cung `v2_4x25` co the khac nhau o viec co tinh vong bo trong; phan biet bang `skipped_stages`. Ket qua Session cu khong co truong nay duoc hieu la khong co vong bo trong.
+- `stage_breakdown` khong co giai doan bo trong. Prompt them muc `[GIAI DOAN BO TRONG]` + luat "khong suy dien noi dung", CHI khi co giai doan bo trong (khac spec FE mot chut: spec de luat trong `SESSION_SYSTEM_PROMPT`; tach ra de phien binh thuong giu nguyen prompt).
+- Chi test offline bang FakeLLMClient, 0 request LLM; chua kiem chung LLM that co tuan thu luat khong suy dien.
+
 
 ---
 
@@ -1203,3 +1212,4 @@ Ban ghi doc tay duoc xep: dao vai #9, #20, #21; luot sau #24, #28, #38; tu xac n
   van khong dat nguong 0.4 — xem 3.12.
 - 2026-11: Dieu tra phien 13: loai tru gan nham phe; nguyen nhan goc la round cham tach roi (fix B cho). Them fix A, C + audit log raw output. C chi loai 3/50 diem yeu (khong phai nhan xet sai), closing giam, can quyet dinh truoc khi merge — xem 3.16.
 - 2026-11: Revert fix C (xac minh quote khong chan duoc dien giai nguoc vai). Them `reference_turns` phia evaluator + xoay vong audit log; do: het nhan xet sai cu nhung model cham lan ngu canh, chua nen bat — xem 3.17.
+- 2026-11: Them `skipped_stages` o cap Session: giai doan bo trong tinh 0 diem, giu `scoring_version`, tra lai trong response — xem 3.18.

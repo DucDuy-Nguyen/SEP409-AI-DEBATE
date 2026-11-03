@@ -304,7 +304,13 @@ lại nguyên vẹn (backend lưu kết quả từng round, cuối phiên gửi 
 Response gồm `overall_score` (trung bình các `round_score`, ở ví dụ trên là
 7.0), `stage_breakdown` (điểm từng giai đoạn, ví dụ `{"opening": 6.0,
 "rebuttal": 8.0}`), `progress_trend`, `overall_strengths`,
-`overall_weaknesses`, `overall_suggestions`.
+`overall_weaknesses`, `overall_suggestions`, `skipped_stages`.
+
+Tuỳ chọn `skipped_stages` (ví dụ `["rebuttal"]`): các giai đoạn learner không phát
+biểu. Mỗi giai đoạn này tính **0 điểm** trong `overall_score`, ví dụ opening 7, closing
+8, bỏ trống rebuttal thì (7 + 8 + 0) / 3 = 5.0. Giai đoạn bỏ trống không có trong
+`stage_breakdown` và được trả lại trong `skipped_stages` của response. Giá trị trùng,
+hoặc stage đã có trong `rounds`, trả 422. Không truyền thì điểm như cũ.
 
 ### 4.4. `POST /coaching/argument` — gợi ý sau khi chấm
 

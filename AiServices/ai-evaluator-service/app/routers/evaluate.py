@@ -57,6 +57,8 @@ def evaluate_session_endpoint(req: SessionEvaluationRequest) -> SessionEvaluatio
     Tong hop bao cao cuoi cho ca phien tranh bien, tu cac RoundEvaluationResult
     da cham san. Diem tong tinh toan hoc (minh bach, kiem chung duoc); LLM chi
     tong hop phan nhan xet dinh tinh (progress_trend, strengths/weaknesses chung).
+    skipped_stages (tuy chon) tinh 0 diem trong overall_score, khong co trong
+    stage_breakdown, duoc tra lai trong response.
     """
     try:
         return evaluate_session(req)

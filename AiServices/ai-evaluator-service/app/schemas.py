@@ -230,14 +230,31 @@ class SessionEvaluationRequest(BaseModel):
     motion: str
     side: DebateSide
     rounds: list[RoundEvaluationResult] = Field(..., min_length=1)
+    skipped_stages: list[DebateStage] = Field(
+        default_factory=list, description="Cac giai doan learner khong phat bieu; moi giai doan tinh 0 diem trong overall_score"
+    )
+
+    @model_validator(mode="after")
+    def skipped_stages_must_be_consistent(self) -> "SessionEvaluationRequest":
+        if len(set(self.skipped_stages)) != len(self.skipped_stages):
+            raise ValueError("skipped_stages: co gia tri trung")
+        overlap = set(self.skipped_stages) & {r.stage for r in self.rounds}
+        if overlap:
+            raise ValueError(f"skipped_stages: {sorted(s.value for s in overlap)} da co trong rounds")
+        return self
 
 
 class SessionEvaluationResult(BaseModel):
     """Output: bao cao tong ket ca phien tranh bien."""
 
-    overall_score: float = Field(..., ge=0, le=10, description="Trung binh cac round_score, tinh toan hoc")
+    overall_score: float = Field(
+        ..., ge=0, le=10, description="Trung binh cac round_score, moi giai doan trong skipped_stages tinh 0 diem; tinh toan hoc"
+    )
     stage_breakdown: dict[str, float] = Field(
-        ..., description="Diem tung giai doan, vi du {'opening': 7.2, 'rebuttal': 6.8, 'closing': 8.0}"
+        ..., description="Diem tung giai doan da cham, vi du {'opening': 7.2, 'rebuttal': 6.8}; KHONG co giai doan bi bo trong"
+    )
+    skipped_stages: list[DebateStage] = Field(
+        default_factory=list, description="Cac giai doan bi bo trong da tinh 0 diem, de doc lai diem sau nay biet vi sao thap"
     )
     progress_trend: str = Field(..., description="Nhan xet xu huong tien bo/giam sut qua cac giai doan")
     overall_strengths: list[str] = Field(default_factory=list)

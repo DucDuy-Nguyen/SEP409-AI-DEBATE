@@ -6,12 +6,15 @@ overall_score va stage_breakdown duoc TINH TOAN HOC (trung binh round_score
 da co san) — khong goi LLM cham lai, de dam bao minh bach + kiem chung duoc
 (auditable) va khong ton chi phi API cho phan da co du lieu. LLM chi tong hop
 phan nhan xet dinh tinh (progress_trend, overall_strengths/weaknesses/suggestions).
+
+skipped_stages (2026-11, docs/AI_DEVELOPMENT_LOG.md muc 3.18): moi giai doan learner khong phat bieu tinh 0 diem trong
+overall_score, khong xuat hien trong stage_breakdown. Khong truyen thi diem va prompt khong doi.
 """
 import logging
 
 from app.config import Settings, get_settings
 from app.prompts.session_prompt import build_session_evaluation_prompt
-from app.schemas import SessionEvaluationRequest, SessionEvaluationResult
+from app.schemas import DebateStage, SessionEvaluationRequest, SessionEvaluationResult
 from app.services.json_utils import EvaluationParseError, call_llm_with_retry
 from app.services.llm_client import LLMClient, get_llm_client
 
@@ -29,12 +32,18 @@ def _compute_stage_breakdown(req: SessionEvaluationRequest) -> dict[str, float]:
 
 
 def _compute_overall_score(req: SessionEvaluationRequest) -> float:
+    # Moi giai doan bo trong tinh 0 diem: vong co noi te nhat van duoc 2.0 (moi tieu chi toi thieu 1), nen 0 luon thap hon.
     scores = [r.round_score for r in req.rounds]
-    return round(sum(scores) / len(scores), 2)
+    return round(sum(scores) / (len(scores) + len(req.skipped_stages)), 2)
 
 
 def _build_session_result(
-    parsed: dict, raw_text: str, overall_score: float, stage_breakdown: dict[str, float], scoring_version: str
+    parsed: dict,
+    raw_text: str,
+    overall_score: float,
+    stage_breakdown: dict[str, float],
+    scoring_version: str,
+    skipped_stages: list[DebateStage],
 ) -> SessionEvaluationResult:
     progress_trend = parsed.get("progress_trend")
     if not progress_trend:
@@ -43,6 +52,7 @@ def _build_session_result(
     return SessionEvaluationResult(
         overall_score=overall_score,
         stage_breakdown=stage_breakdown,
+        skipped_stages=skipped_stages,
         progress_trend=progress_trend,
         overall_strengths=parsed.get("overall_strengths", []),
         overall_weaknesses=parsed.get("overall_weaknesses", []),
@@ -70,7 +80,7 @@ def evaluate_session(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         build_result_fn=lambda parsed, raw: _build_session_result(
-            parsed, raw, overall_score, stage_breakdown, req.rounds[0].scoring_version
+            parsed, raw, overall_score, stage_breakdown, req.rounds[0].scoring_version, req.skipped_stages
         ),
         audit_label="session",
     )
