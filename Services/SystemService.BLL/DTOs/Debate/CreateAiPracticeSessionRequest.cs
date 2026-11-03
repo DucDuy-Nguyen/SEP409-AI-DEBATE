@@ -5,6 +5,9 @@ namespace SystemService.BLL.DTOs.Debate
 {
     public class CreateAiPracticeSessionRequest
     {
+        // An existing topic. Takes priority over Title and Topic: they are still required but then ignored.
+        public int? TopicId { get; set; }
+
         [Required]
         [MaxLength(200)]
         public string Title { get; set; } = null!;

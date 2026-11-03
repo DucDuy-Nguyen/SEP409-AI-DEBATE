@@ -44,8 +44,21 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
-            var topic = await _debateRepository.GetOrCreateTopicAsync(
-                request.Title.Trim(), request.Topic.Trim(), request.Difficulty, userId, cancellationToken);
+            // Looking a known topic up by text creates a duplicate whenever the text differs from its description.
+            Topic? topic;
+            if (request.TopicId.HasValue)
+            {
+                topic = await _debateRepository.GetTopicByIdAsync(request.TopicId.Value, cancellationToken);
+                if (topic == null || !topic.IsActive)
+                {
+                    return ApiResponse<DebateSessionResponse>.FailureResponse("Debate topic not found or no longer active.");
+                }
+            }
+            else
+            {
+                topic = await _debateRepository.GetOrCreateTopicAsync(
+                    request.Title.Trim(), request.Topic.Trim(), request.Difficulty, userId, cancellationToken);
+            }
 
             var isAi = request.IsAI;
             var formatName = isAi ? "User vs AI" : "1 vs 1";
