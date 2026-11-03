@@ -166,17 +166,12 @@ namespace SystemService.BLL.Services.Identity.Implementations
 
         public async Task<ApiResponse<DashboardStatsResponse>> GetDashboardStatsAsync(CancellationToken cancellationToken = default)
         {
-            var totalUsersTask = _userRepository.GetTotalUsersCountAsync(cancellationToken);
-            var totalSessionsTask = _debateRepository.GetTotalDebateSessionsCountAsync(cancellationToken);
-            var totalTopicsTask = _topicRepository.GetTotalTopicsCountAsync(cancellationToken);
-
-            await Task.WhenAll(totalUsersTask, totalSessionsTask, totalTopicsTask);
-
+            // Sequential on purpose: the repositories share one scoped DbContext, which rejects overlapping queries.
             var stats = new DashboardStatsResponse
             {
-                TotalUsers = await totalUsersTask,
-                TotalDebateSessions = await totalSessionsTask,
-                TotalTopics = await totalTopicsTask
+                TotalUsers = await _userRepository.GetTotalUsersCountAsync(cancellationToken),
+                TotalDebateSessions = await _debateRepository.GetTotalDebateSessionsCountAsync(cancellationToken),
+                TotalTopics = await _topicRepository.GetTotalTopicsCountAsync(cancellationToken)
             };
 
             return ApiResponse<DashboardStatsResponse>.SuccessResponse(stats, "Dashboard statistics retrieved successfully.");
