@@ -191,7 +191,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
 
         public async Task<int> GetTotalDebateSessionsCountAsync(CancellationToken cancellationToken = default)
         {
-            return await _context.DebateSessions.CountAsync(cancellationToken);
+            return await _context.DebateSessions.CountAsync(s => s.Status == SessionStatus.Completed, cancellationToken);
         }
     }
 }
