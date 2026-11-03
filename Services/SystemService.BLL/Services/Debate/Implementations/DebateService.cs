@@ -418,6 +418,45 @@ namespace SystemService.BLL.Services.Debate.Implementations
             // the undisposed transaction is rolled back when it is disposed.
         }
 
+        // Any participant leaving cancels the session for everyone, 2v2 and a host leaving a waiting room included.
+        public async Task<ApiResponse<DebateSessionResponse>> LeaveSessionAsync(
+            int userId, int sessionId, CancellationToken cancellationToken = default)
+        {
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
+
+            // Same lock as submitting a turn, so the final turn and a leave cannot both win.
+            await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.", new ApiErrorDetail(DebateErrorCodes.SessionNotFound));
+            }
+
+            if (!session.Participants.Any(p => p.UserId == userId))
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("You are not a participant in this debate session.", new ApiErrorDetail(DebateErrorCodes.NotParticipant));
+            }
+
+            if (session.Status == SessionStatus.Completed)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session is already completed and cannot be left.", new ApiErrorDetail(DebateErrorCodes.SessionCompleted));
+            }
+
+            if (session.Status == SessionStatus.Cancelled)
+            {
+                return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Debate session was already cancelled.");
+            }
+
+            session.Status = SessionStatus.Cancelled;
+            session.EndTime = DateTime.UtcNow;
+            session.UpdatedAt = session.EndTime;
+            await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Left the debate session. It has been cancelled.");
+        }
+
         private async Task<ApiResponse<DebateSessionResponse>> SubmitTeamArgumentAsync(
             int userId, int sessionId, DebateSession session, DebateParticipant participant, SubmitArgumentRequest request,
             IDbContextTransaction transaction, CancellationToken cancellationToken)

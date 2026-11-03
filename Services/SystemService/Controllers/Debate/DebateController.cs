@@ -270,6 +270,23 @@ namespace SystemService.Controllers.Debate
             return Ok(result);
         }
 
+        [HttpPost("{sessionId:int}/leave")]
+        public async Task<IActionResult> LeaveSession(int sessionId, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized(ApiResponse<object>.FailureResponse("Unauthorized access."));
+            }
+
+            var result = await _debateService.LeaveSessionAsync(userId.Value, sessionId, cancellationToken);
+            if (!result.Success)
+            {
+                return MapTurnFailure(result);
+            }
+            return Ok(result);
+        }
+
         #region Private Helpers
 
         private int? GetCurrentUserId()
