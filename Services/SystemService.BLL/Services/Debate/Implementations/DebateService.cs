@@ -176,6 +176,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
+            // Same lock as leaving: saving a session loaded before a leave would overwrite Cancelled with Waiting.
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
+            await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
             var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
             if (session == null)
             {
@@ -218,6 +222,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             // Session remains in Waiting status until the room creator starts it.
             await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
             return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Joined P2P debate session successfully.");
@@ -621,6 +626,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
+            // Same lock as leaving: saving a session loaded before a leave would overwrite Cancelled with Waiting.
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
+            await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
             var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
             if (session == null)
             {
@@ -679,6 +688,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             // Session remains in Waiting status until the room creator starts it.
             await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
             return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Joined 2v2 debate session successfully.");
@@ -1185,6 +1195,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
+            // Same lock as leaving: starting a session loaded before a leave would overwrite Cancelled with InProgress.
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
+            await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
             var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
             if (session == null)
             {
@@ -1271,6 +1285,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             }
 
             await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
             return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Bắt đầu cuộc tranh biện thành công.");
