@@ -666,6 +666,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                         TurnOrder = r.RoundNumber,
                         Stage = MapRoundTypeToStage(r.RoundType),
                         Side = a.Participant.Side,
+                        UserId = a.Participant.UserId,
                         SpeakerName = a.Participant.ParticipantType == ParticipantType.AI ? "AI Opponent" : (a.Participant.User?.FullName ?? "Unknown User"),
                         IsAI = a.Participant.ParticipantType == ParticipantType.AI,
                         Content = a.Content,
@@ -691,7 +692,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     SessionId = s.DebateSessionId,
                     Title = s.Topic?.Title ?? "Debate Session",
                     Topic = s.Topic?.Description ?? s.Topic?.Title ?? string.Empty,
-                    DebateType = DebateType.AiPractice,
+                    DebateType = InferDebateType(s),
                     Status = s.Status,
                     UserSide = myParticipant?.Side ?? DebateSide.PRO,
                     CreatedAt = s.CreatedAt,
@@ -740,6 +741,15 @@ namespace SystemService.BLL.Services.Debate.Implementations
         private static bool IsOneVsOne(DebateSession session)
         {
             return GetMaxArgsPerRound(session) == 2 && session.Participants.Count <= 2;
+        }
+
+        // DebateSession has no column for its type, so it is derived. 2v2 has no enum value and reports P2pMatch,
+        // even with AI participants. Direct1v1 is not distinguished yet and also reports P2pMatch.
+        private static DebateType InferDebateType(DebateSession session)
+        {
+            return IsOneVsOne(session) && session.Participants.Any(p => p.ParticipantType == ParticipantType.AI)
+                ? DebateType.AiPractice
+                : DebateType.P2pMatch;
         }
 
         private static int CountArguments(DebateSession session)
@@ -838,6 +848,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 TurnOrder = round.RoundNumber,
                 Stage = MapRoundTypeToStage(round.RoundType),
                 Side = participant.Side,
+                UserId = participant.UserId,
                 SpeakerName = participant.ParticipantType == ParticipantType.AI ? "AI Opponent" : (participant.User?.FullName ?? "Unknown User"),
                 IsAI = participant.ParticipantType == ParticipantType.AI,
                 Content = argument.Content,
@@ -898,7 +909,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 SessionId = session.DebateSessionId,
                 Title = session.Topic?.Title ?? "Debate Session",
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
-                DebateType = DebateType.AiPractice,
+                DebateType = InferDebateType(session),
                 Difficulty = session.Topic?.Difficulty,
                 CurrentStage = currentRound != null ? MapRoundTypeToStage(currentRound.RoundType) : DebateStage.Closing,
                 CurrentTurnSide = currentTurnSide,
