@@ -57,7 +57,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             else
             {
                 topic = await _debateRepository.GetOrCreateTopicAsync(
-                    request.Title.Trim(), request.Topic.Trim(), request.Difficulty, userId, cancellationToken);
+                    request.Title.Trim(), request.Topic.Trim(), request.Difficulty ?? "Medium", userId, cancellationToken);
             }
 
             var isAi = request.IsAI;
@@ -79,6 +79,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 TopicId = topic.TopicId,
                 FormatId = format.FormatId,
                 CreatedBy = userId,
+                Difficulty = isAi && !string.IsNullOrWhiteSpace(request.Difficulty) ? request.Difficulty.Trim() : null,
                 TurnTimeLimitSeconds = timeLimit,
                 Status = SessionStatus.Waiting,
                 StartTime = null,
@@ -972,7 +973,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 Title = session.Topic?.Title ?? "Debate Session",
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
                 DebateType = InferDebateType(session),
-                Difficulty = session.Topic?.Difficulty,
+                Difficulty = session.Difficulty ?? session.Topic?.Difficulty,
                 CurrentStage = currentRound != null ? MapRoundTypeToStage(currentRound.RoundType) : DebateStage.Closing,
                 CurrentTurnSide = currentTurnSide,
                 Status = session.Status,

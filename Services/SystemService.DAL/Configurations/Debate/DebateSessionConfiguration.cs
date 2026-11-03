@@ -16,6 +16,8 @@ namespace SystemService.DAL.Configurations.Debate
                    .HasMaxLength(30)
                    .IsRequired();
 
+            builder.Property(e => e.Difficulty).HasMaxLength(50);
+
             builder.Ignore(e => e.TurnTimeLimitSeconds);
 
             builder.HasOne(e => e.Topic)

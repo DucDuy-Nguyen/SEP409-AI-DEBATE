@@ -13,6 +13,8 @@ namespace SystemService.DAL.Entities.Debate
         public int FormatId { get; set; }
         public int CreatedBy { get; set; }
         public SessionStatus Status { get; set; } = SessionStatus.Waiting;
+        // Chosen for this session; null falls back to the topic's difficulty.
+        public string? Difficulty { get; set; }
         [NotMapped]
         public int TurnTimeLimitSeconds { get; set; } = 180;
         public DateTime? StartTime { get; set; }
