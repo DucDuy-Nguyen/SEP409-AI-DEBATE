@@ -3,7 +3,7 @@ Test hoi quy tu phien that (DebateSessionId 13, learner = PRO, vong Closing CON 
 
 3 nhom:
 - Offline, PASS: xac nhan learner duoc gan dung luot o moi thu tu noi (loai tru nghi van "gan nham luot").
-- Offline, fix A + C da ap dung (muc 3.16 cua dev log).
+- Offline, fix A da ap dung (muc 3.16 cua dev log; fix C da revert, muc 3.17).
 - Offline, xfail(strict): dac ta fix D, CHUA lam theo quyet dinh. Khi lam, test se XPASS -> strict bao fail, luc do
   bo marker xfail.
 - Live (RUN_LIVE_LLM=1): goi LLM that, ton token, mac dinh skip. Chay: RUN_LIVE_LLM=1 python -m pytest tests/test_closing_round_regression.py -k live -s
@@ -154,7 +154,7 @@ def test_detector_catches_the_real_false_claim():
     assert not _NO_RESPONSE_RE.search("Thiếu bằng chứng, số liệu cụ thể")
 
 
-# ---- Offline: fix A + C da ap dung; rieng test Evidence cuoi nhom la xfail(strict) vi fix D chua lam ----
+# ---- Offline: fix A da ap dung; rieng test Evidence cuoi nhom la xfail(strict) vi fix D chua lam ----
 
 
 def test_prompt_names_the_opponent_side():
@@ -171,26 +171,6 @@ def test_prompt_states_the_speaking_order(stage, order):
 def test_prompt_exempts_opponent_turn_spoken_after_the_learner():
     system_prompt, user_prompt = build_round_evaluation_prompt(_round_request("rebuttal"))
     assert "chua co co hoi tra loi" in _fold(system_prompt + user_prompt)
-
-
-def test_unverifiable_no_response_claim_is_removed():
-    result = evaluate_round(_round_request("rebuttal"), llm_client=CapturingLLMClient(VALID_RESPONSE))
-    assert _no_response_claims(result) == []
-    assert result.dropped_weakness_count == 1
-
-
-def test_known_limit_real_quote_does_not_stop_a_role_reversed_claim():
-    # Cau that tu do do (muc 3.16): learner chat van doi phuong, model trich dung cau do roi ket luan nguoc lai.
-    # C KHONG bat duoc loai nay; test ghi lai gioi han, khong phai hanh vi mong muon.
-    quote = "Đội bạn không trả lời vì sao Hiệp định Paris không làm mất chủ quyền"
-    assert quote in _turn_text("closing", "learner")
-    payload = json.loads(VALID_RESPONSE)
-    payload["weaknesses"] = [{"text": "Không trả lời các câu hỏi của đối phương về chủ quyền", "quote": quote}]
-
-    result = evaluate_round(_round_request("closing"), llm_client=CapturingLLMClient(json.dumps(payload)))
-
-    assert result.dropped_weakness_count == 0
-    assert len(_no_response_claims(result)) == 1
 
 
 @pytest.mark.xfail(strict=True, reason="CHUA lam theo quyet dinh (dev log 3.14.2, 3.16): Evidence neu ro hiep uoc/su kien la dan chung hop le")

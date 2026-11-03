@@ -3,7 +3,8 @@ Luu raw output cua MOI lan goi LLM khi cham (ca khi chay trong app that) de truy
 raw_model_output nhung khong ai luu, nen khong doi chieu duoc mot phien da cham (docs/AI_DEVELOPMENT_LOG.md muc 3.16).
 
 Ghi JSONL vao EVAL_AUDIT_LOG_PATH (mac dinh logs/eval_audit.jsonl, de trong = tat). File chua NGUYEN VAN bai noi cua
-learner: khong commit (.gitignore), khong tu xoay vong. Loi ghi file KHONG duoc lam hong lan cham.
+learner: khong commit (.gitignore). Xoay vong theo dung luong: vuot EVAL_AUDIT_LOG_MAX_BYTES thi doi ten thanh .1, .2...
+va giu EVAL_AUDIT_LOG_BACKUPS file cu, file cu hon bi xoa. Loi ghi file KHONG duoc lam hong lan cham.
 Lock chi trong 1 process (service chay 1 worker uvicorn); chay nhieu worker thi moi worker nen dung 1 file rieng.
 """
 import hashlib
@@ -18,6 +19,20 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 _write_lock = threading.Lock()  # FastAPI chay endpoint dong bo tren threadpool
+
+
+def _rotate_if_needed(path: Path, incoming_bytes: int, max_bytes: int, backups: int) -> None:
+    if max_bytes <= 0 or not path.exists() or path.stat().st_size + incoming_bytes <= max_bytes:
+        return
+    if backups <= 0:
+        path.unlink()
+        return
+    path.with_name(f"{path.name}.{backups}").unlink(missing_ok=True)
+    for index in range(backups - 1, 0, -1):
+        older = path.with_name(f"{path.name}.{index}")
+        if older.exists():
+            older.replace(path.with_name(f"{path.name}.{index + 1}"))
+    path.replace(path.with_name(f"{path.name}.1"))
 
 
 def record_llm_attempt(
@@ -41,10 +56,12 @@ def record_llm_attempt(
             "raw_output": raw_output,
             "error": f"{type(error).__name__}: {error}" if error else None,
         }
+        line = (json.dumps(record, ensure_ascii=False) + "\n").encode("utf-8")
         path = Path(settings.eval_audit_log_path)
         with _write_lock:
             path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            _rotate_if_needed(path, len(line), settings.eval_audit_log_max_bytes, settings.eval_audit_log_backups)
+            with open(path, "ab") as f:
+                f.write(line)
     except Exception as e:
         logger.warning("Khong ghi duoc audit log: %s", e)

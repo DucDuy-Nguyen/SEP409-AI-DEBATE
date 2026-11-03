@@ -144,9 +144,16 @@ tương ứng:
 **Không bao giờ commit file `.env`** (đã có trong `.gitignore`).
 
 Mỗi lần gọi LLM khi chấm được ghi vào `EVAL_AUDIT_LOG_PATH` (mặc định
-`logs/eval_audit.jsonl`, để trống = tắt) để truy vết. File này chứa **nguyên văn
-bài nói của learner**, không tự xoay vòng và không tự xoá; khi chạy Docker cần
-mount volume nếu muốn giữ lại.
+`logs/eval_audit.jsonl`, để trống = tắt) để truy vết.
+
+- File này chứa **nguyên văn bài nói của người dùng**: không commit (đã có trong
+  `.gitignore`), không gửi ra ngoài, chỉ cấp quyền đọc cho người cần truy vết.
+- Tự xoay vòng theo dung lượng: vượt `EVAL_AUDIT_LOG_MAX_BYTES` (mặc định 50 MB)
+  thì đổi tên thành `.1`, `.2`... và giữ `EVAL_AUDIT_LOG_BACKUPS` file cũ (mặc định
+  3), file cũ hơn bị xoá. Tổng dung lượng tối đa mặc định khoảng 200 MB. Đây là giới
+  hạn theo dung lượng, không phải theo thời gian: dữ liệu có thể nằm lâu nếu ít lượt chấm.
+- Khi chạy Docker cần mount volume nếu muốn giữ lại. Chạy nhiều worker uvicorn thì
+  mỗi worker nên dùng một file riêng.
 
 ### ⚠️ Lỗi "model not found" với free tier
 
@@ -245,10 +252,10 @@ Response giống cấp Argument, nhưng dùng `round_score` thay cho `overall_sc
 `consistency_note` (nhận xét tính nhất quán xuyên suốt giai đoạn) thay cho
 `overall_reasoning`, và có thêm field `stage`.
 
-`weaknesses` chỉ gồm các điểm yếu có câu trích dẫn tìm thấy trong transcript của
-round. Có thêm `weakness_evidence` (`text` + `quote`) và `dropped_weakness_count`
-(số điểm yếu bị loại). Quote có thật không chứng minh nhận xét đúng — xem
-`docs/AI_DEVELOPMENT_LOG.md` mục 3.16.
+Tuỳ chọn `reference_turns`: các lượt của các round trước, mỗi lượt có `round`,
+`order`, `speaker`, `side`, `text`. Đây chỉ là ngữ cảnh để đối chiếu, **không được
+chấm**; không truyền thì hành vi như cũ. Sai phe, `order` trùng, hoặc `round` không
+nằm trước round hiện tại sẽ trả 422. Xem `docs/FE_SPEC_REFERENCE_TURNS.md`.
 
 ### 4.3. `POST /evaluate/session` — báo cáo cả phiên
 

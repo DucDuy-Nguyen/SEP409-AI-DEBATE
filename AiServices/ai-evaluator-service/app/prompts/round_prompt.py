@@ -33,8 +33,11 @@ Ly do: AI tung tra round_score=14.0 (vuot thang 0-10) gay ValidationError —
 cung ban chat voi van de o Argument-level. Xem day du trong
 docs/AI_DEVELOPMENT_LOG.md muc 3.8.
 
-Fix A + C (2026-11, docs/AI_DEVELOPMENT_LOG.md muc 3.16): prompt neu phe doi phuong + thu tu noi, luot doi phuong noi
-sau learner khong duoc tinh la "khong phan hoi"; moi diem yeu kem quote, code xac minh trong quote_verification.py.
+Fix A (2026-11, docs/AI_DEVELOPMENT_LOG.md muc 3.16): prompt neu phe doi phuong + thu tu noi, luot doi phuong noi sau
+learner khong duoc tinh la "khong phan hoi".
+
+reference_turns (2026-11, muc 3.17): tuy chon, cac luot cua round truoc de doi chieu. Khong truyen thi system prompt va
+user prompt y het nhu truoc (tuong thich nguoc); khoi luat _REFERENCE_RULES chi co khi co reference_turns.
 """
 from app.prompts.evaluator_prompt import ArgumentContext, GRADING_TIERS, _rubric_as_text, _rubric_for_context
 from app.schemas import DebateSide, RoundEvaluationRequest, TurnSpeaker
@@ -97,7 +100,19 @@ _ROUND_CONSISTENCY_STEP_BY_CONTEXT: dict[ArgumentContext, str] = {
 }
 
 
-def _build_round_system_prompt(context: ArgumentContext) -> str:
+_REFERENCE_RULES = """
+[NGU CANH CAC ROUND TRUOC - BAT BUOC]
+- Muc [NGU CANH CAC ROUND TRUOC] trong du lieu la cac luot da noi o round truoc: CHI de doi chieu, KHONG cham, KHONG \
+tinh vao diem, KHONG dua vao strengths/weaknesses.
+- CHI cham cac luot LEARNER trong muc [TOAN BO CAC LUOT NOI TRONG ROUND].
+- Learner duoc phep vien dan noi dung o round truoc: doi chieu voi muc NGU CANH truoc khi ket luan learner "khong co \
+bang chung" hay "bop meo" doi phuong.
+- Khi learner dat cau hoi hoac chat van doi phuong (vi du "doi ban khong tra loi vi sao...") thi do la learner chi ra \
+DOI PHUONG chua tra loi, KHONG phai learner khong tra loi. KHONG viet nhan xet nguoc vai nhu vay.
+"""
+
+
+def _build_round_system_prompt(context: ArgumentContext, has_reference_turns: bool = False) -> str:
     """Dung dung rubric (mo ta Relevance) VA dung doan intro/buoc kiem tra tinh
     nhat quan tuong ung voi ArgumentContext da suy ra tu turns cua round — xem
     infer_round_context(), _rubric_for_context() (tai su dung tu
@@ -105,6 +120,7 @@ def _build_round_system_prompt(context: ArgumentContext) -> str:
     rubric_text = _rubric_as_text(_rubric_for_context(context))
     intro_text = _ROUND_INTRO_BY_CONTEXT[context]
     consistency_step_text = _ROUND_CONSISTENCY_STEP_BY_CONTEXT[context]
+    reference_rules = _REFERENCE_RULES if has_reference_turns else ""
 
     return f"""Ban la giam khao tranh bien cong tam, {intro_text}
 
@@ -133,12 +149,7 @@ khong can ban tinh hay chot.
 - KHONG dung do dai luot noi lam tieu chi ngam.
 - KHONG so sanh voi "bai mau chuan" co dinh — tranh bien la kich ban MO.
 - Danh gia CA ROUND, khong chi luot noi cuoi cung.
-
-[TRICH DAN - BAT BUOC]
-Moi diem yeu trong "weaknesses" phai kem "quote": trich NGUYEN VAN 1 cau trong cac luot noi cua round nay lien quan \
-den diem yeu do. He thong tu doi chieu quote voi transcript, quote khong co that thi diem yeu do bi loai. Khong trich \
-duoc thi KHONG dua ra diem yeu do.
-
+{reference_rules}
 [OUTPUT - CHI tra ve JSON hop le, khong them text nao khac ngoai JSON]
 {{
   "criteria": [
@@ -151,7 +162,7 @@ duoc thi KHONG dua ra diem yeu do.
   "consistency_note": "<BAT BUOC, nhan xet TONG HOP ve tinh nhat quan xuyen suot round, tieng \
 Viet — KHONG phai giai thich cho 1 con so round_score rieng, vi diem tong duoc he thong tu tinh>",
   "strengths": ["<diem manh, tieng Viet>", "..."],
-  "weaknesses": [{{"text": "<diem yeu, chi ro luot noi nao, tieng Viet>", "quote": "<cau trich nguyen van>"}}],
+  "weaknesses": ["<diem yeu, chi ro luot noi nao, tieng Viet>", "..."],
   "suggestions": ["<goi y cho round/luot sau, tieng Viet>", "..."]
 }}"""
 
@@ -173,6 +184,12 @@ def build_round_user_prompt(req: RoundEvaluationRequest) -> str:
         parts.append(f"[PHIA CUA DOI PHUONG] {SIDE_LABEL[opponent_side.value]}")
         parts.append(f"[THU TU NOI] {order}")
     parts.append(f"[GIAI DOAN / ROUND] {stage_label}")
+    if req.reference_turns:
+        reference_text = [
+            f"Round {t.round}, thu tu {t.order} - {speaker_labels[t.speaker]}: {t.text}"
+            for t in sorted(req.reference_turns, key=lambda t: t.order)
+        ]
+        parts.append("[NGU CANH CAC ROUND TRUOC - KHONG CHAM]\n" + "\n\n".join(reference_text))
     parts.append("[TOAN BO CAC LUOT NOI TRONG ROUND, THEO THU TU]\n" + "\n\n".join(turns_text))
     return "\n\n".join(parts)
 
@@ -187,4 +204,4 @@ def build_round_evaluation_prompt(req: RoundEvaluationRequest) -> tuple[str, str
     cua prompt giu nguyen.
     """
     context = infer_round_context(req)
-    return _build_round_system_prompt(context), build_round_user_prompt(req)
+    return _build_round_system_prompt(context, bool(req.reference_turns)), build_round_user_prompt(req)
