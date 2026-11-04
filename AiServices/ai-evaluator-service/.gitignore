@@ -1,6 +1,9 @@
 # --- Bi mat (API key that) ---
 .env
 
+# --- Audit log cham diem (chua nguyen van bai noi cua learner) ---
+logs/
+
 # --- Python / tooling ---
 __pycache__/
 *.pyc

@@ -4,8 +4,17 @@ Test logic tinh toan + tong hop cua session_evaluator.py.
 import json
 
 import pytest
+from pydantic import ValidationError
 
-from app.schemas import CriterionScore, DebateSide, DebateStage, RoundEvaluationResult, SessionEvaluationRequest
+from app.prompts.session_prompt import SESSION_SYSTEM_PROMPT, build_session_evaluation_prompt
+from app.schemas import (
+    SCORING_VERSION_CURRENT,
+    CriterionScore,
+    DebateSide,
+    DebateStage,
+    RoundEvaluationResult,
+    SessionEvaluationRequest,
+)
 from app.services.llm_client import LLMClient
 from app.services.session_evaluator import EvaluationParseError, evaluate_session
 
@@ -138,3 +147,81 @@ def test_session_result_carries_the_common_scoring_version_and_missing_means_leg
         {k: v for k, v in json.loads(_make_round(DebateStage.OPENING, 6.0).model_dump_json()).items() if k != "scoring_version"}
     )
     assert legacy.scoring_version == "v1_5x20"
+
+
+# ---- skipped_stages (docs/AI_DEVELOPMENT_LOG.md muc 3.18) ----
+
+
+def _request_skipping_rebuttal() -> SessionEvaluationRequest:
+    return SessionEvaluationRequest(
+        motion="THBT mang xa hoi gay hai nhieu hon loi",
+        side=DebateSide.PRO,
+        rounds=[_make_round(DebateStage.OPENING, 7.0), _make_round(DebateStage.CLOSING, 8.0)],
+        skipped_stages=[DebateStage.REBUTTAL],
+    )
+
+
+def test_skipped_stage_counts_as_zero_in_overall_score_only():
+    client = FakeLLMClient([json.dumps(VALID_SESSION_PAYLOAD)])
+
+    result = evaluate_session(_request_skipping_rebuttal(), llm_client=client)
+
+    assert result.overall_score == 5.0
+    assert result.stage_breakdown == {"opening": 7.0, "closing": 8.0}
+    assert result.skipped_stages == [DebateStage.REBUTTAL]
+
+
+def test_two_skipped_stages_divide_by_three():
+    request = SessionEvaluationRequest(
+        motion="M", side=DebateSide.PRO, rounds=[_make_round(DebateStage.CLOSING, 8.0)],
+        skipped_stages=[DebateStage.OPENING, DebateStage.REBUTTAL],
+    )
+
+    result = evaluate_session(request, llm_client=FakeLLMClient([json.dumps(VALID_SESSION_PAYLOAD)]))
+
+    assert result.overall_score == 2.67
+
+
+def test_without_skipped_stages_score_response_and_prompts_are_unchanged():
+    request = _sample_session_request()
+
+    result = evaluate_session(request, llm_client=FakeLLMClient([json.dumps(VALID_SESSION_PAYLOAD)]))
+    system_prompt, user_prompt = build_session_evaluation_prompt(request)
+
+    assert result.overall_score == 7.0
+    assert result.skipped_stages == []
+    assert system_prompt == SESSION_SYSTEM_PROMPT
+    assert "GIAI DOAN BO TRONG" not in user_prompt
+
+
+def test_prompts_name_the_skipped_stage_and_forbid_inventing_its_content():
+    system_prompt, user_prompt = build_session_evaluation_prompt(_request_skipping_rebuttal())
+
+    assert "[GIAI DOAN BO TRONG] Phan bien" in user_prompt
+    assert "KHONG duoc suy dien" in system_prompt
+
+
+def test_scoring_version_still_follows_the_first_round():
+    round_result = _make_round(DebateStage.CLOSING, 8.0).model_copy(update={"scoring_version": SCORING_VERSION_CURRENT})
+    request = SessionEvaluationRequest(
+        motion="M", side=DebateSide.PRO, rounds=[round_result], skipped_stages=[DebateStage.OPENING]
+    )
+
+    result = evaluate_session(request, llm_client=FakeLLMClient([json.dumps(VALID_SESSION_PAYLOAD)]))
+
+    assert result.scoring_version == SCORING_VERSION_CURRENT
+
+
+@pytest.mark.parametrize(
+    "skipped,message",
+    [
+        (["rebuttal", "rebuttal"], "trung"),
+        (["opening"], "da co trong rounds"),
+        (["khong_ton_tai"], "skipped_stages"),
+    ],
+)
+def test_invalid_skipped_stages_are_rejected(skipped, message):
+    with pytest.raises(ValidationError, match=message):
+        SessionEvaluationRequest(
+            motion="M", side=DebateSide.PRO, rounds=[_make_round(DebateStage.OPENING, 7.0)], skipped_stages=skipped
+        )

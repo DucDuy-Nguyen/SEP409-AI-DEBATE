@@ -47,28 +47,43 @@ def call_llm_with_retry(
     user_prompt: str,
     build_result_fn: Callable[[dict, str], object],
     max_attempts: int = 2,
+    audit_label: str | None = None,
 ):
     """
     generate_fn(user_prompt) -> raw text tu LLM (da bind san system_prompt/client ben ngoai).
     build_result_fn(parsed_dict, raw_text) -> object ket qua da validate (Pydantic model),
         nem EvaluationParseError / pydantic.ValidationError / TypeError neu du lieu khong hop le.
+    audit_label: co gia tri thi ghi moi lan goi vao audit log (cac lan cham); None cho script dich thuat.
     """
     from pydantic import ValidationError
+
+    from app.services.audit_log import record_llm_attempt
+
+    def audit(attempt_index: int, prompt: str, raw: str | None, error: Exception | None) -> None:
+        if audit_label:
+            record_llm_attempt(audit_label, attempt_index + 1, system_prompt, prompt, raw, error)
 
     last_error: Exception | None = None
     current_user_prompt = user_prompt
 
     for attempt in range(max_attempts):
+        raw_output: str | None = None
         try:
             raw_output = generate_fn(current_user_prompt)
             parsed = extract_json(raw_output)
-            return build_result_fn(parsed, raw_output)
+            result = build_result_fn(parsed, raw_output)
+            audit(attempt, current_user_prompt, raw_output, None)
+            return result
         except (EvaluationParseError, ValidationError, TypeError) as e:
+            audit(attempt, current_user_prompt, raw_output, e)
             last_error = e
             logger.warning("Lan thu %d that bai: %s", attempt + 1, e)
             current_user_prompt = (
                 current_user_prompt
                 + "\n\n[NHAC LAI] CHI tra ve JSON hop le, khong them bat ky text nao khac."
             )
+        except Exception as e:
+            audit(attempt, current_user_prompt, raw_output, e)
+            raise
 
     raise EvaluationParseError(f"That bai sau {max_attempts} lan thu. Loi cuoi: {last_error}")

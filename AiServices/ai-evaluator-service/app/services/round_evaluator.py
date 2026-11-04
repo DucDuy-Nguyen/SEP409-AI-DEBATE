@@ -72,4 +72,5 @@ def evaluate_round(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         build_result_fn=lambda parsed, raw: _build_round_result(parsed, raw, req.stage),
+        audit_label="round",
     )

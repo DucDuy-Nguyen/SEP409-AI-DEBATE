@@ -124,6 +124,26 @@ class ArgumentTurn(BaseModel):
     text: str = Field(..., min_length=1)
 
 
+class ReferenceTurn(BaseModel):
+    """1 luot cua round TRUOC, chi de doi chieu, KHONG cham (docs/AI_DEVELOPMENT_LOG.md muc 3.17)."""
+
+    round: int = Field(..., ge=1, description="So thu tu round: opening = 1, rebuttal = 2, closing = 3")
+    order: int = Field(..., ge=1, description="Thu tu noi trong ca tran, khong trung nhau")
+    speaker: TurnSpeaker
+    side: DebateSide
+    text: str = Field(..., min_length=1)
+
+    @field_validator("text")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("text khong duoc de trong")
+        return v
+
+
+_ROUND_NUMBER_OF_STAGE = {DebateStage.OPENING: 1, DebateStage.REBUTTAL: 2, DebateStage.CLOSING: 3}
+
+
 class RoundEvaluationRequest(BaseModel):
     """Input: toan bo cac luot noi trong 1 round (1 giai doan) cua 1 learner."""
 
@@ -131,6 +151,9 @@ class RoundEvaluationRequest(BaseModel):
     side: DebateSide = Field(..., description="Phia cua learner dang duoc cham (khong phai doi phuong)")
     stage: DebateStage
     turns: list[ArgumentTurn] = Field(..., min_length=1, description="Cac luot noi theo dung thu tu thoi gian")
+    reference_turns: list[ReferenceTurn] = Field(
+        default_factory=list, description="Tuy chon: cac luot cua cac round truoc, chi la ngu canh, KHONG cham"
+    )
 
     @field_validator("turns")
     @classmethod
@@ -138,6 +161,22 @@ class RoundEvaluationRequest(BaseModel):
         if not any(t.speaker == TurnSpeaker.LEARNER for t in v):
             raise ValueError("Round phai co it nhat 1 luot noi cua learner de cham diem")
         return v
+
+    @model_validator(mode="after")
+    def reference_turns_must_be_consistent(self) -> "RoundEvaluationRequest":
+        # Chan payload sai ngay tu dau: gan nham phe o day se lam LLM gan loi doi phuong cho learner (muc 3.16).
+        current_round = _ROUND_NUMBER_OF_STAGE[self.stage]
+        opponent_side = DebateSide.CON if self.side == DebateSide.PRO else DebateSide.PRO
+        orders = [t.order for t in self.reference_turns]
+        if len(set(orders)) != len(orders):
+            raise ValueError("reference_turns: 'order' bi trung")
+        for t in self.reference_turns:
+            if t.round >= current_round:
+                raise ValueError(f"reference_turns: round {t.round} khong nam truoc round hien tai ({current_round})")
+            expected_side = self.side if t.speaker == TurnSpeaker.LEARNER else opponent_side
+            if t.side != expected_side:
+                raise ValueError(f"reference_turns: luot order={t.order} cua {t.speaker.value} phai la phe {expected_side.value}")
+        return self
 
 
 class RoundEvaluationResult(BaseModel):
@@ -191,14 +230,31 @@ class SessionEvaluationRequest(BaseModel):
     motion: str
     side: DebateSide
     rounds: list[RoundEvaluationResult] = Field(..., min_length=1)
+    skipped_stages: list[DebateStage] = Field(
+        default_factory=list, description="Cac giai doan learner khong phat bieu; moi giai doan tinh 0 diem trong overall_score"
+    )
+
+    @model_validator(mode="after")
+    def skipped_stages_must_be_consistent(self) -> "SessionEvaluationRequest":
+        if len(set(self.skipped_stages)) != len(self.skipped_stages):
+            raise ValueError("skipped_stages: co gia tri trung")
+        overlap = set(self.skipped_stages) & {r.stage for r in self.rounds}
+        if overlap:
+            raise ValueError(f"skipped_stages: {sorted(s.value for s in overlap)} da co trong rounds")
+        return self
 
 
 class SessionEvaluationResult(BaseModel):
     """Output: bao cao tong ket ca phien tranh bien."""
 
-    overall_score: float = Field(..., ge=0, le=10, description="Trung binh cac round_score, tinh toan hoc")
+    overall_score: float = Field(
+        ..., ge=0, le=10, description="Trung binh cac round_score, moi giai doan trong skipped_stages tinh 0 diem; tinh toan hoc"
+    )
     stage_breakdown: dict[str, float] = Field(
-        ..., description="Diem tung giai doan, vi du {'opening': 7.2, 'rebuttal': 6.8, 'closing': 8.0}"
+        ..., description="Diem tung giai doan da cham, vi du {'opening': 7.2, 'rebuttal': 6.8}; KHONG co giai doan bi bo trong"
+    )
+    skipped_stages: list[DebateStage] = Field(
+        default_factory=list, description="Cac giai doan bi bo trong da tinh 0 diem, de doc lai diem sau nay biet vi sao thap"
     )
     progress_trend: str = Field(..., description="Nhan xet xu huong tien bo/giam sut qua cac giai doan")
     overall_strengths: list[str] = Field(default_factory=list)

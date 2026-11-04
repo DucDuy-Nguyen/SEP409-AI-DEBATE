@@ -48,6 +48,14 @@ tap trung cai thien cho phien luyen tap tiep theo.
 }"""
 
 
+# Chi them khi co giai doan bo trong, de phien binh thuong giu nguyen prompt.
+_SKIPPED_STAGES_RULE = """
+
+[GIAI DOAN BO TRONG]
+Neu du lieu co muc [GIAI DOAN BO TRONG]: learner KHONG phat bieu o cac giai doan do. Phai neu viec bo trong trong \
+"progress_trend" va "overall_weaknesses". KHONG duoc suy dien noi dung hay chat luong cua giai doan khong co loi noi."""
+
+
 def build_session_user_prompt(req: SessionEvaluationRequest) -> str:
     side_label = SIDE_LABEL.get(req.side.value, req.side.value.upper())
 
@@ -67,9 +75,13 @@ def build_session_user_prompt(req: SessionEvaluationRequest) -> str:
         f"[PHIA CUA LEARNER] {side_label}",
         "[KET QUA TUNG ROUND]\n\n" + "\n\n".join(round_summaries),
     ]
+    if req.skipped_stages:
+        skipped = ", ".join(STAGE_LABEL.get(s.value, s.value) for s in req.skipped_stages)
+        parts.append(f"[GIAI DOAN BO TRONG] {skipped}")
     return "\n\n".join(parts)
 
 
 def build_session_evaluation_prompt(req: SessionEvaluationRequest) -> tuple[str, str]:
     """Tra ve (system_prompt, user_prompt), san sang goi LLM."""
-    return SESSION_SYSTEM_PROMPT, build_session_user_prompt(req)
+    system_prompt = SESSION_SYSTEM_PROMPT + (_SKIPPED_STAGES_RULE if req.skipped_stages else "")
+    return system_prompt, build_session_user_prompt(req)

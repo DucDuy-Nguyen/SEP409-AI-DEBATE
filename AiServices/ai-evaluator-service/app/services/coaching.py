@@ -79,6 +79,7 @@ def _run_coaching(system_prompt: str, user_prompt: str, focus: list[CriterionSco
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         build_result_fn=lambda parsed, raw: _build_coaching_result(parsed, raw, focus),
+        audit_label="coaching",
     )
 
 

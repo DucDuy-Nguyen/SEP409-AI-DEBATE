@@ -143,6 +143,18 @@ tương ứng:
 
 **Không bao giờ commit file `.env`** (đã có trong `.gitignore`).
 
+Mỗi lần gọi LLM khi chấm được ghi vào `EVAL_AUDIT_LOG_PATH` (mặc định
+`logs/eval_audit.jsonl`, để trống = tắt) để truy vết.
+
+- File này chứa **nguyên văn bài nói của người dùng**: không commit (đã có trong
+  `.gitignore`), không gửi ra ngoài, chỉ cấp quyền đọc cho người cần truy vết.
+- Tự xoay vòng theo dung lượng: vượt `EVAL_AUDIT_LOG_MAX_BYTES` (mặc định 50 MB)
+  thì đổi tên thành `.1`, `.2`... và giữ `EVAL_AUDIT_LOG_BACKUPS` file cũ (mặc định
+  3), file cũ hơn bị xoá. Tổng dung lượng tối đa mặc định khoảng 200 MB. Đây là giới
+  hạn theo dung lượng, không phải theo thời gian: dữ liệu có thể nằm lâu nếu ít lượt chấm.
+- Khi chạy Docker cần mount volume nếu muốn giữ lại. Chạy nhiều worker uvicorn thì
+  mỗi worker nên dùng một file riêng.
+
 ### ⚠️ Lỗi "model not found" với free tier
 
 Groq và Gemini **đổi tên / khai tử model free khá thường xuyên** — một model
@@ -240,6 +252,11 @@ Response giống cấp Argument, nhưng dùng `round_score` thay cho `overall_sc
 `consistency_note` (nhận xét tính nhất quán xuyên suốt giai đoạn) thay cho
 `overall_reasoning`, và có thêm field `stage`.
 
+Tuỳ chọn `reference_turns`: các lượt của các round trước, mỗi lượt có `round`,
+`order`, `speaker`, `side`, `text`. Đây chỉ là ngữ cảnh để đối chiếu, **không được
+chấm**; không truyền thì hành vi như cũ. Sai phe, `order` trùng, hoặc `round` không
+nằm trước round hiện tại sẽ trả 422. Xem `docs/FE_SPEC_REFERENCE_TURNS.md`.
+
 ### 4.3. `POST /evaluate/session` — báo cáo cả phiên
 
 `rounds` là **danh sách kết quả đã nhận được từ `/evaluate/round`**, truyền
@@ -287,7 +304,13 @@ lại nguyên vẹn (backend lưu kết quả từng round, cuối phiên gửi 
 Response gồm `overall_score` (trung bình các `round_score`, ở ví dụ trên là
 7.0), `stage_breakdown` (điểm từng giai đoạn, ví dụ `{"opening": 6.0,
 "rebuttal": 8.0}`), `progress_trend`, `overall_strengths`,
-`overall_weaknesses`, `overall_suggestions`.
+`overall_weaknesses`, `overall_suggestions`, `skipped_stages`.
+
+Tuỳ chọn `skipped_stages` (ví dụ `["rebuttal"]`): các giai đoạn learner không phát
+biểu. Mỗi giai đoạn này tính **0 điểm** trong `overall_score`, ví dụ opening 7, closing
+8, bỏ trống rebuttal thì (7 + 8 + 0) / 3 = 5.0. Giai đoạn bỏ trống không có trong
+`stage_breakdown` và được trả lại trong `skipped_stages` của response. Giá trị trùng,
+hoặc stage đã có trong `rounds`, trả 422. Không truyền thì điểm như cũ.
 
 ### 4.4. `POST /coaching/argument` — gợi ý sau khi chấm
 

@@ -73,4 +73,5 @@ def evaluate_argument(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         build_result_fn=_build_result,
+        audit_label="argument",
     )
