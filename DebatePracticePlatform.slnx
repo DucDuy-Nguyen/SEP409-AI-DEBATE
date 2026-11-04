@@ -3,6 +3,7 @@
     <Project Path="Services/SystemService/SystemService.csproj" />
     <Project Path="Services/SystemService.BLL/SystemService.BLL.csproj" />
     <Project Path="Services/SystemService.DAL/SystemService.DAL.csproj" />
+    <Project Path="Services/SystemService.Tests/SystemService.Tests.csproj" />
   </Folder>
   <Project Path="Gateway/Gateway.csproj" />
 </Solution>

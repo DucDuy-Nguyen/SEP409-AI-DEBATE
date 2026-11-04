@@ -254,13 +254,13 @@ public sealed class SqlServerCompetitionDebateTests
             Assert.True(start.Success, start.Message);
         }
 
-        int conUserId;
+        int proUserId;
         await using (var setup = fixture.CreateContext())
         {
             var participants = await setup.DebateParticipants.Where(p => p.DebateSessionId == sessionId).ToListAsync();
             var pro = participants.Single(p => p.Side == DebateSide.PRO);
             var con = participants.Single(p => p.Side == DebateSide.CON);
-            conUserId = con.UserId!.Value;
+            proUserId = pro.UserId!.Value;
             var rounds = await setup.DebateRounds.Where(r => r.DebateSessionId == sessionId)
                 .OrderBy(r => r.RoundNumber).ToListAsync();
 
@@ -273,8 +273,8 @@ public sealed class SqlServerCompetitionDebateTests
             setup.Arguments.Add(new Argument
             {
                 RoundId = rounds[2].RoundId,
-                ParticipantId = pro.ParticipantId,
-                Content = "final fixture pro",
+                ParticipantId = con.ParticipantId,
+                Content = "final fixture con",
                 SubmittedAt = DateTime.UtcNow
             });
             await setup.SaveChangesAsync();
@@ -283,7 +283,7 @@ public sealed class SqlServerCompetitionDebateTests
         await using (var submitContext = fixture.CreateContext())
         {
             var result = await fixture.CreateDebateService(submitContext).SubmitArgumentAsync(
-                conUserId, sessionId, new SubmitArgumentRequest { Content = "final fixture con" });
+                proUserId, sessionId, new SubmitArgumentRequest { Content = "final fixture pro" });
             Assert.True(result.Success, result.Message);
             Assert.Equal(SessionStatus.Completed, result.Data!.Status);
         }
@@ -1205,10 +1205,13 @@ SELECT
             }
             for (var round = 0; round < roundCount; round++)
             {
-                foreach (var userId in speakerOrder)
+                var roundSpeakers = speakerOrder.Count == 2 && round == roundCount - 1
+                    ? speakerOrder.AsEnumerable().Reverse().ToList()
+                    : speakerOrder;
+                foreach (var userId in roundSpeakers)
                 {
                     await using var submitContext = CreateContext();
-                    var finalTurn = round == roundCount - 1 && userId == speakerOrder.Last();
+                    var finalTurn = round == roundCount - 1 && userId == roundSpeakers.Last();
                     using var httpClient = liveAi && finalTurn ? new HttpClient
                     {
                         BaseAddress = new Uri(Environment.GetEnvironmentVariable("ADPP_AI_EVALUATOR_URL")!.TrimEnd('/') + "/"),

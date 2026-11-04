@@ -69,6 +69,21 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        public async Task LockSessionForUpdateAsync(int debateSessionId, CancellationToken cancellationToken = default)
+        {
+            // Must run inside a transaction: the row update holds an exclusive lock on the session until commit,
+            // so concurrent argument submissions for the same session run one after another and see each other's rows.
+            // Non-relational providers (EF InMemory in tests) have no row locks.
+            if (!_context.Database.IsRelational())
+            {
+                return;
+            }
+
+            await _context.DebateSessions
+                .Where(s => s.DebateSessionId == debateSessionId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.UpdatedAt, System.DateTime.UtcNow), cancellationToken);
+        }
+
         public async Task AddParticipantAsync(DebateParticipant participant, CancellationToken cancellationToken = default)
         {
             await _context.DebateParticipants.AddAsync(participant, cancellationToken);
@@ -225,6 +240,44 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
 
         public async Task<bool> ClaimAndStartSessionAsync(int debateSessionId, DateTime startTime, int? linkedMatchId = null, CancellationToken cancellationToken = default)
         {
+            if (!_context.Database.IsRelational())
+            {
+                var session = await _context.DebateSessions
+                    .FirstOrDefaultAsync(s => s.DebateSessionId == debateSessionId && s.Status == SessionStatus.Waiting, cancellationToken);
+                if (session == null)
+                {
+                    return false;
+                }
+
+                session.Status = SessionStatus.InProgress;
+                session.StartTime = startTime;
+
+                var firstRoundInMemory = await _context.DebateRounds
+                    .FirstOrDefaultAsync(r => r.DebateSessionId == debateSessionId && r.RoundNumber == 1, cancellationToken);
+                if (firstRoundInMemory != null)
+                {
+                    firstRoundInMemory.StartTime = startTime;
+                }
+
+                if (linkedMatchId.HasValue)
+                {
+                    var match = await _context.CompetitionMatches
+                        .FirstOrDefaultAsync(m => m.CompetitionMatchId == linkedMatchId.Value && m.Status == "Ready", cancellationToken);
+                    if (match == null)
+                    {
+                        return false;
+                    }
+
+                    match.Status = "Ongoing";
+                    match.StartedAt = startTime;
+                    match.UpdatedAt = startTime;
+                }
+
+                await _context.SaveChangesAsync(cancellationToken);
+                _context.ChangeTracker.Clear();
+                return true;
+            }
+
             var claimed = await _context.DebateSessions
                 .Where(s => s.DebateSessionId == debateSessionId && s.Status == SessionStatus.Waiting)
                 .ExecuteUpdateAsync(setters => setters

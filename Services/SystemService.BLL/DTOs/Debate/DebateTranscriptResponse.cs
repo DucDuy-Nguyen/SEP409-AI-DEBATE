@@ -19,6 +19,7 @@ namespace SystemService.BLL.DTOs.Debate
         public int TurnOrder { get; set; }
         public DebateStage Stage { get; set; }
         public DebateSide Side { get; set; }
+        public int? UserId { get; set; }
         public string SpeakerName { get; set; } = null!;
         public bool IsAI { get; set; }
         public string Content { get; set; } = null!;

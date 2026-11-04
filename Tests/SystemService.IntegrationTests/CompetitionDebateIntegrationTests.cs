@@ -613,13 +613,13 @@ namespace SystemService.IntegrationTests
             }
             context.Arguments.Add(new Argument
             {
-                RoundId = rounds[2].RoundId, ParticipantId = pro.ParticipantId,
-                Content = "Final pro", SubmittedAt = DateTime.UtcNow
+                RoundId = rounds[2].RoundId, ParticipantId = con.ParticipantId,
+                Content = "Final con", SubmittedAt = DateTime.UtcNow
             });
             await context.SaveChangesAsync();
 
-            var result = await debateService.SubmitArgumentAsync(p2Id, session.DebateSessionId,
-                new SubmitArgumentRequest { Content = "Final con" });
+            var result = await debateService.SubmitArgumentAsync(p1Id, session.DebateSessionId,
+                new SubmitArgumentRequest { Content = "Final pro" });
 
             Assert.True(result.Success, result.Message);
             var completedSession = await context.DebateSessions.FindAsync(session.DebateSessionId);
