@@ -55,8 +55,21 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
-            var topic = await _debateRepository.GetOrCreateTopicAsync(
-                request.Title.Trim(), request.Topic.Trim(), request.Difficulty, userId, cancellationToken);
+            // Looking a known topic up by text creates a duplicate whenever the text differs from its description.
+            Topic? topic;
+            if (request.TopicId.HasValue)
+            {
+                topic = await _debateRepository.GetTopicByIdAsync(request.TopicId.Value, cancellationToken);
+                if (topic == null || !topic.IsActive)
+                {
+                    return ApiResponse<DebateSessionResponse>.FailureResponse("Debate topic not found or no longer active.");
+                }
+            }
+            else
+            {
+                topic = await _debateRepository.GetOrCreateTopicAsync(
+                    request.Title.Trim(), request.Topic.Trim(), request.Difficulty ?? "Medium", userId, cancellationToken);
+            }
 
             var isAi = request.IsAI;
             var formatName = isAi ? "User vs AI" : "1 vs 1";
@@ -77,6 +90,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 TopicId = topic.TopicId,
                 FormatId = format.FormatId,
                 CreatedBy = userId,
+                Difficulty = isAi && !string.IsNullOrWhiteSpace(request.Difficulty) ? request.Difficulty.Trim() : null,
                 TurnTimeLimitSeconds = timeLimit,
                 Status = SessionStatus.Waiting,
                 StartTime = null,
@@ -187,6 +201,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
+            // Same lock as leaving: saving a session loaded before a leave would overwrite Cancelled with Waiting.
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
+            await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
             var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
             if (session == null)
             {
@@ -235,6 +253,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             // Session remains in Waiting status until the room creator starts it.
             await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
             return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Joined P2P debate session successfully.");
@@ -461,6 +480,45 @@ namespace SystemService.BLL.Services.Debate.Implementations
             // the undisposed transaction is rolled back when it is disposed.
         }
 
+        // Any participant leaving cancels the session for everyone, 2v2 and a host leaving a waiting room included.
+        public async Task<ApiResponse<DebateSessionResponse>> LeaveSessionAsync(
+            int userId, int sessionId, CancellationToken cancellationToken = default)
+        {
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
+
+            // Same lock as submitting a turn, so the final turn and a leave cannot both win.
+            await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.", new ApiErrorDetail(DebateErrorCodes.SessionNotFound));
+            }
+
+            if (!session.Participants.Any(p => p.UserId == userId))
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("You are not a participant in this debate session.", new ApiErrorDetail(DebateErrorCodes.NotParticipant));
+            }
+
+            if (session.Status == SessionStatus.Completed)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session is already completed and cannot be left.", new ApiErrorDetail(DebateErrorCodes.SessionCompleted));
+            }
+
+            if (session.Status == SessionStatus.Cancelled)
+            {
+                return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Debate session was already cancelled.");
+            }
+
+            session.Status = SessionStatus.Cancelled;
+            session.EndTime = DateTime.UtcNow;
+            session.UpdatedAt = session.EndTime;
+            await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Left the debate session. It has been cancelled.");
+        }
+
         private async Task<ApiResponse<DebateSessionResponse>> SubmitTeamArgumentAsync(
             int userId, int sessionId, DebateSession session, DebateParticipant participant, SubmitArgumentRequest request,
             IDbContextTransaction transaction, CancellationToken cancellationToken)
@@ -640,6 +698,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
+            // Same lock as leaving: saving a session loaded before a leave would overwrite Cancelled with Waiting.
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
+            await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
             var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
             if (session == null)
             {
@@ -704,6 +766,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             // Session remains in Waiting status until the room creator starts it.
             await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
             return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Joined 2v2 debate session successfully.");
@@ -980,7 +1043,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 Title = session.Topic?.Title ?? "Debate Session",
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
                 DebateType = InferDebateType(session),
-                Difficulty = session.Topic?.Difficulty,
+                Difficulty = session.Difficulty ?? session.Topic?.Difficulty,
                 CurrentStage = currentRound != null ? MapRoundTypeToStage(currentRound.RoundType) : DebateStage.Closing,
                 CurrentTurnSide = currentTurnSide,
                 Status = session.Status,
@@ -1243,6 +1306,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
             using var transaction = await _debateRepository.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
             try
             {
+                // Same lock as leaving: starting a session loaded before a leave would overwrite Cancelled with InProgress.
+                await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
                 var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
                 if (session == null)
                 {
