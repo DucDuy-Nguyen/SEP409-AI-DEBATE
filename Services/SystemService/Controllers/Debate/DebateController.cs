@@ -250,6 +250,52 @@ namespace SystemService.Controllers.Debate
             return Ok(result);
         }
 
+        [HttpPost("{sessionId:int}/evaluate")]
+        public async Task<IActionResult> EvaluateSession(int sessionId, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized(ApiResponse<object>.FailureResponse("Unauthorized access."));
+            }
+
+            var result = await _debateService.EvaluateSessionAsync(userId.Value, sessionId, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
+        [HttpGet("{sessionId:int}/evaluation")]
+        public async Task<IActionResult> GetSessionEvaluation(int sessionId, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId() ?? 0;
+            var result = await _debateService.GetSessionEvaluationAsync(userId, sessionId, cancellationToken);
+            if (!result.Success)
+            {
+                return NotFound(result);
+            }
+            return Ok(result);
+        }
+
+        [HttpPost("{sessionId:int}/arguments/{argumentId:int}/evaluate")]
+        public async Task<IActionResult> EvaluateArgument(int sessionId, int argumentId, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized(ApiResponse<object>.FailureResponse("Unauthorized access."));
+            }
+
+            var result = await _debateService.EvaluateArgumentAsync(userId.Value, sessionId, argumentId, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
         #region Private Helpers
 
         private int? GetCurrentUserId()

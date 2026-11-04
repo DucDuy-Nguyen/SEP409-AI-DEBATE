@@ -25,5 +25,6 @@ namespace SystemService.DAL.Entities.Debate
         public User CreatedByUser { get; set; } = null!;
         public ICollection<DebateParticipant> Participants { get; set; } = new List<DebateParticipant>();
         public ICollection<DebateRound> DebateRounds { get; set; } = new List<DebateRound>();
+        public ICollection<AIJudgement> AIJudgements { get; set; } = new List<AIJudgement>();
     }
 }

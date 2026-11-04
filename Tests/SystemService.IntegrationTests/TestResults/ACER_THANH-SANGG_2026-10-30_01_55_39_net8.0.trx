@@ -1,0 +1,183 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="d0664b79-d89f-43de-9d6a-84d74b0f356e" name="ACER@THANH-SANGG 2026-10-30 01:55:39" runUser="THANH-SANGG\ACER" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-10-30T01:55:39.9164125+07:00" queuing="2026-10-30T01:55:39.9164131+07:00" start="2026-10-30T01:55:38.9758599+07:00" finish="2026-10-30T01:55:39.9316323+07:00" />
+  <TestSettings name="default" id="6fa82463-ae3f-499d-8b06-d209c634b4d7">
+    <Deployment runDeploymentRoot="ACER_THANH-SANGG_2026-10-30_01_55_39" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="f6b88442-5e12-4576-98f7-e96ada62fb5a" testId="c321b799-8a29-3c16-c2be-b4c839067b80" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ThreeIndividuals_ByeDebatesAndChampion" computerName="THANH-SANGG" duration="00:00:00.0010000" startTime="2026-10-30T01:55:39.7701219+07:00" endTime="2026-10-30T01:55:39.7701744+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f6b88442-5e12-4576-98f7-e96ada62fb5a">
+      <Output>
+        <ErrorInfo>
+          <Message>Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="8a90975f-3eac-4a21-b95e-034e10753eeb" testId="535202fe-6721-1f1e-8d6f-f1d8df0bbbf0" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentGeneration_CreatesOneBracketWithoutPartialRounds" computerName="THANH-SANGG" duration="00:00:00.0010000" startTime="2026-10-30T01:55:39.7713338+07:00" endTime="2026-10-30T01:55:39.7713555+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8a90975f-3eac-4a21-b95e-034e10753eeb">
+      <Output>
+        <ErrorInfo>
+          <Message>Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="2a3e7923-4680-4866-8326-dc411d41b4d6" testId="38f1a50b-05bc-6a10-2946-0fa6e58be613" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes" computerName="THANH-SANGG" duration="00:00:00.0010000" startTime="2026-10-30T01:55:39.7541033+07:00" endTime="2026-10-30T01:55:39.7564405+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2a3e7923-4680-4866-8326-dc411d41b4d6">
+      <Output>
+        <ErrorInfo>
+          <Message>Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="7b2a5662-a74d-4e4f-bdbe-5ae14e0073f3" testId="c53c6cd8-2613-cb80-ef5e-9e31c0021d77" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_TwoTeams_FourDistinctUsers_OfficialTeamChampion" computerName="THANH-SANGG" duration="00:00:00.0010000" startTime="2026-10-30T01:55:39.7772126+07:00" endTime="2026-10-30T01:55:39.7772314+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="7b2a5662-a74d-4e4f-bdbe-5ae14e0073f3">
+      <Output>
+        <ErrorInfo>
+          <Message>Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="f3358b6e-7002-483d-a123-3bd79f78132d" testId="ee15c578-4857-3c3f-94d5-8dd8718b707b" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_Individual_CreateRegisterApproveCloseThroughChampion" computerName="THANH-SANGG" duration="00:00:00.0010000" startTime="2026-10-30T01:55:39.7782506+07:00" endTime="2026-10-30T01:55:39.7782658+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f3358b6e-7002-483d-a123-3bd79f78132d">
+      <Output>
+        <ErrorInfo>
+          <Message>Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="d26791fd-e5bc-4b25-bea6-44c1ae15de16" testId="990b97f3-da14-5d26-9a15-a900d4552cbd" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_LiveAiEvaluation_HumanJudgeConfirmsChampion" computerName="THANH-SANGG" duration="00:00:00.0010000" startTime="2026-10-30T01:55:39.7777303+07:00" endTime="2026-10-30T01:55:39.7777527+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="d26791fd-e5bc-4b25-bea6-44c1ae15de16">
+      <Output>
+        <ErrorInfo>
+          <Message>Opt in with ADPP_RUN_SQLSERVER_TESTS=1, ADPP_RUN_LIVE_AI_TESTS=1 and ADPP_AI_EVALUATOR_URL.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="4413bad4-efa1-4615-a9ae-0e1481cde784" testId="7b2907e4-7022-0e76-488d-aa95b6e02c33" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentJudgeFinalize_OneOfficialResultAndOneChampion" computerName="THANH-SANGG" duration="00:00:00.0010000" startTime="2026-10-30T01:55:39.7779890+07:00" endTime="2026-10-30T01:55:39.7780186+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4413bad4-efa1-4615-a9ae-0e1481cde784">
+      <Output>
+        <ErrorInfo>
+          <Message>Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="03117413-9c94-4aa4-8b00-7aa570c35d11" testId="41067f61-f2f9-938c-fb90-cf13a7316233" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentCompetitionStart_OnlyOneRequestWins" computerName="THANH-SANGG" duration="00:00:00.0010000" startTime="2026-10-30T01:55:39.7774735+07:00" endTime="2026-10-30T01:55:39.7774927+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="03117413-9c94-4aa4-8b00-7aa570c35d11">
+      <Output>
+        <ErrorInfo>
+          <Message>Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+    <UnitTestResult executionId="b9a87616-9865-4bde-9d02-6ca5ee74af20" testId="1c03cf45-a067-7d07-1496-fe0c62fecc77" testName="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_RejectsNonCreatorAndIncompleteTeamWithoutWritingBracket" computerName="THANH-SANGG" duration="00:00:00.0010000" startTime="2026-10-30T01:55:39.7767071+07:00" endTime="2026-10-30T01:55:39.7767344+07:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b9a87616-9865-4bde-9d02-6ca5ee74af20">
+      <Output>
+        <ErrorInfo>
+          <Message>Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ThreeIndividuals_ByeDebatesAndChampion" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="c321b799-8a29-3c16-c2be-b4c839067b80">
+      <Execution id="f6b88442-5e12-4576-98f7-e96ada62fb5a" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_ThreeIndividuals_ByeDebatesAndChampion" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_LiveAiEvaluation_HumanJudgeConfirmsChampion" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="990b97f3-da14-5d26-9a15-a900d4552cbd">
+      <Execution id="d26791fd-e5bc-4b25-bea6-44c1ae15de16" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_LiveAiEvaluation_HumanJudgeConfirmsChampion" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_TwoTeams_FourDistinctUsers_OfficialTeamChampion" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="c53c6cd8-2613-cb80-ef5e-9e31c0021d77">
+      <Execution id="7b2a5662-a74d-4e4f-bdbe-5ae14e0073f3" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_TwoTeams_FourDistinctUsers_OfficialTeamChampion" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_Individual_CreateRegisterApproveCloseThroughChampion" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="ee15c578-4857-3c3f-94d5-8dd8718b707b">
+      <Execution id="f3358b6e-7002-483d-a123-3bd79f78132d" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_Individual_CreateRegisterApproveCloseThroughChampion" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentJudgeFinalize_OneOfficialResultAndOneChampion" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="7b2907e4-7022-0e76-488d-aa95b6e02c33">
+      <Execution id="4413bad4-efa1-4615-a9ae-0e1481cde784" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_ConcurrentJudgeFinalize_OneOfficialResultAndOneChampion" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentGeneration_CreatesOneBracketWithoutPartialRounds" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="535202fe-6721-1f1e-8d6f-f1d8df0bbbf0">
+      <Execution id="8a90975f-3eac-4a21-b95e-034e10753eeb" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_ConcurrentGeneration_CreatesOneBracketWithoutPartialRounds" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentCompetitionStart_OnlyOneRequestWins" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="41067f61-f2f9-938c-fb90-cf13a7316233">
+      <Execution id="03117413-9c94-4aa4-8b00-7aa570c35d11" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_ConcurrentCompetitionStart_OnlyOneRequestWins" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_RejectsNonCreatorAndIncompleteTeamWithoutWritingBracket" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="1c03cf45-a067-7d07-1496-fe0c62fecc77">
+      <Execution id="b9a87616-9865-4bde-9d02-6ca5ee74af20" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_RejectsNonCreatorAndIncompleteTeamWithoutWritingBracket" />
+    </UnitTest>
+    <UnitTest name="SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes" storage="d:\fa26_capstoneproject\sep409-ai-debate\tests\systemservice.integrationtests\bin\debug\net8.0\systemservice.integrationtests.dll" id="38f1a50b-05bc-6a10-2946-0fa6e58be613">
+      <Execution id="2a3e7923-4680-4866-8326-dc411d41b4d6" />
+      <TestMethod codeBase="D:\FA26_CapstoneProject\SEP409-AI-DEBATE\Tests\SystemService.IntegrationTests\bin\Debug\net8.0\SystemService.IntegrationTests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SystemService.IntegrationTests.SqlServerCompetitionDebateTests" name="Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="c321b799-8a29-3c16-c2be-b4c839067b80" executionId="f6b88442-5e12-4576-98f7-e96ada62fb5a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="535202fe-6721-1f1e-8d6f-f1d8df0bbbf0" executionId="8a90975f-3eac-4a21-b95e-034e10753eeb" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="38f1a50b-05bc-6a10-2946-0fa6e58be613" executionId="2a3e7923-4680-4866-8326-dc411d41b4d6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c53c6cd8-2613-cb80-ef5e-9e31c0021d77" executionId="7b2a5662-a74d-4e4f-bdbe-5ae14e0073f3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ee15c578-4857-3c3f-94d5-8dd8718b707b" executionId="f3358b6e-7002-483d-a123-3bd79f78132d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="990b97f3-da14-5d26-9a15-a900d4552cbd" executionId="d26791fd-e5bc-4b25-bea6-44c1ae15de16" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7b2907e4-7022-0e76-488d-aa95b6e02c33" executionId="4413bad4-efa1-4615-a9ae-0e1481cde784" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="41067f61-f2f9-938c-fb90-cf13a7316233" executionId="03117413-9c94-4aa4-8b00-7aa570c35d11" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="1c03cf45-a067-7d07-1496-fe0c62fecc77" executionId="b9a87616-9865-4bde-9d02-6ca5ee74af20" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Results Not in a List" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="All Loaded Results" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="9" executed="0" passed="0" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.4+50e68bbb8b (64-bit .NET 8.0.25)&#xD;
+[xUnit.net 00:00:00.12]   Discovering: SystemService.IntegrationTests&#xD;
+[xUnit.net 00:00:00.18]   Discovered:  SystemService.IntegrationTests&#xD;
+[xUnit.net 00:00:00.20]   Starting:    SystemService.IntegrationTests&#xD;
+[xUnit.net 00:00:00.23]       Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.&#xD;
+[xUnit.net 00:00:00.24]       Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.&#xD;
+[xUnit.net 00:00:00.24]       Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.&#xD;
+[xUnit.net 00:00:00.25]       Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.&#xD;
+[xUnit.net 00:00:00.25]       Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.&#xD;
+[xUnit.net 00:00:00.25]       Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.&#xD;
+[xUnit.net 00:00:00.25]       Opt in with ADPP_RUN_SQLSERVER_TESTS=1, ADPP_RUN_LIVE_AI_TESTS=1 and ADPP_AI_EVALUATOR_URL.&#xD;
+[xUnit.net 00:00:00.25]       Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.&#xD;
+[xUnit.net 00:00:00.25]       Set ADPP_RUN_SQLSERVER_TESTS=1 to opt in to development SQL Server integration tests.&#xD;
+[xUnit.net 00:00:00.25]   Finished:    SystemService.IntegrationTests&#xD;
+Test 'SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes' was skipped in the test run.&#xD;
+Test 'SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ThreeIndividuals_ByeDebatesAndChampion' was skipped in the test run.&#xD;
+Test 'SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentGeneration_CreatesOneBracketWithoutPartialRounds' was skipped in the test run.&#xD;
+Test 'SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_RejectsNonCreatorAndIncompleteTeamWithoutWritingBracket' was skipped in the test run.&#xD;
+Test 'SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_TwoTeams_FourDistinctUsers_OfficialTeamChampion' was skipped in the test run.&#xD;
+Test 'SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentCompetitionStart_OnlyOneRequestWins' was skipped in the test run.&#xD;
+Test 'SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_LiveAiEvaluation_HumanJudgeConfirmsChampion' was skipped in the test run.&#xD;
+Test 'SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentJudgeFinalize_OneOfficialResultAndOneChampion' was skipped in the test run.&#xD;
+Test 'SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_Individual_CreateRegisterApproveCloseThroughChampion' was skipped in the test run.&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="THANH-SANGG" outcome="Warning" timestamp="2026-10-30T01:55:39.7583405+07:00">
+        <Text>[xUnit.net 00:00:00.23]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes [SKIP]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Warning" timestamp="2026-10-30T01:55:39.7708250+07:00">
+        <Text>[xUnit.net 00:00:00.24]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ThreeIndividuals_ByeDebatesAndChampion [SKIP]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Warning" timestamp="2026-10-30T01:55:39.7716373+07:00">
+        <Text>[xUnit.net 00:00:00.24]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentGeneration_CreatesOneBracketWithoutPartialRounds [SKIP]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Warning" timestamp="2026-10-30T01:55:39.7772731+07:00">
+        <Text>[xUnit.net 00:00:00.25]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_RejectsNonCreatorAndIncompleteTeamWithoutWritingBracket [SKIP]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Warning" timestamp="2026-10-30T01:55:39.7774253+07:00">
+        <Text>[xUnit.net 00:00:00.25]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_TwoTeams_FourDistinctUsers_OfficialTeamChampion [SKIP]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Warning" timestamp="2026-10-30T01:55:39.7776630+07:00">
+        <Text>[xUnit.net 00:00:00.25]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentCompetitionStart_OnlyOneRequestWins [SKIP]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Warning" timestamp="2026-10-30T01:55:39.7779135+07:00">
+        <Text>[xUnit.net 00:00:00.25]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_LiveAiEvaluation_HumanJudgeConfirmsChampion [SKIP]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Warning" timestamp="2026-10-30T01:55:39.7781959+07:00">
+        <Text>[xUnit.net 00:00:00.25]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_ConcurrentJudgeFinalize_OneOfficialResultAndOneChampion [SKIP]</Text>
+      </RunInfo>
+      <RunInfo computerName="THANH-SANGG" outcome="Warning" timestamp="2026-10-30T01:55:39.7784018+07:00">
+        <Text>[xUnit.net 00:00:00.25]     SystemService.IntegrationTests.SqlServerCompetitionDebateTests.Tournament_Individual_CreateRegisterApproveCloseThroughChampion [SKIP]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

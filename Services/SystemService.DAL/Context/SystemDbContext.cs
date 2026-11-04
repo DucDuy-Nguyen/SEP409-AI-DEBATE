@@ -37,6 +37,14 @@ namespace SystemService.DAL.Context
         public DbSet<Argument> Arguments { get; set; } = null!;
         public DbSet<DebateChallenge> DebateChallenges { get; set; } = null!;
 
+        public DbSet<Entities.Competition.CompetitionRound> CompetitionRounds { get; set; } = null!;
+        public DbSet<Entities.Competition.CompetitionMatch> CompetitionMatches { get; set; } = null!;
+        public DbSet<Entities.Competition.MatchParticipant> MatchParticipants { get; set; } = null!;
+        public DbSet<Entities.Competition.JudgeScore> JudgeScores { get; set; } = null!;
+
+        public DbSet<DebateCriteria> DebateCriteria { get; set; } = null!;
+        public DbSet<AIJudgement> AIJudgements { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

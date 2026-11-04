@@ -33,7 +33,7 @@ namespace SystemService.Controllers.Competition
             var result = await _registrationService.RegisterAsync(id, userId, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -69,7 +69,7 @@ namespace SystemService.Controllers.Competition
             var result = await _registrationService.ApproveAsync(id, registrationId, userId, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -87,7 +87,7 @@ namespace SystemService.Controllers.Competition
             var result = await _registrationService.RejectAsync(id, registrationId, userId, request, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -105,7 +105,7 @@ namespace SystemService.Controllers.Competition
             var result = await _registrationService.CancelMyRegistrationAsync(id, userId, request, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -123,7 +123,7 @@ namespace SystemService.Controllers.Competition
             var result = await _registrationService.RemoveParticipantAsync(id, registrationId, userId, request, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }

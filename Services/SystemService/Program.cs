@@ -26,6 +26,8 @@ using SystemService.DAL.Repositories.Identity.Interfaces;
 using SystemService.DAL.Repositories.Payment.Implementations;
 using SystemService.DAL.Repositories.Payment.Interfaces;
 
+using SystemService.BLL.Services.AI.Implementations;
+using SystemService.BLL.Services.AI.Interfaces;
 using SystemService.BLL.Services.Payment.Implementations;
 using SystemService.BLL.Services.Payment.Interfaces;
 
@@ -90,6 +92,8 @@ builder.Services.AddScoped<ICompetitionRegistrationService, CompetitionRegistrat
 builder.Services.AddScoped<ICompetitionTeamService, CompetitionTeamService>();
 builder.Services.AddScoped<ICompetitionTeamRequestService, CompetitionTeamRequestService>();
 builder.Services.AddScoped<ICompetitionJudgeService, CompetitionJudgeService>();
+builder.Services.AddScoped<ICompetitionDebateBridgeService, CompetitionDebateBridgeService>();
+builder.Services.AddScoped<ICompetitionTournamentService, CompetitionTournamentService>();
 
 builder.Services.AddScoped<IPaymentGateway, PayOSPaymentGateway>();
 builder.Services.AddScoped<IWalletService, WalletService>();
@@ -100,6 +104,25 @@ builder.Services.AddScoped<IRewardService, RewardService>();
 builder.Services.AddScoped<IDebateService, DebateService>();
 builder.Services.AddScoped<IDebateChallengeService, DebateChallengeService>();
 builder.Services.AddScoped<ITopicService, TopicService>();
+
+// 5. AI Services Clients
+var evaluatorUrl = builder.Configuration["AiServices:EvaluatorUrl"] 
+    ?? "https://adpp-ai-evaluator.greenstone-4d67d46a.indonesiacentral.azurecontainerapps.io";
+var opponentUrl = builder.Configuration["AiServices:OpponentUrl"] 
+    ?? "http://localhost:8002";
+var aiTimeoutSeconds = builder.Configuration.GetValue<int>("AiServices:TimeoutSeconds", 120);
+
+builder.Services.AddHttpClient<IAiEvaluatorClient, AiEvaluatorClient>(client =>
+{
+    client.BaseAddress = new Uri(evaluatorUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(aiTimeoutSeconds);
+});
+
+builder.Services.AddHttpClient<IAiOpponentClient, AiOpponentClient>(client =>
+{
+    client.BaseAddress = new Uri(opponentUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(aiTimeoutSeconds);
+});
 
 // 6. Authentication & JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "development-secret-key-super-secret-1234567890";
@@ -165,13 +188,6 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
-
-// Ensure Database is created
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<SystemDbContext>();
-    context.Database.EnsureCreated();
-}
 
 // Middleware pipeline
 app.UseMiddleware<ExceptionMiddleware>();

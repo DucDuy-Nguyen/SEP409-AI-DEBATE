@@ -61,6 +61,37 @@ namespace SystemService.BLL.DTOs.AI
         [property: JsonPropertyName("progress_trend")] string ProgressTrend,
         [property: JsonPropertyName("overall_strengths")] List<string> OverallStrengths,
         [property: JsonPropertyName("overall_weaknesses")] List<string> OverallWeaknesses,
-        [property: JsonPropertyName("overall_suggestions")] List<string> OverallSuggestions
+        [property: JsonPropertyName("overall_suggestions")] List<string> OverallSuggestions,
+        [property: JsonPropertyName("raw_model_output")] string? RawModelOutput = null
+    );
+
+    public record CriterionCoachingDto(
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("current_score")] int CurrentScore,
+        [property: JsonPropertyName("diagnosis")] string Diagnosis,
+        [property: JsonPropertyName("methods")] List<string> Methods,
+        [property: JsonPropertyName("application")] string Application
+    );
+
+    public record IdeaDevelopmentDto(
+        [property: JsonPropertyName("core_claim")] string CoreClaim,
+        [property: JsonPropertyName("directions")] List<string> Directions,
+        [property: JsonPropertyName("evidence_to_look_for")] List<string>? EvidenceToLookFor = null
+    );
+
+    public record CoachingResultDto(
+        [property: JsonPropertyName("focus_criteria")] List<CriterionCoachingDto> FocusCriteria,
+        [property: JsonPropertyName("idea_development")] IdeaDevelopmentDto IdeaDevelopment,
+        [property: JsonPropertyName("raw_model_output")] string? RawModelOutput = null
+    );
+
+    public record ArgumentCoachingRequest(
+        [property: JsonPropertyName("request")] EvaluateArgumentRequest Request,
+        [property: JsonPropertyName("evaluation")] EvaluateArgumentResponse Evaluation
+    );
+
+    public record RoundCoachingRequest(
+        [property: JsonPropertyName("request")] EvaluateRoundRequest Request,
+        [property: JsonPropertyName("evaluation")] EvaluateRoundResponse Evaluation
     );
 }

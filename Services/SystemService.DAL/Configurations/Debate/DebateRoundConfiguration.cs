@@ -19,7 +19,7 @@ namespace SystemService.DAL.Configurations.Debate
             builder.HasOne(e => e.DebateSession)
                    .WithMany(s => s.DebateRounds)
                    .HasForeignKey(e => e.DebateSessionId)
-                   .OnDelete(DeleteBehavior.Cascade);
+                   .OnDelete(DeleteBehavior.NoAction);
 
             builder.HasIndex(e => new { e.DebateSessionId, e.RoundNumber })
                    .IsUnique();

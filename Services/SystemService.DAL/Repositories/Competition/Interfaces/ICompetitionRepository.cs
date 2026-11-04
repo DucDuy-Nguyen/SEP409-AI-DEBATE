@@ -14,5 +14,7 @@ namespace SystemService.DAL.Repositories.Competition.Interfaces
         Task CreateWithJudgeAsync(Entities.Competition.Competition competition, CompetitionJudge judge, CancellationToken cancellationToken = default);
         Task UpdateAsync(Entities.Competition.Competition competition, CancellationToken cancellationToken = default);
         Task<bool> ExistsAsync(int id, CancellationToken cancellationToken = default);
+        Task<List<CompetitionRound>> GetRoundsWithMatchesAsync(int competitionId, CancellationToken cancellationToken = default);
+        Task<bool> StartWithReadyMatchesAsync(int competitionId, CancellationToken cancellationToken = default);
     }
 }

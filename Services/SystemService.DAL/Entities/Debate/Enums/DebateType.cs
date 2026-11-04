@@ -4,7 +4,8 @@ namespace SystemService.DAL.Entities.Debate.Enums
     {
         AiPractice = 1,
         P2pMatch = 2,
-        Direct1v1 = 3
+        Direct1v1 = 3,
+        Competition = 4
     }
 }
 

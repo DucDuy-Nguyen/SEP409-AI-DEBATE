@@ -33,7 +33,7 @@ namespace SystemService.Controllers.Competition
             var result = await _teamService.CreateTeamAsync(id, userId, request, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -69,7 +69,7 @@ namespace SystemService.Controllers.Competition
             var result = await _teamService.LeaveTeamAsync(id, teamId, userId, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -87,7 +87,7 @@ namespace SystemService.Controllers.Competition
             var result = await _teamService.RemoveMemberAsync(id, teamId, userId, currentUserId, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }
@@ -105,7 +105,7 @@ namespace SystemService.Controllers.Competition
             var result = await _teamService.WithdrawTeamAsync(id, teamId, userId, cancellationToken);
             if (!result.Success)
             {
-                return BadRequest(result);
+                return CompetitionHttpErrors.Map(this, result);
             }
             return Ok(result);
         }

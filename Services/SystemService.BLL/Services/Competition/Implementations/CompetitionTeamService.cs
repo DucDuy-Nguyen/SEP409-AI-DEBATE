@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SystemService.BLL.Common.Responses;
+using SystemService.BLL.Services.Competition;
 using SystemService.BLL.DTOs.Competition.Team;
 using SystemService.BLL.Services.Competition.Interfaces;
 using SystemService.DAL.Entities.Competition;
@@ -48,6 +49,12 @@ namespace SystemService.BLL.Services.Competition.Implementations
             {
                 return ApiResponse<CompetitionTeamResponse>.FailureResponse("Teams can only be created for TEAM competitions.");
             }
+
+            if (!await CanChangeRosterAsync(competition, cancellationToken))
+                return ApiResponse<CompetitionTeamResponse>.FailureResponse("Team registration is closed or the bracket already exists.", CompetitionErrorCodes.Conflict);
+
+            if (competition.MaxParticipants.HasValue && competition.MaxParticipants.Value % 2 != 0)
+                return ApiResponse<CompetitionTeamResponse>.FailureResponse("TEAM MaxParticipants must be even.");
 
             bool isAlreadyInTeam = await _teamRepository.IsUserCaptainOrMemberInCompetitionAsync(competitionId, captainUserId, cancellationToken);
             if (isAlreadyInTeam)
@@ -133,6 +140,10 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<object>.FailureResponse("Team not found for the specified competition.");
             }
 
+            var competition = await _competitionRepository.GetByIdAsync(competitionId, cancellationToken);
+            if (competition == null || !await CanChangeRosterAsync(competition, cancellationToken))
+                return ApiResponse<object>.FailureResponse("Team roster cannot change now.", CompetitionErrorCodes.Conflict);
+
             if (team.CaptainUserId == userId)
             {
                 return ApiResponse<object>.FailureResponse("Team captain cannot leave the team.");
@@ -155,6 +166,10 @@ namespace SystemService.BLL.Services.Competition.Implementations
             {
                 return ApiResponse<object>.FailureResponse("Team not found for the specified competition.");
             }
+
+            var competition = await _competitionRepository.GetByIdAsync(competitionId, cancellationToken);
+            if (competition == null || !await CanChangeRosterAsync(competition, cancellationToken))
+                return ApiResponse<object>.FailureResponse("Team roster cannot change now.", CompetitionErrorCodes.Conflict);
 
             if (team.CaptainUserId != currentUserId)
             {
@@ -184,6 +199,10 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<object>.FailureResponse("Team not found for the specified competition.");
             }
 
+            var competition = await _competitionRepository.GetByIdAsync(competitionId, cancellationToken);
+            if (competition == null || !await CanChangeRosterAsync(competition, cancellationToken))
+                return ApiResponse<object>.FailureResponse("Team roster cannot change now.", CompetitionErrorCodes.Conflict);
+
             if (team.CaptainUserId != currentUserId)
             {
                 return ApiResponse<object>.FailureResponse("Only the team captain can withdraw the team.");
@@ -193,6 +212,14 @@ namespace SystemService.BLL.Services.Competition.Implementations
             await _teamRepository.UpdateTeamAsync(team, cancellationToken);
 
             return ApiResponse<object>.SuccessResponse(new { }, "Team withdrawn successfully.");
+        }
+
+        private async Task<bool> CanChangeRosterAsync(SystemService.DAL.Entities.Competition.Competition competition, CancellationToken cancellationToken)
+        {
+            var now = DateTime.UtcNow;
+            return competition.Status == "OpenRegistration"
+                && now >= competition.RegistrationStart && now < competition.RegistrationEnd
+                && (await _competitionRepository.GetRoundsWithMatchesAsync(competition.CompetitionId, cancellationToken)).Count == 0;
         }
 
         private static CompetitionTeamResponse MapToResponse(CompetitionTeam t)
