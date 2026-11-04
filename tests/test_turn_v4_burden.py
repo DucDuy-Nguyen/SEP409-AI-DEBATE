@@ -88,7 +88,7 @@ async def test_v4_generator_version_label_depends_on_burden():
 def test_defaults():
     s = Settings(_env_file=None)
     assert (s.case_plan_prompt_version, s.turn_generator_version, s.turn_burden_enabled) == (
-        "case_plan_v7", "turn_full_v6", True)  # mac dinh luot noi v6 tu muc 2.19
+        "case_plan_v7", "turn_full_v7", True)  # mac dinh luot noi v7 tu muc 3.2
 
 
 # ---------------- qua API ----------------

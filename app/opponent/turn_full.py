@@ -24,9 +24,12 @@ side_flip -> retry TRUNG TINH (khong phan hoi, tinh vao TURN_MAX_ATTEMPTS); het 
 tra bai noi bi bao lat phe. "khong_ro" (phan doan that) -> chi log; reviewer LOI 2 lan -> reviewer_unavailable, retry
 trung tinh nhu side_flip (fail-closed, muc 2.14).
 
+turn_full_v7 (muc 3.2): xem FullTurnGeneratorV7. v1..v6 GIU NGUYEN (TurnOutput cu, TARGET_RULE cu).
+
 Gon token (muc 2.11): khong co bai learner moi -> prompt ghi ro, learner_claims / premises BI EP rong; closing khong
 phan tich tien de -> premises rong, target_premise null (log neu model tra khong rong).
 """
+import difflib
 import logging
 import re
 import unicodedata
@@ -51,6 +54,10 @@ from app.opponent.turn_generators import (
     FULL_V5_NOBURDEN,
     FULL_V6,
     FULL_V6_NOBURDEN,
+    FULL_V7,
+    FULL_V7_NODIFFICULTY,
+    FULL_V7_NODIFFICULTY_NOBURDEN,
+    FULL_V7_NOBURDEN,
     ROUND_LABEL,
     SIDE_LABEL,
     LLMCaller,
@@ -89,8 +96,15 @@ FIELD_ORDER_V5 = ("premises", "target_premise", "ai_points", "speech_text")  # v
 RETRY_MIN_RATIO, RETRY_MAX_RATIO = 0.5, 1.5
 
 
+def is_v7_difficulty(version: str) -> bool:
+    """v7 KHI BAT do kho. Cac nhan _nodifficulty: prompt + schema + validator = v6."""
+    return version in (FULL_V7, FULL_V7_NOBURDEN)
+
+
 def is_v6(version: str) -> bool:
-    return version in (FULL_V6, FULL_V6_NOBURDEN)
+    """v6 TRO LEN (v7 giu moi thay doi cua v6)."""
+    return version in (FULL_V6, FULL_V6_NOBURDEN, FULL_V7, FULL_V7_NOBURDEN, FULL_V7_NODIFFICULTY,
+                       FULL_V7_NODIFFICULTY_NOBURDEN)
 
 
 def is_v5(version: str) -> bool:
@@ -113,7 +127,7 @@ def is_v4_plus(version: str) -> bool:
 
 
 def uses_burden(version: str) -> bool:
-    return version in (FULL_V4, FULL_V5, FULL_V6)
+    return version in (FULL_V4, FULL_V5, FULL_V6, FULL_V7, FULL_V7_NODIFFICULTY)
 
 
 def retry_range(target_words: int) -> tuple[int, int]:
@@ -145,6 +159,15 @@ class TurnOutput(BaseModel):
 
 FIELD_ORDER = ("learner_claims", "premises", "target_premise", "ai_points", "speech_text")
 assert tuple(TurnOutput.model_fields) == FIELD_ORDER  # thu tu khai bao = thu tu trong schema / prompt
+
+
+class TurnOutputV7(TurnOutput):
+    """Lop rieng de v1..v6 van coi points_addressed la truong la (sua key / bao loi khong doi)."""
+
+    points_addressed: list[str]
+
+
+FIELD_ORDER_V7 = ("premises", "target_premise", "points_addressed", "ai_points", "speech_text")
 
 
 def needs_target(mode: TurnMode) -> bool:
@@ -188,8 +211,16 @@ def build_response_schema(mode: TurnMode, has_new_speech: bool = True, version: 
     JSON schema strict (Groq), viet tay de GIU THU TU truong (model sinh theo thu tu properties). Theo mode:
     target_premise la string (opening_reply / rebuttal) hoac null. Khong co bai learner moi -> learner_claims /
     premises rong; closing -> premises rong (maxItems 0: bot token sinh phan tich thua, muc 2.11).
-    v5 (muc 2.18): KHONG co learner_claims.
+    v5 (muc 2.18): KHONG co learner_claims. v7 bat do kho (muc 3.2): them points_addressed sau target_premise.
     """
+    if is_v7_difficulty(version):
+        schema = build_response_schema(mode, has_new_speech, FULL_V6)
+        strings = {"type": "array", "items": {"type": "string"}}
+        points = strings if analyzes_premises(mode, has_new_speech) else {**strings, "maxItems": 0}
+        properties = {**schema["properties"], "points_addressed": points}
+        schema["properties"] = {k: properties[k] for k in FIELD_ORDER_V7}
+        schema["required"] = list(FIELD_ORDER_V7)
+        return schema
     if is_v5(version):
         schema = build_response_schema(mode, has_new_speech)
         del schema["properties"]["learner_claims"]
@@ -244,8 +275,89 @@ TARGET_RULE = {
 }
 
 
+# turn_full_v7 (muc 3.2) — nguyen van spec
+DIFFICULTY_LABEL = {
+    OpponentDifficulty.EASY: "DỄ",
+    OpponentDifficulty.MEDIUM: "TRUNG BÌNH",
+    OpponentDifficulty.HARD: "KHÓ",
+}
+V7_DIFFICULTY_LINE = (
+    "Độ khó của trận: {label}. Độ khó chỉ quyết định cách bạn chọn điểm tấn công và mức độ bạn đáp lại; nó KHÔNG làm "
+    "thay đổi lập trường: bạn vẫn bảo vệ phe của mình đến hết trận ở mọi độ khó."
+)
+V7_TARGET_BLOCK = {
+    OpponentDifficulty.EASY: (
+        "target_premise: một tiền đề TƯỜNG MINH trong bài của đội {learner}. Chỉ phản bác ĐÚNG MỘT ý chính, không cần "
+        "đáp các ý còn lại. Dùng câu ngắn, từ ngữ đơn giản, một ví dụ dễ hình dung. Có thể ghi nhận ngắn một ý đúng của "
+        "đối phương rồi nêu rõ vì sao phe bạn vẫn đúng."
+    ),
+    OpponentDifficulty.MEDIUM: (
+        "target_premise: một tiền đề TƯỜNG MINH vừa nền tảng (gần gốc lập luận) vừa được chứng minh chưa đầy đủ. Phản "
+        "bác ý chính đó và, nếu còn chỗ, thêm một ý liên quan. Lập luận chặt chẽ ở mức khá, có cơ chế rõ ràng."
+    ),
+    OpponentDifficulty.HARD: (
+        "target_premise: có thể là tiền đề NGẦM; chọn tiền đề nền tảng mà nếu sai thì lập luận của đối phương đổ theo. "
+        "Đáp ÍT NHẤT hai ý chính của đội {learner} và chỉ ra ít nhất một ý họ chưa chứng minh hoặc bỏ ngỏ. Chủ động chặn "
+        "trước phản biện sắp tới của họ bằng mục 'Những phản biện bạn đã dự đoán'. So sánh mức độ tác động của hai bên "
+        "(quy mô, ai bị ảnh hưởng, thời gian)."
+    ),
+}
+V7_OPENING_FIRST_EXTRA = {
+    OpponentDifficulty.EASY: "Giọng đơn giản, câu ngắn, mỗi luận điểm một ví dụ dễ hình dung.",
+    OpponentDifficulty.MEDIUM: None,
+    OpponentDifficulty.HARD: (
+        "Chặn trước một đến hai phản biện phổ biến dựa trên mục 'Những phản biện bạn đã dự đoán', và kết bằng một câu so "
+        "sánh mức độ tác động."
+    ),
+}
+V7_CLOSING_POINTS = {
+    OpponentDifficulty.EASY: "Nêu 2 điểm tranh chấp chính.",
+    OpponentDifficulty.MEDIUM: "Nêu 2 đến 3 điểm tranh chấp chính.",
+    OpponentDifficulty.HARD: (
+        "Nêu 3 điểm tranh chấp chính; với mỗi điểm so sánh quy mô, xác suất và thời gian tác động; đáp lại điểm mạnh nhất "
+        "của đội {learner} và chỉ ra điều họ chưa chứng minh được."
+    ),
+}
+# Phan con lai cua MODE_TASK[CLOSING]. KHO: khoi tren da gom so sanh + dap lai nen khong lap lai.
+V7_CLOSING_COMPARE = "Với mỗi điểm so sánh vì sao phe bạn thắng; đáp lại điểm mạnh nhất của đội {learner}."
+V7_CLOSING_TAIL = "KHÔNG đưa lập luận mới, KHÔNG liệt kê lại toàn bộ luận điểm."
+V7_ANTICIPATED_TITLE = "Những phản biện bạn đã dự đoán từ phía đội {learner} (đã chuẩn bị sẵn cách đáp):"
+V7_ANTICIPATED_MODES = (TurnMode.OPENING_FIRST, TurnMode.OPENING_REPLY, TurnMode.REBUTTAL)
+V7_POINTS_RULE = (
+    "points_addressed chỉ lấy từ premises.explicit của (các) bài nói MỚI, đúng nguyên văn mục đã trích; rỗng nếu không "
+    "có bài mới."
+)
+V7_NO_ATTACK_AGAIN = "Không tấn công lại tiền đề đã tấn công, trừ khi người học chưa đáp lại nó."
+
+
 def _bullets(items: list[str]) -> str:
     return "\n".join(f"- {x}" for x in items)
+
+
+def v7_task(mode: TurnMode, difficulty: OpponentDifficulty, learner: str) -> str:
+    """Khoi nhiem vu v7 (truoc mo ta JSON): chi dan theo mode + dong do kho chung + khoi theo cap."""
+    level = OpponentDifficulty(difficulty)
+    if mode == TurnMode.CLOSING:
+        points = V7_CLOSING_POINTS[level].format(learner=learner)
+        compare = "" if level == OpponentDifficulty.HARD else " " + V7_CLOSING_COMPARE.format(learner=learner)
+        head = f"Tổng kết trận. {points}{compare} {V7_CLOSING_TAIL}"
+    else:
+        head = MODE_TASK[mode].format(learner=learner)
+    if mode == TurnMode.OPENING_FIRST and V7_OPENING_FIRST_EXTRA[level]:
+        head += " " + V7_OPENING_FIRST_EXTRA[level]
+    task = f"Nhiệm vụ lượt này: {head}\n{V7_DIFFICULTY_LINE.format(label=DIFFICULTY_LABEL[level])}"
+    if needs_target(mode):
+        task += f"\n{V7_TARGET_BLOCK[level].format(learner=learner)}\n{V7_NO_ATTACK_AGAIN}"
+    return task
+
+
+def anticipated_section(case: dict, learner: str) -> str | None:
+    """Muc 'phan bien da du doan' (v7, chi hard + V7_ANTICIPATED_MODES). Case file cu khong co -> None."""
+    items = [a for a in case.get("anticipated_opponent_arguments", []) if isinstance(a, dict)]
+    if not items:
+        return None
+    lines = [f"- {a.get('learner_claim', '')} Cách đáp: {a.get('planned_response', '')}" for a in items]
+    return V7_ANTICIPATED_TITLE.format(learner=learner) + "\n" + "\n".join(lines)
 
 
 def new_learner_speeches(context: TurnContext):
@@ -365,8 +477,11 @@ def _prompt_sections(
         parts.append("Các tiền đề bạn đã tấn công:\n" + _bullets(ledger.attacked_premises))
     new = new_learner_speeches(context)
 
+    v7 = is_v7_difficulty(version)
     task = "Nhiệm vụ lượt này: " + MODE_TASK[mode].format(learner=learner)
-    if needs_target(mode):
+    if v7:
+        task = v7_task(mode, context.difficulty, learner)
+    elif needs_target(mode):
         task += (
             f"\nChọn target_premise (tiền đề của đội {learner} để tấn công): {TARGET_RULE[context.difficulty]}"
             "\nKhông tấn công lại tiền đề đã tấn công, trừ khi người học chưa đáp lại nó."
@@ -387,6 +502,13 @@ def _prompt_sections(
         "tiền đề bạn chọn để tấn công (một câu, lấy từ premises)" if needs_target(mode)
         else "null (lượt này không chọn tiền đề để tấn công)"
     )
+    points_line = ""
+    if v7:
+        points_line = (
+            ("\n- points_addressed: danh sách các mục premises.explicit của bài MỚI mà bài nói thực sự đáp lại. "
+             + V7_POINTS_RULE) if analyzes_premises(mode, bool(new))
+            else "\n- points_addressed: để mảng rỗng (lượt này không phân tích tiền đề)."
+        )
     if is_v6(version) and analyzes_premises(mode, bool(new)):
         task += "\n\n" + V6_EXTRACTION_RULE.format(learner=learner)  # dat NGAY TRUOC mo ta JSON (muc 2.19)
     task += (
@@ -394,10 +516,15 @@ def _prompt_sections(
         + ("" if is_v5(version) else f"\n- learner_claims: {claims_rule}.")
         + f"\n- premises: {{\"explicit\": [...], \"implicit\": [...]}} — {premises_rule}."
         f"\n- target_premise: {target_rule}."
-        "\n- ai_points: dàn ý 2–4 ý bạn sẽ nói trong lượt này, mỗi ý một câu."
+        + points_line
+        + "\n- ai_points: dàn ý 2–4 ý bạn sẽ nói trong lượt này, mỗi ý một câu."
         "\n- speech_text: bài nói hoàn chỉnh, viết theo dàn ý ai_points."
     )
     after = [task] + ([feedback.strip()] if feedback else [])
+    if v7 and OpponentDifficulty(context.difficulty) == OpponentDifficulty.HARD and mode in V7_ANTICIPATED_MODES:
+        anticipated = anticipated_section(case, learner)
+        if anticipated:
+            after.insert(0, anticipated)  # ngay truoc khoi nhiem vu
     return system, parts, new, after, constraints_block(context, version)
 
 
@@ -405,17 +532,19 @@ def _prompt_sections(
 
 
 class _Invalid(Exception):
-    def __init__(self, kind: str, error: str, issues: list[str], speech: str | None = None):
+    def __init__(self, kind: str, error: str, issues: list[str], speech: str | None = None, data: object = None):
+        """data: output da parse (neu co) — v7 log target_premise / points_addressed ca lan thu bi loai."""
         super().__init__(error)
-        self.kind, self.error, self.issues, self.speech = kind, error, issues, speech
+        self.kind, self.error, self.issues, self.speech, self.data = kind, error, issues, speech, data
 
 
-_OBJECTS = (("", TurnOutput), ("premises.", Premises))
+def _output_model(version: str) -> type[TurnOutput]:
+    return TurnOutputV7 if is_v7_difficulty(version) else TurnOutput
 
 
-def _key_diffs(data: dict) -> list[dict]:
+def _key_diffs(data: dict, version: str = FULL_V1) -> list[dict]:
     diffs = []
-    for prefix, model in _OBJECTS:
+    for prefix, model in (("", _output_model(version)), ("premises.", Premises)):
         obj = data if not prefix else data.get("premises")
         if not isinstance(obj, dict):
             continue
@@ -427,9 +556,9 @@ def _key_diffs(data: dict) -> list[dict]:
     return diffs
 
 
-def _key_issues(data: dict) -> list[str]:
+def _key_issues(data: dict, version: str = FULL_V1) -> list[str]:
     issues = []
-    for d in _key_diffs(data):
+    for d in _key_diffs(data, version):
         p = d["prefix"]
         issues += [f"`{p}{w}`: bạn đã viết '{w}', tên đúng là '{r}'" for w, r in d["renames"].items()]
         issues += [f"`{p}{k}`: trường lạ — bỏ đi" for k in d["unknown"] if k not in d["renames"]]
@@ -437,17 +566,17 @@ def _key_issues(data: dict) -> list[str]:
     return issues
 
 
-def repair_keys(data: dict) -> list[dict]:
+def repair_keys(data: dict, version: str = FULL_V1) -> list[dict]:
     """Doi ten key go sai (<= 3 ky tu) TRUC TIEP tren data. Tra danh sach doi ten."""
     renames = []
-    for d in _key_diffs(data):
+    for d in _key_diffs(data, version):
         for wrong, right in d["renames"].items():
             d["obj"][right] = d["obj"].pop(wrong)
             renames.append({"path": d["prefix"] + right, "from": wrong, "to": right})
     return renames
 
 
-def _validation_issues(e: ValidationError, data: object) -> list[str]:
+def _validation_issues(e: ValidationError, data: object, version: str = FULL_V1) -> list[str]:
     issues = []
     for err in e.errors():
         if err["type"] == "missing" and isinstance(data, dict):
@@ -460,7 +589,7 @@ def _validation_issues(e: ValidationError, data: object) -> list[str]:
         else:
             msg = err["msg"]
         issues.append(f"`{where}`: {msg}")
-    return issues + (_key_issues(data) if isinstance(data, dict) else [])
+    return issues + (_key_issues(data, version) if isinstance(data, dict) else [])
 
 
 def _without_claims(data: object, version: str) -> object:
@@ -474,10 +603,10 @@ def validate_turn_data(data: object, mode: TurnMode, target_words: int, version:
     """Nem _Invalid (kem phan hoi tieng Viet) neu khong hop le."""
     data = _without_claims(data, version)
     try:
-        out = TurnOutput.model_validate(data)
+        out = _output_model(version).model_validate(data)
     except ValidationError as e:
         speech = data.get("speech_text") if isinstance(data, dict) and isinstance(data.get("speech_text"), str) else None
-        raise _Invalid(TurnFailure.SCHEMA_VALIDATION, str(e)[:4000], _validation_issues(e, data), speech) from e
+        raise _Invalid(TurnFailure.SCHEMA_VALIDATION, str(e)[:4000], _validation_issues(e, data, version), speech, data) from e
     if mode == TurnMode.OPENING_FIRST:  # chua co bai learner: bo moi phan tich (schema Groq da ep rong)
         out.learner_claims, out.premises = [], Premises(explicit=[], implicit=[])
     if not needs_target(mode):
@@ -486,7 +615,7 @@ def validate_turn_data(data: object, mode: TurnMode, target_words: int, version:
         raise _Invalid(
             TurnFailure.SCHEMA_VALIDATION, "target_premise rong o luot can tan cong",
             ["`target_premise`: lượt này phải chọn đúng một tiền đề để tấn công (không được null / rỗng)."],
-            out.speech_text,
+            out.speech_text, data,
         )
     out.speech_text = out.speech_text.strip()
 
@@ -504,7 +633,7 @@ def validate_turn_data(data: object, mode: TurnMode, target_words: int, version:
             issues.append(length_issue(n, target_words))
         raise _Invalid(
             TurnFailure.BANNED_PHRASE, "banned_phrase: " + "; ".join(f"'{h.match}' ({h.rule})" for h in high),
-            issues, out.speech_text,
+            issues, out.speech_text, data,
         )
     return out
 
@@ -530,21 +659,22 @@ def _repair_rejected(call, mode: TurnMode, target_words: int, version: str = FUL
     m = _JSONSCHEMA_DETAIL.search(call.error or "")
     issues = [
         f"Output bị nhà cung cấp từ chối vì không khớp JSON schema{f' ({m.group(1)})' if m else ''}. Kiểm tra lại "
-        f"đúng {4 if is_v5(version) else 5} trường theo thứ tự, đúng kiểu, không thêm trường lạ. Trả về MỘT object "
+        f"đúng {4 if is_v5(version) and not is_v7_difficulty(version) else 5} trường theo thứ tự, đúng kiểu, không thêm trường lạ. Trả về MỘT object "
         "JSON (không phải mảng)."
     ]
-    repaired = repair_split_array(call.raw_output, FIELD_ORDER_V5 if is_v5(version) else FIELD_ORDER)
+    known_keys = FIELD_ORDER_V7 if is_v7_difficulty(version) else FIELD_ORDER_V5 if is_v5(version) else FIELD_ORDER
+    repaired = repair_split_array(call.raw_output, known_keys)
     if repaired is not None:
         data, info = repaired
         data = _without_claims(data, version)
-        renames = repair_keys(data)
-        if _key_diffs(data):
-            raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + _key_issues(data))
+        renames = repair_keys(data, version)
+        if _key_diffs(data, version):
+            raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + _key_issues(data, version), data=data)
         try:
             out = validate_turn_data(data, mode, target_words, version)
         except _Invalid as e:
             if e.kind == TurnFailure.SCHEMA_VALIDATION:
-                raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + e.issues, e.speech) from None
+                raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + e.issues, e.speech, e.data) from None
             raise
         call.key_repairs = {**info, "renames": renames, "provider_error": (call.error or "")[:1000]}
         return out
@@ -555,9 +685,9 @@ def _repair_rejected(call, mode: TurnMode, target_words: int, version: str = FUL
     if not isinstance(data, dict):
         raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues)
     data = _without_claims(data, version)
-    renames = repair_keys(data)
-    if not renames or _key_diffs(data):
-        raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + _key_issues(data))
+    renames = repair_keys(data, version)
+    if not renames or _key_diffs(data, version):
+        raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + _key_issues(data, version), data=data)
     out = validate_turn_data(data, mode, target_words, version)  # co the nem _Invalid khac (HIGH...) -> retry nhu thuong
     call.key_repairs = {"event": "key_repaired", "renames": renames, "provider_error": (call.error or "")[:1000]}
     return out
@@ -652,6 +782,9 @@ def coerce_analysis(out: TurnOutput, mode: TurnMode, has_new_speech: bool) -> di
     if not analyzes_premises(mode, has_new_speech) and (out.premises.explicit or out.premises.implicit):
         dropped["premises"] = len(out.premises.explicit) + len(out.premises.implicit)
         out.premises = Premises(explicit=[], implicit=[])
+    if isinstance(out, TurnOutputV7) and not analyzes_premises(mode, has_new_speech) and out.points_addressed:
+        dropped["points_addressed"] = len(out.points_addressed)
+        out.points_addressed = []
     if not needs_target(mode):
         out.target_premise = None  # validate_turn_data da ep; giu o day cho ro
     return dropped
@@ -710,6 +843,107 @@ def normalize_first_person(text: str) -> tuple[str, int]:
     return "".join(out), count
 
 
+# ---------------- v7: target_premise + points_addressed ----------------
+
+PREMISE_MATCH_RATIO = 0.85
+_TOKEN = re.compile(r"[^\W_]+")  # giu chu so ("lớp 10" khac "lớp 12"), khac _WORD
+TARGET_NOT_IN_PREMISES_ISSUE = (
+    "`target_premise` phải là một mục đã có trong `premises.explicit` hoặc `premises.implicit` — chép đúng mục đó, không "
+    "viết một tiền đề khác."
+)
+TARGET_EXPLICIT_ONLY_ISSUE = (
+    "`target_premise` phải là một mục trong `premises.explicit` — chép đúng mục đó, không viết một tiền đề khác."
+)
+TARGET_LEVEL_MISMATCH_ISSUE = (
+    "`target_premise` đang là một tiền đề ngầm (`premises.implicit`); ở độ khó này phải chọn một mục trong "
+    "`premises.explicit`."
+)
+POINTS_MIN_SHARED_WORDS = 2
+# Tu chuc nang pho bien (moi am tiet la 1 tu) — chi dung cho kiem tra CHI LOG points_unsupported.
+VI_STOPWORDS = frozenset("""
+    và là của có không các những một để trong cho với được khi thì mà này đó ở về từ như nên vì hay hoặc nhưng đã đang sẽ
+    bị rằng do tại trên dưới ra vào lên xuống rất cũng còn lại đều chỉ nếu tuy dù bởi nào gì ai mọi mỗi cả sau trước
+    bạn mình họ em tôi ta chúng người đội phe việc điều cái sự ý
+""".split())
+# So muc points_addressed (da khop) mong doi — CHI LOG. medium: khong co ky vong.
+_POINTS_EXPECTED = {OpponentDifficulty.EASY: lambda n: n == 1, OpponentDifficulty.HARD: lambda n: n >= 2}
+
+
+def _norm_premise(text: str) -> str:
+    return " ".join(_TOKEN.findall(unicodedata.normalize("NFC", text).casefold()))
+
+
+def _ratio(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(None, a, b, autojunk=False).ratio() if a and b else 0.0
+
+
+def premise_kind(target: str, premises: Premises) -> str | None:
+    """'explicit' / 'implicit' (muc giong nhat, hoa -> explicit) hoac None neu khong muc nao dat PREMISE_MATCH_RATIO."""
+    norm = _norm_premise(target)
+    explicit = max((_ratio(norm, _norm_premise(p)) for p in premises.explicit), default=0.0)
+    implicit = max((_ratio(norm, _norm_premise(p)) for p in premises.implicit), default=0.0)
+    if max(explicit, implicit) < PREMISE_MATCH_RATIO:
+        return None
+    return "explicit" if explicit >= implicit else "implicit"
+
+
+def target_issue(out: TurnOutputV7, difficulty: OpponentDifficulty) -> tuple[str, str] | None:
+    """(failure_kind, phan hoi) neu target_premise khong khop premises hoac sai cap; None = hop le."""
+    level = OpponentDifficulty(difficulty)
+    kind = premise_kind(out.target_premise or "", out.premises)
+    if kind is None:
+        issue = TARGET_NOT_IN_PREMISES_ISSUE if level == OpponentDifficulty.HARD else TARGET_EXPLICIT_ONLY_ISSUE
+        return TurnFailure.TARGET_NOT_IN_PREMISES, issue
+    if kind == "implicit" and level != OpponentDifficulty.HARD:
+        return TurnFailure.TARGET_LEVEL_MISMATCH, TARGET_LEVEL_MISMATCH_ISSUE
+    return None
+
+
+def points_checks(points: list[str], explicit: list[str], difficulty: OpponentDifficulty) -> dict:
+    """CHI LOG: so muc premises.explicit (moi muc tinh 1 lan) co trong points_addressed; co lech ky vong theo cap khong."""
+    norm = [_norm_premise(p) for p in points]
+    count = sum(1 for e in explicit if any(_ratio(_norm_premise(e), p) >= PREMISE_MATCH_RATIO for p in norm))
+    expected = _POINTS_EXPECTED.get(OpponentDifficulty(difficulty))
+    return {"points_addressed_count": count, "points_below_expected": expected is not None and not expected(count)}
+
+
+def points_unsupported(points: list[str], speech: str) -> list[str]:
+    """
+    CHI LOG: cac muc points_addressed co < POINTS_MIN_SHARED_WORDS tu noi dung (khac nhau, bo stopword) trong bai noi.
+    Kiem tra YEU: moi am tiet la 1 tu, nen "điện thoại" (chu de kien nghi) da du 2 tu — chi bat muc khong lien quan han.
+    """
+    spoken = set(_norm_premise(speech).split())
+    return [p for p in points if len((set(_norm_premise(p).split()) - VI_STOPWORDS) & spoken) < POINTS_MIN_SHARED_WORDS]
+
+
+def _strings(value: object) -> list[str]:
+    return [x for x in value if isinstance(x, str)] if isinstance(value, list) else []
+
+
+def attempt_checks(data: object, difficulty: OpponentDifficulty) -> dict:
+    """
+    CHI LOG, MOI lan thu co output parse duoc (ke ca lan bi loai) — bao cao "lan thu dau" (muc 3.2) khong can parse lai
+    raw_output (dang mang tach khong doc thang duoc). Doc than trong: output sai schema van lay duoc phan con dung.
+    """
+    if not isinstance(data, dict):
+        return {}
+    raw = data.get("premises")
+    raw = raw if isinstance(raw, dict) else {}
+    premises = Premises(explicit=_strings(raw.get("explicit")), implicit=_strings(raw.get("implicit")))
+    target = data.get("target_premise") if isinstance(data.get("target_premise"), str) else None
+    points = _strings(data.get("points_addressed"))
+    speech = data.get("speech_text") if isinstance(data.get("speech_text"), str) else ""
+    kind = premise_kind(target or "", premises)
+    return {
+        "target_premise": target,
+        "points_addressed": points,
+        "target_kind": kind,
+        "target_level_ok": kind == "explicit" or (kind == "implicit" and OpponentDifficulty(difficulty) == OpponentDifficulty.HARD),
+        "points_unsupported": points_unsupported(points, speech),
+        **points_checks(points, premises.explicit, difficulty),
+    }
+
+
 # ---------------- bo sinh ----------------
 
 
@@ -753,6 +987,8 @@ class FullTurnGenerator:
         schema = build_response_schema(mode, has_new, self.version) if settings.case_plan_use_json_schema else None
         feedback = None
         length_retries = 0
+        # v7 (muc 3.2). Khong co bai moi -> khong co premises de doi chieu (format 6 luot khong gap, luon co bai moi).
+        log_attempt = is_v7_difficulty(self.version) and needs_target(mode) and has_new
         candidates: list[tuple[int, int, TurnOutput, object]] = []  # (khoang cach, thu tu, output, call) — sai do dai
         for attempt_no in range(1, settings.turn_max_attempts + 1):
             last = attempt_no == settings.turn_max_attempts
@@ -786,6 +1022,9 @@ class FullTurnGenerator:
             except _Invalid as e:
                 call.success, call.error, call.failure_kind = False, e.error[:4000], e.kind
                 _log_speech(call, e.speech, self.version)
+                if log_attempt:
+                    call.speech_checks = {**(call.speech_checks or {}), "content_attempt": attempt_no,
+                                          **attempt_checks(e.data, context.difficulty)}
                 logger.warning("Luot %d lan thu %d khong hop le (%s): %s", context.turn_index, attempt_no, e.kind, e.error)
                 if last:
                     return self._give_up(result, candidates, context, e.error, e.kind)
@@ -794,6 +1033,9 @@ class FullTurnGenerator:
                 continue
 
             _log_speech(call, out.speech_text, self.version, out.ai_points)
+            if log_attempt:  # TRUOC moi kiem tra co the loai lan thu nay
+                call.speech_checks = {**(call.speech_checks or {}), "content_attempt": attempt_no,
+                                      **attempt_checks(out.model_dump(), context.difficulty)}
             if is_v6(self.version) and analyzes_premises(mode, has_new):
                 # v6 (muc 2.19): premises phai trich tu bai MOI (chi luot co bai learner moi va phan tich tien de). >= 70% trung y o ledger -> reject, retry co phan hoi.
                 ratio = premises_reuse_ratio(out.premises.explicit, context.ledger.learner_premises)
@@ -804,6 +1046,18 @@ class FullTurnGenerator:
                     if last:
                         return self._give_up(result, candidates, context, call.error, TurnFailure.PREMISES_REUSED)
                     feedback = build_retry_feedback([PREMISES_REUSED_ISSUE])
+                    call.retry_feedback = feedback.strip()
+                    continue
+            if log_attempt:
+                problem = target_issue(out, context.difficulty)
+                if problem is not None:
+                    kind, issue = problem
+                    call.success, call.failure_kind = False, kind
+                    call.error = f"{kind}: target_premise={out.target_premise!r}"[:4000]
+                    logger.warning("Luot %d lan thu %d: %s", context.turn_index, attempt_no, call.error)
+                    if last:
+                        return self._give_up(result, candidates, context, call.error, kind)
+                    feedback = build_retry_feedback([issue])
                     call.retry_feedback = feedback.strip()
                     continue
             dropped = coerce_analysis(out, mode, has_new)
@@ -918,6 +1172,7 @@ class FullTurnGenerator:
         result.learner_claims = None if is_v5(self.version) else out.learner_claims  # v5: cot DB de null
         result.premises = out.premises.model_dump()
         result.target_premise = out.target_premise
+        result.points_addressed = out.points_addressed if isinstance(out, TurnOutputV7) else None
         result.ai_points = out.ai_points
         return result
 
@@ -993,4 +1248,29 @@ class FullTurnGeneratorV6(FullTurnGenerator):
 
     async def generate(self, mode: TurnMode, context: TurnContext) -> TurnResult:
         self.version = FULL_V6 if context.ai_burden else FULL_V6_NOBURDEN
+        return await super().generate(mode, context)
+
+
+class FullTurnGeneratorV7(FullTurnGenerator):
+    """
+    v6 + 3 cap do doi thu (muc 3.2). Do kho CHI doi cach chon diem tan cong va muc dap lai — KHONG doi lap truong,
+    temperature, reasoning_effort, do dai, max_tokens (test xac nhan). Case Planning khong doi.
+    1. Khoi nhiem vu theo mode + cap (v7_task); dong do kho chung o moi mode;
+    2. hard + opening_first / opening_reply / rebuttal: muc 'phan bien da du doan' truoc khoi nhiem vu;
+    3. output them points_addressed (ep rong khi khong phan tich tien de), luu cot opponent_turns.points_addressed;
+    4. opening_reply / rebuttal: target_premise phai khop premises (difflib >= 0.85) -> target_not_in_premises; de /
+       trung binh chon implicit -> target_level_mismatch; retry co phan hoi, tinh vao TURN_MAX_ATTEMPTS;
+    5. CHI LOG, MOI lan thu (ca lan bi loai) o opening_reply / rebuttal, trong speech_checks: content_attempt (lan thu noi
+       dung 1, 2, 3; khac cot attempt vi cot do dem ca 429 va reviewer), target_premise, points_addressed, target_kind,
+       target_level_ok, points_addressed_count, points_below_expected, points_unsupported.
+    TURN_DIFFICULTY_ENABLED=false: prompt + schema + validator = v6, nhan turn_full_v7_nodifficulty[_noburden].
+    """
+
+    version = FULL_V7
+
+    async def generate(self, mode: TurnMode, context: TurnContext) -> TurnResult:
+        if self.settings.turn_difficulty_enabled:
+            self.version = FULL_V7 if context.ai_burden else FULL_V7_NOBURDEN
+        else:
+            self.version = FULL_V7_NODIFFICULTY if context.ai_burden else FULL_V7_NODIFFICULTY_NOBURDEN
         return await super().generate(mode, context)

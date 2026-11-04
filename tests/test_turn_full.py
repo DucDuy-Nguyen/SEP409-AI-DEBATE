@@ -403,7 +403,7 @@ def test_v2_adds_natural_speech_rule_v1_unchanged():
     assert v2.endswith("- Chỉ trả về JSON hợp lệ.")
     _, user = tf.build_full_prompt(TurnMode.REBUTTAL, ctx, version="turn_full_v2")
     assert user.endswith(v2)
-    assert Settings(_env_file=None).turn_generator_version == "turn_full_v6"  # mac dinh tu muc 2.19
+    assert Settings(_env_file=None).turn_generator_version == "turn_full_v7"  # mac dinh tu muc 3.2
 
 
 async def test_v1_still_selectable(client, db_session, fake_llm, fake_reviewer):
@@ -417,7 +417,8 @@ async def test_v1_still_selectable(client, db_session, fake_llm, fake_reviewer):
 
 async def test_turn_reasoning_effort_sent_and_logged(client, db_session, fake_llm, fake_reviewer):
     ext = await _ready_session(client, fake_llm, fake_reviewer, "con")
-    app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None, turn_reasoning_effort="low")
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        _env_file=None, turn_generator_version="turn_full_v4", turn_reasoning_effort="low")
     fake_llm.responses = [_out(TurnMode.OPENING_REPLY)]
     fake_llm.usages = [{"tokens_in": 1800, "tokens_out": 2100, "reasoning_tokens": 900}]
     assert (await _turn(client, ext, 2, [_learner(1)])).status_code == 201

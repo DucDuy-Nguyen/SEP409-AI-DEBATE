@@ -10,7 +10,7 @@ from scripts import try_match as tm
 from tests.conftest import VALID_CASE_FILE, FakeLLMClient, FakeStanceReviewer, RateLimited
 from tests.test_turn_full import _out
 
-# turn_full_v6 (mac dinh, muc 2.19) reject luot 4 neu premises chep y luot 2 -> luot 4 tra premises MOI.
+# turn_full_v6 (GHIM: kiem tra luong script, khong phai v7; v7: tests/test_turn_v7.py) reject luot 4 neu premises chep y luot 2 -> luot 4 tra premises MOI.
 NEW_PREMISES = {"explicit": ["Có phòng máy và thư viện để học."], "implicit": ["Học sinh tự gửi điện thoại được."]}
 
 
@@ -30,8 +30,8 @@ async def _run(db_session, responses, external_id="try-match-test"):
     reviewer = FakeStanceReviewer("phan_doi_kien_nghi")  # learner pro -> AI con
     lines: list[str] = []
     result = await tm.run_match(
-        db_session, Settings(_env_file=None), tm.load_fixture("M01", "pro"), DebateSide.PRO,
-        OpponentDifficulty.MEDIUM, external_id, lambda: fake, lambda: reviewer, out=lines.append,
+        db_session, Settings(_env_file=None, turn_generator_version="turn_full_v6"), tm.load_fixture("M01", "pro"),
+        DebateSide.PRO, OpponentDifficulty.MEDIUM, external_id, lambda: fake, lambda: reviewer, out=lines.append,
     )
     return result, "\n".join(lines), fake
 

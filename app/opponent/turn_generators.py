@@ -47,6 +47,11 @@ FULL_V5 = "turn_full_v5"  # v4 + sua loi tu 4 tran thu 30/09 (muc 2.18)
 FULL_V5_NOBURDEN = "turn_full_v5_noburden"
 FULL_V6 = "turn_full_v6"  # v5 + sua loi chep tien de (muc 2.19)
 FULL_V6_NOBURDEN = "turn_full_v6_noburden"
+FULL_V7 = "turn_full_v7"  # v6 + 3 cap do doi thu (muc 3.2)
+FULL_V7_NOBURDEN = "turn_full_v7_noburden"
+# TURN_DIFFICULTY_ENABLED=false: prompt + schema GIONG HET v6 (ablation), nhan rieng de phan biet khi phan tich
+FULL_V7_NODIFFICULTY = "turn_full_v7_nodifficulty"
+FULL_V7_NODIFFICULTY_NOBURDEN = "turn_full_v7_nodifficulty_noburden"
 # Baseline GIU NGUYEN hanh vi 3a de so sanh: khong doc TURN_MAX_TOKENS / TURN_MAX_ATTEMPTS (3b doi mac dinh 2 bien nay
 # cho turn_full_v1 len 4000 / 3).
 BASELINE_MAX_TOKENS = 3000
@@ -71,6 +76,9 @@ class TurnFailure:
     WORD_COUNT = "word_count"  # speech_text ngoai khoang chap nhan [0.7, 1.25] x muc tieu (loi MEM)
     # v6 (muc 2.19): >= 70% premises.explicit trung y nguoi hoc o ledger (luot truoc) -> chep, khong trich bai moi
     PREMISES_REUSED = "premises_reused"
+    # v7 (muc 3.2): target_premise khong khop muc nao trong premises / khong dung cap (de, trung binh: phai explicit)
+    TARGET_NOT_IN_PREMISES = "target_not_in_premises"
+    TARGET_LEVEL_MISMATCH = "target_level_mismatch"
     # Output rong / bi cat vi het max_tokens (finish_reason "length", noi dung rong, hoac Groq 400 json_validate_failed
     # voi failed_generation RONG — token suy luan dung het gioi han). KHONG gop vao schema_rejected (muc 2.10).
     TRUNCATED = "truncated_max_tokens"
@@ -169,6 +177,7 @@ class TurnResult:
     learner_claims: list | dict | None = None
     premises: list | dict | None = None
     target_premise: str | None = None
+    points_addressed: list | None = None  # chi turn_full_v7 khi bat do kho (muc 3.2)
     ai_points: list | None = None
 
     @property
@@ -410,6 +419,7 @@ def generators() -> dict[str, type]:
         FullTurnGeneratorV4,
         FullTurnGeneratorV5,
         FullTurnGeneratorV6,
+        FullTurnGeneratorV7,
     )
 
     return {
@@ -418,6 +428,7 @@ def generators() -> dict[str, type]:
         FULL_V4: FullTurnGeneratorV4,
         FULL_V5: FullTurnGeneratorV5,
         FULL_V6: FullTurnGeneratorV6,
+        FULL_V7: FullTurnGeneratorV7,
     }
 
 

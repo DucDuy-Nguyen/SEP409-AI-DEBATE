@@ -12,6 +12,8 @@ Ton token that -> khong nam trong pytest. CAN Postgres dev dang chay + `alembic 
   turn_full_v4_noburden).
 - ai_side = phe con lai. Session moi moi lan chay (external_session_id "try-match-...").
 - Bo sinh: --generator (turn_baseline_v1 | turn_full_v1 | turn_full_v2), mac dinh TURN_GENERATOR_VERSION.
+- --difficulty (easy | medium | hard, moi mode): do kho session; turn_full_v7 dung cho khoi nhiem vu theo cap (muc 3.2).
+- --no-difficulty: TURN_DIFFICULTY_ENABLED=false (turn_full_v7 co prompt giong het v6, nhan turn_full_v7_nodifficulty).
 - --reasoning-effort (low | medium | high): ghi de TURN_REASONING_EFFORT cho cac luot noi (Case Planning van theo
   CASE_PLAN_REASONING_EFFORT).
 - In transcript day du + mode + so tu moi luot AI; turn_full_* in them learner_claims / target_premise / ai_points;
@@ -48,7 +50,8 @@ from app.opponent.schemas import CreateSessionRequest, CreateTurnRequest, Learne
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES_DIR = ROOT / "experiments" / "fixtures"
 OUT_DIR = ROOT / "experiments" / "matches"
-GENERATORS = ["turn_baseline_v1", "turn_full_v1", "turn_full_v2"]
+GENERATORS = ["turn_baseline_v1", "turn_full_v1", "turn_full_v2", "turn_full_v3", "turn_full_v4", "turn_full_v5",
+              "turn_full_v6", "turn_full_v7"]
 
 
 def load_fixture(motion_id: str, learner_side: str, fixtures_dir: Path = FIXTURES_DIR) -> dict:
@@ -186,6 +189,8 @@ async def run_match(
             out(f"[learner_claims] {turn.learner_claims}")
             out(f"[premises] {turn.premises}")
             out(f"[target_premise] {turn.target_premise}")
+            if turn.points_addressed is not None:  # turn_full_v7 khi bat do kho
+                out(f"[points_addressed] {turn.points_addressed}")
             out(f"[ai_points] {turn.ai_points}")
         reviewed = final is not None and final.reviewer_verdict is not None
         out("[reviewer] " + (_verdict(final).removeprefix(" · reviewer=") if reviewed else "(khong review)"))
@@ -201,6 +206,7 @@ async def run_match(
                            "target_words": target, "latency_ms": turn.latency_ms, "tokens_in": turn.tokens_in,
                            "tokens_out": turn.tokens_out, "rate_limit_wait_ms": turn.rate_limit_wait_ms, "learner_claims": turn.learner_claims,
                            "premises": turn.premises, "target_premise": turn.target_premise,
+                           "points_addressed": turn.points_addressed,
                            "ai_points": turn.ai_points, "retries": retries,
                            "reasoning_tokens": final.reasoning_tokens if final else None,
                            "reviewer_verdict": final.reviewer_verdict.value if final and final.reviewer_verdict else None,
@@ -221,7 +227,7 @@ async def _print_waits(db: AsyncSession, external_id: str, result: dict, out) ->
     out(f"\nTong cho 429 ca tran: {total_ms / 1000:.1f}s ({count} lan)")
 
 
-async def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Chay thu ca tran 6 luot voi LLM that")
     parser.add_argument("--motion-id", default="M01")
     parser.add_argument("--learner-side", choices=["pro", "con"], default="pro")
@@ -230,22 +236,33 @@ async def main() -> int:
                         help="Bo sinh bai noi (mac dinh: TURN_GENERATOR_VERSION)")
     parser.add_argument("--no-burden", action="store_true",
                         help="KHONG gui burden_pro / burden_con cua fixture (ablation: Case Planning v5, luot noi v4 khong burden)")
+    parser.add_argument("--no-difficulty", action="store_true",
+                        help="TURN_DIFFICULTY_ENABLED=false: turn_full_v7 co prompt giong het v6 (turn_full_v7_nodifficulty)")
     parser.add_argument("--reasoning-effort", choices=["low", "medium", "high"], default=None,
                         help="Ghi de TURN_REASONING_EFFORT cho cac luot noi (Groq gpt-oss; mac dinh: khong gui)")
     parser.add_argument("--fixtures-dir", type=Path, default=FIXTURES_DIR)
     parser.add_argument("--out-dir", type=Path, default=OUT_DIR)
-    args = parser.parse_args()
+    return parser
 
-    fixture = load_fixture(args.motion_id, args.learner_side, args.fixtures_dir)
-    learner_side = DebateSide(args.learner_side)
-    ai_side = DebateSide.CON if learner_side == DebateSide.PRO else DebateSide.PRO
-    settings = get_settings()
+
+def apply_overrides(settings: Settings, args: argparse.Namespace) -> Settings:
     update = {}
     if args.generator:
         update["turn_generator_version"] = args.generator
     if args.reasoning_effort:
         update["turn_reasoning_effort"] = args.reasoning_effort
-    settings = settings.model_copy(update=update) if update else settings
+    if args.no_difficulty:
+        update["turn_difficulty_enabled"] = False
+    return settings.model_copy(update=update) if update else settings
+
+
+async def main() -> int:
+    args = build_parser().parse_args()
+
+    fixture = load_fixture(args.motion_id, args.learner_side, args.fixtures_dir)
+    learner_side = DebateSide(args.learner_side)
+    ai_side = DebateSide.CON if learner_side == DebateSide.PRO else DebateSide.PRO
+    settings = apply_overrides(get_settings(), args)
     generator, effort = settings.turn_generator_version, settings.turn_reasoning_effort
     external_id = f"try-match-{args.motion_id}-{learner_side.value}-{datetime.now():%Y%m%d-%H%M%S}"
 
@@ -264,6 +281,7 @@ async def main() -> int:
         return 1
     print(f"Motion: {fixture['motion']} | learner {learner_side.value} / AI {ai_side.value} | {args.difficulty}")
     print(f"Planner / luot noi: {probe.provider}/{probe.model} | bo sinh {generator} "
+          f"do_kho={'bat' if settings.turn_difficulty_enabled else 'TAT'} "
           f"temperature={settings.turn_temperature} reasoning_effort={effort or '(mac dinh provider)'} "
           f"max_tokens={settings.turn_max_tokens} | session {external_id}")
 
@@ -275,7 +293,8 @@ async def main() -> int:
         await dispose_engine()  # dong ket noi TRUOC khi event loop dong (tranh loi "Event loop is closed" luc thoat)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    suffix = (f"_effort-{effort}" if effort else "") + ("_noburden" if args.no_burden else "")
+    suffix = (f"_difficulty-{args.difficulty}" + (f"_effort-{effort}" if effort else "")
+              + ("_noburden" if args.no_burden else "") + ("_nodifficulty" if args.no_difficulty else ""))
     out = args.out_dir / f"{datetime.now():%Y%m%d-%H%M%S}_{args.motion_id}_learner-{learner_side.value}_{generator}{suffix}.json"
     out.write_text(json.dumps({
         "external_session_id": external_id, "motion_id": args.motion_id, "motion": fixture["motion"],
@@ -283,7 +302,7 @@ async def main() -> int:
         "generator_version": generator, "model": probe.model, "temperature": settings.turn_temperature,
         "reasoning_effort": effort, "turn_max_tokens": settings.turn_max_tokens,
         "burden_used": not args.no_burden and bool(fixture.get("burden_pro")),
-        "turn_burden_enabled": settings.turn_burden_enabled,
+        "turn_burden_enabled": settings.turn_burden_enabled, "turn_difficulty_enabled": settings.turn_difficulty_enabled,
         "completed": result["ok"], "failed_turn": result["failed_turn"], "error": result["error"],
         "rate_limit_wait_ms": result["rate_limit_wait_ms"], "rate_limit_waits": result["rate_limit_waits"],
         "transcript": result["transcript"],

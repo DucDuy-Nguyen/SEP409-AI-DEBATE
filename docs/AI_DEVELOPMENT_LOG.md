@@ -1837,6 +1837,102 @@ Có test kiểm tra mặc định trả đúng prompt sản phẩm.
 - Sửa đổi 4: `side_flip` / `reviewer_unavailable` tính là lật ở vòng đó; phân loại lỗi; tập chính khác tập độ nhạy;
   giữ bản ghi cuối; `--resume` chạy lại lỗi hạ tầng.
 
+### 3.2. Giai đoạn 3e, Phần 1: 3 cấp độ đối thủ ở lượt nói — `turn_full_v7` (ĐĂNG KÝ TRƯỚC, 2026-11-04)
+
+Mục này được ghi **trước khi có dữ liệu**: chưa chạy LLM thật với v7. Test dùng LLM giả.
+
+**Nguyên tắc.** Độ khó chỉ đổi cách chọn điểm tấn công và mức đáp lại. KHÔNG đổi lập trường, temperature,
+reasoning_effort, độ dài mục tiêu, max_tokens (audit 04/11: các tham số này đã độc lập với difficulty; giữ nguyên, và có
+test xác nhận). Lý do: reasoning_effort=low làm AI lật phe cả trận (mục 2.11); cấp Dễ không được hiểu là dễ nhượng bộ.
+Case file dùng chung giữa các cấp; Case Planning KHÔNG đổi ở phần này.
+
+**Bằng chứng từ audit (2026-11-04, chỉ đọc code):**
+- medium và hard chỉ khác nhau 2 câu chữ trong prompt, không có điều kiện nào trong code kiểm tra.
+- `anticipated_opponent_arguments` không bao giờ tới prompt lượt nói → phần "hard chặn trước phản biện" không có tác dụng.
+- Quy tắc độ khó chỉ có ở `opening_reply` và `rebuttal`; `opening_first` và `closing` không có.
+- `target_premise` chỉ bị kiểm tra không rỗng.
+
+**Thiết kế đã làm:**
+1. **Prompt:** v7 = v6 + dòng độ khó chung ở mọi mode + khối theo mode × cấp trong phần nhiệm vụ (nguyên văn spec, test
+   chép lại độc lập để bắt sai chữ). `opening_reply` / `rebuttal`: khối mới thay `TARGET_RULE`, giữ câu "Không tấn công lại
+   tiền đề đã tấn công…". `closing`: khối mới thay số điểm tranh chấp, giữ "KHÔNG đưa lập luận mới".
+2. **Mục phản biện dự đoán:** chỉ hard + `opening_first` / `opening_reply` / `rebuttal`, đặt ngay trước khối nhiệm vụ.
+3. **`points_addressed`:** sau `target_premise`, trước `ai_points`; cột `opponent_turns.points_addressed` (migration
+   `0015`); ép rỗng khi không phân tích tiền đề (`opening_first`, `closing`, không có bài mới). Tên trường nằm trong
+   `FIELD_ORDER_V7`, danh sách khoá truyền cho `repair_split_array`.
+4. **Validator** (`opening_reply` / `rebuttal`, khi bật độ khó): `target_premise` phải khớp một mục trong premises (chuẩn
+   hoá NFC, chữ hoa/thường, dấu câu, khoảng trắng; `difflib` ratio ≥ 0.85), không khớp → `target_not_in_premises`. Dễ và
+   Trung bình chọn implicit → `target_level_mismatch`; Khó nhận cả hai. Retry có phản hồi, tính vào `TURN_MAX_ATTEMPTS`.
+   Chỉ log: `speech_checks.points_addressed_count`, `points_below_expected` (Dễ: đúng 1; Khó: ≥ 2).
+5. **`TURN_DIFFICULTY_ENABLED=false`:** prompt + schema + validator giống hệt v6 ở từng cấp (kể cả `TARGET_RULE` cũ của
+   v6), nhãn `turn_full_v7_nodifficulty[_noburden]`.
+
+**Quyết định khi triển khai (spec không nói rõ):**
+- `target_premise` khớp cả hai danh sách: tính theo danh sách giống hơn; hoà thì là explicit.
+- Lượt cần target nhưng không có bài learner mới: bỏ qua validator, vì không có premises để đối chiếu (format 6 lượt
+  không gặp ca này; không bỏ qua thì lượt chắc chắn thất bại).
+- `points_addressed_count` đếm số mục `premises.explicit` có trong `points_addressed` (mỗi mục 1 lần). Cột lưu nguyên
+  output của model.
+- Mode không phân tích tiền đề: prompt ghi "để mảng rỗng" thay cho câu `points_addressed` nguyên văn, vì `closing` của AI
+  phe ủng hộ (lượt 6) có bài mới nhưng phải rỗng.
+- Thứ tự kiểm tra: `premises_reused` → target → reviewer, để lần thử sai target không tốn lời gọi reviewer.
+
+**ĐĂNG KÝ TRƯỚC (nguyên văn):**
+
+Giả thuyết:
+H1 (thứ tự độ khó): ở giám khảo pairwise mù hỏi "bài nào khó phản bác hơn cho người học", hard thắng medium và medium
+thắng easy; mỗi cặp phải thắng >= 70% số cặp không hoà, và cận dưới của khoảng tin cậy 95% bootstrap > 50%.
+H2 (độ vững phe): với mỗi cấp, khoảng tin cậy 95% bootstrap ghép cặp của chênh lệch NoF (cấp trừ medium) có cận trên
+<= +0.3. Medium là mốc.
+H3 (tuân thủ cấp, đo bằng code): tỷ lệ target_premise đúng cấp >= 95% ở mỗi cấp; DỄ có points_addressed = 1 ở >= 90%
+lượt; KHÓ có points_addressed >= 2 ở >= 80% lượt.
+Quy tắc: nhận 3 cấp độ như thiết kế nếu cả H1, H2, H3 đạt. H1 không đạt giữa hai cấp nào → báo cáo hai cấp đó "chưa tách
+được", không tuyên bố có 3 cấp. H2 không đạt ở cấp nào → cấp đó không được dùng cho tới khi sửa. Điểm của Evaluator chỉ
+là số phụ, không dùng để quyết định (Evaluator nén điểm).
+Điều kiện tin giám khảo: đồng thuận với 40 nhãn người >= 90% ở Q1 và >= 80% ở nhượng bộ (Q2 gộp); không đạt thì dùng
+nhãn người.
+Hạn chế ghi sẵn: mẫu nhỏ; một người gán nhãn; learner giả lập không phải người thật; giám khảo cùng họ model với bộ sinh;
+một lần chạy mỗi cấu hình.
+
+**SỬA ĐĂNG KÝ (2026-11-04, vẫn trước khi có dữ liệu; văn bản gốc ở trên giữ nguyên, phần này có hiệu lực thay cho chỗ tương
+ứng):**
+1. **H3, phần target:** đo trên LẦN THỬ ĐẦU của mỗi lượt (trước validator), ngưỡng >= 90% đúng cấp (target thuộc đúng loại
+   tiền đề, và khớp một mục trong premises). Báo thêm số lượt thất bại vì `target_not_in_premises` và
+   `target_level_mismatch` theo từng cấp. Lý do: bài được nhận đã qua validator nên gần như luôn đúng cấp.
+2. **H3, phần `points_addressed`:** là số model tự khai. Giám khảo pairwise ở Phần 2 sẽ đếm độc lập số ý của learner mà bài
+   thực sự đáp; báo cả hai số cạnh nhau. **Thêm vào hạn chế:** số model khai chưa chắc đúng.
+3. **Kiểm tra chỉ-log mới:** mỗi mục `points_addressed` phải có >= 2 từ nội dung (bỏ stopword tiếng Việt) trùng với
+   `speech_text`; lưu `speech_checks.points_unsupported`.
+4. **Dữ liệu từng lần thử:** `opponent_llm_calls` phải lưu đủ `target_premise`, `points_addressed` và `failure_kind` của TỪNG
+   lần thử, không chỉ lần được nhận, vì báo cáo lần-thử-đầu cần dữ liệu này.
+5. **(Bổ sung 2026-11-04, trước khi có dữ liệu) Lần thử không parse được** (`invalid_json`, `truncated_max_tokens`) không có
+   target: không tính vào mẫu số của H3, báo riêng theo từng cấp là "không đo được". Nếu một cấp có tỷ lệ "không đo được"
+   > 10% số lượt thì H3 của cấp đó được ghi là "không đủ dữ liệu" (không tuyên bố đạt), và số này được báo như một phát
+   hiện riêng về độ ổn định của cấp đó.
+
+**Ghi chú triển khai phần sửa:**
+- Kiểm tra mục 4 cho thấy `failure_kind` và `raw_output` vốn đã lưu ở mọi lần thử, nhưng TRƯỚC KHI SỬA thì thiếu: `target_premise` /
+  `points_addressed` chỉ nằm dạng chữ thô trong `raw_output` (dạng "mảng tách" không đọc thẳng được); log điểm chạy sau
+  `premises_reused` và không chạy khi dính `banned_phrase`; cột `attempt` đếm cả dòng 429 và dòng reviewer.
+- Đã bổ sung vào `speech_checks` của mỗi lần thử ở `opening_reply` / `rebuttal` (không cần migration): `content_attempt`,
+  `target_premise`, `points_addressed`, `target_kind`, `target_level_ok`, `points_addressed_count`, `points_below_expected`,
+  `points_unsupported`.
+- **Cách lấy lần thử đầu:** dòng `purpose='turn'` có `speech_checks.content_attempt = 1`. Output không parse được
+  (`invalid_json`, `truncated_max_tokens`) chỉ có `content_attempt` + `failure_kind`, không có target: báo riêng là "không đo
+  được", không tính vào mẫu số của H3.
+- **Hạn chế của `points_unsupported`:** kiểm tra yếu. Mỗi âm tiết là một từ, nên từ chủ đề như "điện thoại" đã đủ 2 từ; nó chỉ
+  bắt được mục không liên quan hẳn, không chứng minh bài nói thật sự đáp ý đó. Ngược lại, mục có dưới 2 từ nội dung luôn bị
+  gắn cờ. Số độc lập là của giám khảo ở Phần 2.
+
+**Việc còn treo:**
+- Phần 2: batch case file cố định medium, giám khảo pairwise (kể cả đếm độc lập số ý được đáp), harness 3 cấp, báo cáo
+  lần-thử-đầu cho H3.
+- Kiểm 40 nhãn người cho giám khảo.
+- Ca nhánh A của smoke test 03/10: giám khảo bấm nhượng bộ ở vòng 1 và 3 nhưng bài nói đọc như thừa nhận ngắn rồi phản bác.
+
+**Test:** `tests/test_turn_v7.py` (189, LLM giả). Test cũ phụ thuộc mặc định được ghim về đúng phiên bản chúng kiểm tra.
+**Chưa chạy LLM thật.**
+
 ---
 
 ## 4. Gợi ý phản bác cho learner — WF-02 (2026-10-30)
@@ -2204,3 +2300,8 @@ Spec: `SPEC_AI_HINT_WF02.md`. Endpoint `POST /opponent/sessions/{external_sessio
   công 10 phiên còn treo.
 - 2026-10-31: Mục 4.2 — chạy thử hint với LLM thật trên 10 phiên M01 (21/23 thành công; reviewer vừa chặn nhầm vừa bỏ
   sót). Validator kiểm tra thêm `direction` (cấm số liệu / URL / "nghiên cứu cho thấy"), +3 test. Chưa chấm thủ công.
+- 2026-11-04: Mục 3.2 — `turn_full_v7` (mặc định): 3 cấp độ đối thủ ở lượt nói, `points_addressed` (migration 0015),
+  validator `target_not_in_premises` / `target_level_mismatch`, `TURN_DIFFICULTY_ENABLED`. Đăng ký trước H1, H2, H3. CHƯA
+  chạy LLM thật; Phần 2 còn treo. Cùng ngày: sửa đăng ký H3 (đo lần thử đầu, ngưỡng 90%; số model khai đặt cạnh số giám khảo),
+  log từng lần thử vào `speech_checks`, thêm `points_unsupported`. Bổ sung: lần thử không parse được báo riêng "không đo
+  được"; > 10% số lượt ở một cấp thì H3 của cấp đó là "không đủ dữ liệu".

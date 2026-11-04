@@ -204,5 +204,5 @@ async def test_v5_burden_and_ablation_label(client, db_session, fake_llm, fake_r
         == "turn_full_v5_noburden"
 
 
-def test_default_is_v6_since_2_19():
-    assert Settings(_env_file=None).turn_generator_version == "turn_full_v6"
+def test_default_is_v7_since_3_2():
+    assert Settings(_env_file=None).turn_generator_version == "turn_full_v7"

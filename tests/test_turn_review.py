@@ -221,7 +221,8 @@ async def test_baseline_never_calls_reviewer(client, fake_llm, fake_reviewer):
 async def test_review_disabled_skips_review(client, fake_llm, fake_reviewer):
     ext = await _ready_session(client, fake_llm, fake_reviewer, "con")
     fake_reviewer.calls.clear()
-    app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None, stance_review_enabled=False)
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        _env_file=None, turn_generator_version="turn_full_v4", stance_review_enabled=False)
     from app.opponent.router import get_stance_reviewer_factory
 
     app.dependency_overrides[get_stance_reviewer_factory] = lambda: (lambda: None)  # nhu factory that khi tat

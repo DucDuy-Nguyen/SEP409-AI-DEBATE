@@ -211,7 +211,8 @@ class OpponentLLMCall(Base):
     # Loai that bai cua dong nay (NULL = thanh cong). Gia tri: provider_error, rate_limited, schema_rejected,
     # invalid_json, schema_validation, argument_count, banned_phrase, side_flip, budget_exceeded, reviewer_error,
     # empty_output (bai noi rong, baseline), word_count (bai noi ngoai khoang do dai, turn_full_v*),
-    # truncated_max_tokens (output rong / bi cat vi het max_tokens, turn_full_v*).
+    # truncated_max_tokens (output rong / bi cat vi het max_tokens, turn_full_v*), target_not_in_premises,
+    # target_level_mismatch (turn_full_v7, muc 3.2).
     failure_kind: Mapped[str | None] = mapped_column(String(30), nullable=True)
     # Phan hoi DA GUI cho lan thu ke tiep vi output cua dong nay khong hop le (NULL = khong retry tu dong nay).
     retry_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -290,6 +291,9 @@ class OpponentTurn(Base):
     learner_claims: Mapped[list | dict | None] = mapped_column(JSONB, nullable=True)
     premises: Mapped[list | dict | None] = mapped_column(JSONB, nullable=True)
     target_premise: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # turn_full_v7 khi bat do kho: cac muc premises.explicit cua bai MOI ma bai noi thuc su dap lai. Con lai NULL.
+    # Migration 0015, muc 3.2.
+    points_addressed: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     # Dan y 2-4 y AI noi trong luot (turn_full_v1) — ledger "nhung dieu ban DA khang dinh" cho cac luot sau. Baseline NULL.
     ai_points: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     word_count: Mapped[int] = mapped_column(Integer, nullable=False)

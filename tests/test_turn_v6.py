@@ -7,7 +7,8 @@ import json
 import pytest
 from sqlalchemy import select
 
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
+from app.main import app
 from app.opponent import turn_full as tf
 from app.opponent.match_format import TurnMode
 from app.opponent.models import DebateSide, LLMCallPurpose, OpponentLLMCall, OpponentTurn
@@ -20,6 +21,15 @@ from tests.test_turns_api import _learner, _ready_session, _session_id, _turn
 
 PRO, CON = DebateSide.PRO, DebateSide.CON
 SETTINGS = Settings(_env_file=None)
+# Mac dinh tu muc 3.2 la turn_full_v7. File nay kiem tra hanh vi v6 -> GHIM v6 cho test qua API.
+V6_SETTINGS = Settings(_env_file=None, turn_generator_version="turn_full_v6")
+
+
+@pytest.fixture(autouse=True)
+def pin_turn_full_v6(request):
+    if "client" in request.fixturenames:
+        request.getfixturevalue("client")
+        app.dependency_overrides[get_settings] = lambda: V6_SETTINGS
 
 # Tran 20261002-001136 (experiments/matches/..._turn_full_v5_effort-medium.json): premises.explicit luot 2 == luot 4
 MATCH_T2_EXPLICIT = [
@@ -233,11 +243,7 @@ async def test_v6_generator_version_label_depends_on_burden():
         assert result.generator_version == label and result.calls[0].prompt_version == label
 
 
-def test_default_is_v6():
-    assert SETTINGS.turn_generator_version == "turn_full_v6"
-
-
-async def test_v6_default_via_api_rejects_copied_premises(client, db_session, fake_llm, fake_reviewer):
+async def test_v6_via_api_rejects_copied_premises(client, db_session, fake_llm, fake_reviewer):
     ext = await _ready_session(client, fake_llm, fake_reviewer, "con")
     t2 = json.loads(_out5(TurnMode.OPENING_REPLY, speech=None))
     t2["premises"] = {"explicit": MATCH_T2_EXPLICIT, "implicit": ["Ngầm."]}

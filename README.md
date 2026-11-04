@@ -27,7 +27,7 @@ app/
     hint.py                  # gợi ý phản bác (WF-02): prompt hint_v1, validator, Stance Reviewer — KHÔNG đọc case plan
     hint_service.py          # POST .../hints: map lượt, idempotent theo request_id, lưu opponent_hints
     turn_generators.py       # interface bộ sinh + turn_baseline_v1 (chatbot ngây thơ, giữ nguyên để so sánh)
-    turn_full.py             # turn_full_v6 (mặc định) / v5 / v4 / v3 / v2 / v1: JSON phân tích → dàn ý → bài nói
+    turn_full.py             # turn_full_v7 (mặc định) / v6 / v5 / v4 / v3 / v2 / v1: JSON phân tích → dàn ý → bài nói
     json_repair.py           # sửa tất định JSON "mảng tách" bị Groq từ chối (lượt nói + Case Planning)
     prompts/case_plan_v5.py  # dùng khi session KHÔNG có burden (mặc định v7 tự chuyển về v5)
     prompts/case_plan_v6.py  # thí nghiệm motion_type: cách hiểu đã duyệt + module theo loại (chỉ khi được chọn)
@@ -167,7 +167,13 @@ Response: `{"turn_index", "round_type", "mode", "speech_text"}`, `mode` ∈ `ope
 | 504 | Vượt `TURN_TOTAL_BUDGET_SECONDS` (240s), kể cả khi chỉ vì chờ 429 |
 
 Bộ sinh (`TURN_GENERATOR_VERSION`):
-- `turn_full_v6` (**mặc định**, mục 2.19) = `turn_full_v5` + chống chép tiền đề: ledger đổi tiêu đề (*"Những ý người
+- `turn_full_v7` (**mặc định**, mục 3.2) = `turn_full_v6` + 3 cấp độ đối thủ. `difficulty` của session đổi cách chọn điểm
+  tấn công và mức đáp lại ở mọi mode; KHÔNG đổi lập trường, temperature, reasoning effort, độ dài, max_tokens. Hard có
+  thêm mục phản biện đã dự đoán từ case file (trừ `closing`). Output thêm `points_addressed` (cột cùng tên). Validator:
+  `target_premise` phải khớp `premises` (`target_not_in_premises`); easy / medium phải là explicit
+  (`target_level_mismatch`). `TURN_DIFFICULTY_ENABLED=false`: prompt + schema giống hệt v6, nhãn
+  `turn_full_v7_nodifficulty`. API không đổi.
+- `turn_full_v6` (mục 2.19) = `turn_full_v5` + chống chép tiền đề: ledger đổi tiêu đề (*"Những ý người
   học đã nêu ở các lượt TRƯỚC (chỉ để tham khảo, đừng chép lại)"*), chỉ dẫn trích `premises` từ bài nói MỚI, reject
   `premises_reused` khi ≥ 70% `premises.explicit` trùng ledger; đổi "tôi" → "mình" sau khi chấp nhận
   (`speech_checks.toi_replaced`); kiểm tra số bỏ qua "thế kỷ 21", số thứ tự.
@@ -266,6 +272,8 @@ python -m scripts.try_match --motion-id M01 --learner-side pro                  
 python -m scripts.try_match --motion-id M01 --learner-side con --generator turn_baseline_v1
 python -m scripts.try_match --motion-id M01 --learner-side con --generator turn_full_v1 --difficulty hard
 python -m scripts.try_match --motion-id M01 --learner-side pro --reasoning-effort low        # so sánh mức suy luận
+python -m scripts.try_match --motion-id M01 --learner-side con --difficulty hard             # turn_full_v7 theo cấp
+python -m scripts.try_match --motion-id M01 --learner-side con --no-difficulty               # prompt như v6 (ablation)
 ```
 
 Bài learner lấy từ `experiments/fixtures/match_M01_{pro,con}.json` (viết sẵn, cố định). In transcript + `mode` + số từ

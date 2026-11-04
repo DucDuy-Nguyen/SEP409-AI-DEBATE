@@ -25,6 +25,9 @@ DATA = Path(__file__).parent / "data"
 # Nguyen van failed_generation (Groq 400 json_validate_failed) lay tu DB dev — dev log muc 2.12.
 FG_1735_TURN4 = (DATA / "failed_generation_20260930-1735_turn4.json").read_text(encoding="utf-8")  # AI con, rebuttal
 FG_1738_TURN3 = (DATA / "failed_generation_20260930-1738_turn3.json").read_text(encoding="utf-8")  # AI pro, rebuttal
+# Mac dinh tu muc 3.2 la turn_full_v7. Du lieu that o day sinh boi v2..v6 -> GHIM v6 cho test qua API (test tu dat Settings
+# rieng thi khong bi ghi de vi fixture nay chay TRUOC than test). v7: tests/test_turn_v7.py.
+V6_SETTINGS = Settings(_env_file=None, turn_generator_version="turn_full_v6")
 
 
 class APIConnectionError(Exception):
@@ -33,6 +36,13 @@ class APIConnectionError(Exception):
 
 class ServerError(Exception):
     status_code = 503
+
+
+@pytest.fixture(autouse=True)
+def pin_turn_full_v6(request):
+    if "client" in request.fixturenames:
+        request.getfixturevalue("client")
+        app.dependency_overrides[get_settings] = lambda: V6_SETTINGS
 
 
 @pytest.fixture(autouse=True)
@@ -240,7 +250,7 @@ def test_v3_adds_no_rule_echo_line_on_top_of_v2():
     assert rule in v3 and rule not in v2 and rule not in v1
     assert v3.replace("\n" + rule, "") == v2  # dung 1 dong them vao
     assert tf.NATURAL_SPEECH_RULE in v3 and v3.endswith("- Chỉ trả về JSON hợp lệ.")
-    assert Settings(_env_file=None).turn_generator_version == "turn_full_v6"  # mac dinh tu muc 2.19
+    assert Settings(_env_file=None).turn_generator_version == "turn_full_v7"  # mac dinh tu muc 3.2
 
 
 async def test_v1_v2_still_selectable(client, db_session, fake_llm, fake_reviewer):

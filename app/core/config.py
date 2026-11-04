@@ -122,9 +122,11 @@ class Settings(BaseSettings):
     # turn_baseline_v1: chatbot ngay tho, GIU NGUYEN de so sanh.
     turn_generator_version: Literal[
         "turn_baseline_v1", "turn_full_v1", "turn_full_v2", "turn_full_v3", "turn_full_v4", "turn_full_v5",
-        "turn_full_v6",
-    ] = "turn_full_v6"
-    # turn_full_v6 (MAC DINH, muc 2.19) = v5 + sua loi CHEP TIEN DE (ledger doi ten, chi dan trich tu bai MOI, reject
+        "turn_full_v6", "turn_full_v7",
+    ] = "turn_full_v7"
+    # turn_full_v7 (MAC DINH, muc 3.2) = v6 + 3 cap do doi thu: do kho doi cach chon diem tan cong va muc dap lai, KHONG
+    # doi lap truong / temperature / reasoning_effort / do dai / max_tokens. Them points_addressed + validator target.
+    # turn_full_v6 (muc 2.19) = v5 + sua loi CHEP TIEN DE (ledger doi ten, chi dan trich tu bai MOI, reject
     # premises_reused), chuan hoa "tôi" -> "mình", bo "cố định" o rang buoc cuoi, kiem tra so bo qua "thế kỷ 21" / thu tu.
     # turn_full_v5 (muc 2.18) = v4 + sua loi tu 4 tran thu 30/09 (bo "CỐ ĐỊNH", bo learner_claims khoi output,
     # 3 rang buoc moi, log "tôi" / tieng Anh / cau lap, do dai: chi retry ngoai [0,5x; 1,5x]).
@@ -132,6 +134,9 @@ class Settings(BaseSettings):
     # TURN_BURDEN_ENABLED=false -> v4 / v5 KHONG dua burden (ablation 3d); khi do / khi session khong co burden,
     # generator_version ghi "turn_full_v4_noburden" / "turn_full_v5_noburden" / "turn_full_v6_noburden".
     turn_burden_enabled: bool = True
+    # false -> turn_full_v7 co prompt + schema GIONG HET v6, khong validator target, generator_version ghi
+    # "turn_full_v7_nodifficulty" (+ "_noburden" theo quy tac burden). Khong anh huong v1..v6 (muc 3.2).
+    turn_difficulty_enabled: bool = True
     turn_temperature: float = 0.5
     # CHI turn_full_v* (baseline co dinh 3000 / 2 lan — xem turn_generators.BASELINE_*): JSON + bai noi + token suy luan.
     # 6000 (truoc: 4000): tran 2026-09-30 15:11 co luot 4 tokens_out 3274/4000 va 1 lan output RONG (Groq 400,
