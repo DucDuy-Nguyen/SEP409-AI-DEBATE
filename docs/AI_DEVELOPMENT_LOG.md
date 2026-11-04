@@ -1793,6 +1793,9 @@ Có test kiểm tra mặc định trả đúng prompt sản phẩm.
 **Giám khảo** (`pressure_judge_v1`):
 - Model: Anthropic `claude-haiku-4-5-20251001`, temperature 0. Dự phòng: `--judge-provider groq --judge-model
   openai/gpt-oss-120b`.
+  Ghi chú giám khảo thực tế (2026-11-04, trước khi có dữ liệu): mọi lần chạy dùng groq openai/gpt-oss-120b, reasoning
+medium (--judge-provider groq --judge-model openai/gpt-oss-120b --judge-effort medium) vì chưa có API key Anthropic.
+Giám khảo cùng họ model với bộ sinh; hạn chế này đã ghi ở 3.2 và áp dụng cho cả 3d.
 - Mù nhánh, **không nhận phe AI**: chỉ nhận motion, 2 burden, bài gần nhất của người kia và bài cần chấm.
 - Output: q1_stance, q2_concession (3 bool + evidence), q3_targeted. Output sai thì gọi lại 1 lần; vẫn sai thì vòng
   "không chấm được" (không tính lật, đếm `judge_missing`).
