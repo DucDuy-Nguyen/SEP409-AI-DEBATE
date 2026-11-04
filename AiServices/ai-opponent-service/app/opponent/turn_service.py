@@ -32,7 +32,7 @@ from app.opponent.models import (
     OpponentTurn,
     SessionStatus,
 )
-from app.opponent.schemas import CreateTurnRequest
+from app.opponent.schemas import CreateTurnRequest, normalize_learner_speech
 from app.opponent.service import LLMCallError, get_case_file, get_session_by_external_id
 from app.opponent.turn_generators import (
     Ledger,
@@ -54,6 +54,12 @@ class TurnRequestError(ValueError):
 
 class TurnConflictError(Exception):
     """Trang thai khong cho phep (chua READY, thieu luot truoc, khac snapshot) -> 409."""
+
+
+class LearnerSpeechMismatchError(TurnConflictError):
+    """Bai learner khac snapshot da luu: goi lai cung noi dung cung khong het loi, client can biet de khong thu lai."""
+
+    code = "LEARNER_SPEECH_MISMATCH"
 
 
 class TurnGenerationError(Exception):
@@ -115,8 +121,12 @@ async def _existing_turn(db: AsyncSession, session_id: uuid.UUID, turn_index: in
 
 
 def _snapshot_mismatches(req: CreateTurnRequest, stored: dict[int, OpponentSpeech]) -> list[int]:
-    """Luot learner trong request da luu nhung KHAC noi dung da luu."""
-    return [sp.turn_index for sp in req.new_learner_speeches if sp.turn_index in stored and stored[sp.turn_index].text != sp.text]
+    """Luot learner trong request da luu nhung KHAC noi dung da luu. Ban da luu truoc day co the con xuong dong CRLF."""
+    return [
+        sp.turn_index
+        for sp in req.new_learner_speeches
+        if sp.turn_index in stored and normalize_learner_speech(stored[sp.turn_index].text) != sp.text
+    ]
 
 
 async def _replay_existing(
@@ -126,7 +136,7 @@ async def _replay_existing(
     missing = [sp.turn_index for sp in req.new_learner_speeches if sp.turn_index not in stored]
     different = _snapshot_mismatches(req, stored)
     if missing or different:
-        raise TurnConflictError(
+        raise LearnerSpeechMismatchError(
             f"Luot {turn.turn_index} da duoc sinh voi bai noi learner khac request "
             f"(khac noi dung: {different or '-'}, chua tung gui: {missing or '-'})"
         )
@@ -238,7 +248,7 @@ async def generate_turn(
 
     different = _snapshot_mismatches(req, stored)
     if different:
-        raise TurnConflictError(f"Bai noi learner o luot {different} khac ban da luu")
+        raise LearnerSpeechMismatchError(f"Bai noi learner o luot {different} khac ban da luu")
     provided = {sp.turn_index for sp in req.new_learner_speeches}
     missing = [t for t in range(1, req.turn_index) if t not in stored and t not in provided]
     if missing:
@@ -266,7 +276,7 @@ async def generate_turn(
         stored = await _speeches(db, session.id)
         different = _snapshot_mismatches(req, stored)
         if different:
-            raise TurnConflictError(f"Bai noi learner o luot {different} khac ban da luu (request dong thoi)")
+            raise LearnerSpeechMismatchError(f"Bai noi learner o luot {different} khac ban da luu (request dong thoi)")
 
     case_file = await get_case_file(db, session.id)
     context = TurnContext(
