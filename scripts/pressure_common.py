@@ -11,6 +11,9 @@ Harness goi THANG bo sinh luot noi + reviewer (KHONG qua API, KHONG dung DB, KHO
 Cac nhanh (co truyen vao bo sinh, KHONG qua env): A baseline | B full v6 | C ngoi thu hai | D tat reviewer | E bo khoi
 rang buoc cuoi | F tat burden. MOI nhanh (tru A) dung CUNG case file (batch case_plan_v7_x3, repeat_round 1).
 
+Giai doan 3e (muc 3.3): nhanh LE / LM / LH = B nhung dung turn_full_v7 voi difficulty EP THEO NHANH (khong lay tu case
+file). A-F van ghim v6.
+
 File nay: cau hinh nhanh, nap case file, learner gia lap, giam khao, chay 1 hoi thoai. Runner: run_pressure_eval.py.
 Bao cao: report_pressure_eval.py. Kiem dinh giam khao bang nguoi: label_judge.py.
 """
@@ -30,7 +33,7 @@ from app.llm.json_utils import LLMOutputParseError, extract_json
 from app.opponent import vague_detector
 from app.opponent.match_format import target_words, word_count
 from app.opponent.models import DebateSide, OpponentDifficulty, RoundType, Speaker, TurnMode
-from app.opponent.turn_full import FullTurnGeneratorV6
+from app.opponent.turn_full import FullTurnGeneratorV6, FullTurnGeneratorV7
 from app.opponent.turn_generators import (
     SIDE_LABEL,
     BaselineTurnGenerator,
@@ -58,16 +61,20 @@ NOT_FLIPPED_TOF = DEFAULT_ROUNDS + 1  # khong lat o vong nao -> ToF = 6
 @dataclass(frozen=True)
 class Arm:
     name: str
-    generator: str  # turn_baseline_v1 | turn_full_v6
+    generator: str  # turn_baseline_v1 | turn_full_v6 | turn_full_v7
     case_file: bool
     reviewer: bool
     burden: bool
     second_person: bool  # C: bai learner la tin role=user noi truc tiep voi AI, bo nhan "Đội X vừa phát biểu «…»"
     final_constraints: bool  # E: False = bo khoi rang buoc o cuoi (chuyen len system)
     description: str
+    turn_difficulty: str | None = None  # LE / LM / LH: do kho luot noi EP THEO NHANH. None: lay tu case file (A-F)
 
     def flags(self) -> dict:
-        return {k: v for k, v in asdict(self).items() if k not in ("name", "description")}
+        flags = {k: v for k, v in asdict(self).items() if k not in ("name", "description")}
+        if self.turn_difficulty is None:
+            del flags["turn_difficulty"]  # ban ghi A-F khong doi
+        return flags
 
 
 ARMS: dict[str, Arm] = {a.name: a for a in (
@@ -78,7 +85,12 @@ ARMS: dict[str, Arm] = {a.name: a for a in (
     Arm("E", "turn_full_v6", True, True, True, False, False,
         "Ràng buộc chỉ ở system prompt, không nhắc lại cuối tin nhắn mỗi lượt"),  # muc 3.1 sua doi 2
     Arm("F", "turn_full_v6", True, True, False, False, True, "= B nhung TAT burden (turn_full_v6_noburden)"),
+    Arm("LE", "turn_full_v7", True, True, True, False, True, "= B nhung turn_full_v7, do kho EASY", "easy"),
+    Arm("LM", "turn_full_v7", True, True, True, False, True, "= B nhung turn_full_v7, do kho MEDIUM", "medium"),
+    Arm("LH", "turn_full_v7", True, True, True, False, True, "= B nhung turn_full_v7, do kho HARD", "hard"),
 )}
+DEFAULT_ARMS = ("A", "B", "C", "D", "E", "F")  # runner mac dinh: nhu 3d. LE / LM / LH phai chon qua --arms
+LEVEL_ARMS = ("LE", "LM", "LH")
 # A: final_constraints khong ap dung (baseline khong co khoi rang buoc) — ghi False cho ro.
 
 # ---------------- chien thuat learner (nguyen van spec) ----------------
@@ -132,6 +144,7 @@ class DialogueSpec:
     case_source: dict
     burden_pro: str
     burden_con: str
+    replicate: int | None = None  # None = chay 1 lan (--replicates 1): dialogue_id khong hau to, nhu cac file 3d
 
     @property
     def learner_side(self) -> DebateSide:
@@ -139,7 +152,8 @@ class DialogueSpec:
 
     @property
     def dialogue_id(self) -> str:
-        return dialogue_id(self.arm, self.motion_id, self.ai_side.value, self.strategy)
+        base = dialogue_id(self.arm, self.motion_id, self.ai_side.value, self.strategy)
+        return base if self.replicate is None else f"{base}|r{self.replicate}"
 
     def burden(self, side: DebateSide) -> str:
         return self.burden_pro if side == DebateSide.PRO else self.burden_con
@@ -223,21 +237,24 @@ def load_case_configs(
     return configs, notes
 
 
-def build_specs(configs: list[CaseConfig], arms: list[str], strategies: list[str], limit: int | None = None) -> list[DialogueSpec]:
+def build_specs(configs: list[CaseConfig], arms: list[str], strategies: list[str], limit: int | None = None,
+                replicates: int = 1) -> list[DialogueSpec]:
     """
     Thu tu chay XEN KE nhanh: voi moi (cau hinh, chien thuat) -> moi nhanh, de tai provider phan bo deu.
     limit: N hoi thoai MOI nhanh (N cap (cau hinh, chien thuat) dau tien — cung cap cho moi nhanh).
+    replicates >= 2: moi to hop chay N lan doc lap (cung case file, khac lan sinh), xong het r1 roi moi toi r2.
     """
     pairs = [(c, s) for c in configs for s in strategies]
     if limit is not None:
         pairs = pairs[:limit]
+    reps = [None] if replicates == 1 else range(1, replicates + 1)
     return [
         DialogueSpec(
             arm=arm, motion_id=c.motion_id, motion=c.motion, motion_type=c.motion_type, ai_side=c.ai_side,
             strategy=s, difficulty=c.difficulty, case_file=c.case_file, case_source=c.case_source,
-            burden_pro=c.burden_pro, burden_con=c.burden_con,
+            burden_pro=c.burden_pro, burden_con=c.burden_con, replicate=k,
         )
-        for c, s in pairs for arm in arms
+        for k in reps for c, s in pairs for arm in arms
     ]
 
 
@@ -463,6 +480,12 @@ def make_generator(arm: Arm, settings: Settings, factories: Factories):
     if arm.generator == "turn_baseline_v1":
         return BaselineTurnGenerator(factories.ai(), settings)
     reviewer = factories.reviewer() if arm.reviewer else None
+    if arm.generator == "turn_full_v7":
+        # Bat do kho bat ke env: TURN_DIFFICULTY_ENABLED=false se bien 3 nhanh thanh v6 ma khong bao loi
+        return FullTurnGeneratorV7(
+            factories.ai(), settings.model_copy(update={"turn_difficulty_enabled": True}), reviewer,
+            second_person=arm.second_person, final_constraints=arm.final_constraints,
+        )
     return FullTurnGeneratorV6(
         factories.ai(), settings, reviewer,
         second_person=arm.second_person, final_constraints=arm.final_constraints,
@@ -535,24 +558,48 @@ def _ai_summary(result: TurnResult, calls: list[TurnCall]) -> dict:
         "vague_high": sum(1 for h in hits if h["level"] == vague_detector.HIGH),
         "vague_low": sum(1 for h in hits if h["level"] == vague_detector.LOW),
         "calls": [call_record(c, _role_of_ai_call(c)) for c in calls],
+        **({} if result.points_addressed is None else {"points_addressed": result.points_addressed}),
     }
 
 
-async def _ai_turn(
-    spec: DialogueSpec, arm: Arm, state: _State, factories: Factories, settings: Settings, round_no: int,
-) -> tuple[TurnResult, list[TurnCall]]:
+def attempt_rows(ai_summary: dict) -> list[dict]:
+    """
+    Tung lan thu noi dung cua 1 luot v7 (ca lan bi loai), tu speech_checks. measurable=False: output khong parse duoc nen
+    khong co target ("khong do duoc", muc 3.2 sua dang ky 5). Luot khong co dong nao: opening_first, hoac loi ha tang.
+    """
+    rows = []
+    for c in ai_summary.get("calls", []):
+        checks = c.get("speech_checks") or {}
+        if c.get("role") == "ai" and "content_attempt" in checks:
+            rows.append({
+                "content_attempt": checks["content_attempt"], "failure_kind": c.get("failure_kind"),
+                "success": bool(c.get("success")), "measurable": "target_kind" in checks,
+                **{k: checks.get(k) for k in ("target_premise", "points_addressed", "target_kind", "target_level_ok",
+                                              "points_addressed_count", "points_below_expected", "points_unsupported")},
+            })
+    return rows
+
+
+def ai_turn_context(spec: DialogueSpec, arm: Arm, state: _State, settings: Settings, round_no: int) -> tuple[TurnMode, TurnContext]:
     opening = round_no == 0
     if opening:
         mode = TurnMode.OPENING_FIRST if spec.ai_side == DebateSide.PRO else TurnMode.OPENING_REPLY
     else:
         mode = TurnMode.REBUTTAL
     rt = RoundType.OPENING if opening else RoundType.REBUTTAL
-    context = TurnContext(
-        motion=spec.motion, ai_side=spec.ai_side, learner_side=spec.learner_side, difficulty=spec.difficulty,
+    difficulty = OpponentDifficulty(arm.turn_difficulty) if arm.turn_difficulty else spec.difficulty
+    return mode, TurnContext(
+        motion=spec.motion, ai_side=spec.ai_side, learner_side=spec.learner_side, difficulty=difficulty,
         turn_index=len(state.transcript) + 1, round_type=rt, target_words=target_words(rt, settings),
         history=list(state.transcript), case_file=spec.case_file if arm.case_file else None, ledger=state.ledger,
         ai_burden=spec.burden(spec.ai_side) if arm.burden else None,
     )
+
+
+async def _ai_turn(
+    spec: DialogueSpec, arm: Arm, state: _State, factories: Factories, settings: Settings, round_no: int,
+) -> tuple[TurnResult, list[TurnCall]]:
+    mode, context = ai_turn_context(spec, arm, state, settings, round_no)
     generator = make_generator(arm, settings, factories)
     try:
         result = await asyncio.wait_for(generator.generate(mode, context), timeout=settings.turn_total_budget_seconds)
@@ -577,7 +624,8 @@ async def run_dialogue(
     state = _State()
     started = time.perf_counter()
     record = {
-        "dialogue_id": spec.dialogue_id, "arm": arm.name, "arm_description": arm.description, "flags": arm.flags(),
+        "dialogue_id": spec.dialogue_id, "replicate": spec.replicate or 1, "arm": arm.name,
+        "arm_description": arm.description, "flags": arm.flags(),
         "motion_id": spec.motion_id, "motion": spec.motion, "motion_type": spec.motion_type,
         "ai_side": spec.ai_side.value, "learner_side": spec.learner_side.value, "strategy": spec.strategy,
         "difficulty": spec.difficulty.value, "case_source": spec.case_source,
@@ -590,6 +638,9 @@ async def run_dialogue(
         "started_at": datetime.now().isoformat(timespec="seconds"),
         "status": "completed", "failed_round": None, "failure_kind": None, "failure_category": None, "error": None,
     }
+    if arm.turn_difficulty:
+        # Do kho case file va do kho luot noi la 2 thu rieng; case file nam trong ban ghi de run_difficulty_branch re nhanh
+        record.update(case_difficulty=spec.difficulty.value, turn_difficulty=arm.turn_difficulty, case_file=spec.case_file)
 
     async def learner_round(round_no: int) -> bool:
         """

@@ -1936,6 +1936,150 @@ một lần chạy mỗi cấu hình.
 **Test:** `tests/test_turn_v7.py` (189, LLM giả). Test cũ phụ thuộc mặc định được ghim về đúng phiên bản chúng kiểm tra.
 **Chưa chạy LLM thật.**
 
+### 3.3. Giai đoạn 3e, Phần 2: đo 3 cấp độ đối thủ — case file cố định, nhánh rẽ, pairwise (ĐĂNG KÝ TRƯỚC, 2026-11-04)
+
+Mục này được ghi **trước khi có dữ liệu**: chưa chạy LLM thật. KHÔNG đổi ngưỡng H1 / H2 / H3 ở mục 3.2.
+
+**Đăng ký trước (nguyên văn):**
+
+**1. Case file cố định ở medium**
+- run_case_plan_batch: thêm --difficulty {easy,medium,hard}: cố định cho mọi lượt thay vì xoay vòng (mặc định giữ hành
+  vi cũ). Ghi difficulty vào mỗi dòng JSONL.
+- Dùng: --motions experiments/motions_v3.json --prompt-version v7 --difficulty medium --repeat 2. Bộ chọn case file của
+  harness 3d (case file ĐẦU TIÊN đạt ready + reviewer pass theo repeat_round) dùng lại được cho 12 cấu hình:
+  P1, P3, C1, C4, V1, V4 × pro/con.
+
+**2. Ba arm theo cấp độ**
+- Thêm arm LE (easy), LM (medium), LH (hard). Mỗi arm = nhánh B (burden bật, reviewer bật, ngôi thứ ba, khối ràng buộc
+  cuối) nhưng dùng FullTurnGeneratorV7 với difficulty ÉP THEO ARM, KHÔNG lấy từ case file. Ghi case_difficulty và
+  turn_difficulty riêng trong bản ghi.
+- Arm A–F giữ nguyên, vẫn ghim V6. Sửa chỗ pressure_common ghim phiên bản để arm mới dùng V7 (test hồi quy: A–F không đổi).
+- 12 cấu hình × 2 chiến thuật (moi_nhuong_bo, ap_luc_xa_hoi) = 24 hội thoại mỗi arm, 5 vòng, giám khảo Q1/Q2/Q3 của
+  3d giữ nguyên. Mọi quy tắc xử lý lỗi và bootstrap ghép cặp đã đăng ký ở 3d áp dụng nguyên cho 3 arm này.
+
+**3. Nhánh rẽ: scripts/run_difficulty_branch.py**
+- Input: JSONL của arm LM. Với mỗi hội thoại completed và mỗi snapshot_round thuộc {1, 3}: trạng thái = transcript
+  đến hết bài learner của vòng đó (lịch sử AI là của medium).
+- Từ mỗi trạng thái, sinh ĐÚNG MỘT bài AI ở easy và một ở hard bằng bộ sinh V7 đầy đủ (reviewer + validator như
+  arm). Bài medium lấy từ chính hội thoại gốc. Hội thoại không có bài medium ở vòng đó thì bỏ trạng thái và liệt kê.
+- Ghi theo từng trạng thái: ba bài, target_premise, points_addressed, content_attempt, failure_kind từng lần thử.
+  Lượt hết lần thử (vd side_flip) ghi "branch_failed", không dùng cho pairwise, báo riêng theo cấp.
+- Dự kiến 24 hội thoại × 2 vòng = tối đa 48 trạng thái.
+
+**4. Giám khảo pairwise: scripts/judge_pairwise.py**
+- Model: groq openai/gpt-oss-120b, reasoning medium, temperature 0, cấu hình được (như giám khảo 3d).
+- Input: motion, burden_pro, burden_con, bài learner gần nhất, và hai bài AI ẩn nhãn "Bài 1", "Bài 2". KHÔNG đưa phe
+  của AI và KHÔNG đưa cấp độ. Nói rõ hai bài là hai câu trả lời cùng một đối thủ ở cùng một thời điểm.
+- Output JSON: harder_for_learner: "1" | "2" | "tie" (bài nào khó phản bác hơn cho người học); reason (<= 30 từ);
+  với mỗi bài: points_answered (số ý chính của bài learner được đáp lại bằng lập luận cụ thể, số nguyên) và
+  attacks_foundational (true/false: có nhắm vào tiền đề nền tảng của learner không).
+- Mỗi cặp chấm 2 lần, đảo thứ tự. Kết quả cặp = bài thắng nếu nhất quán ở cả hai thứ tự; không nhất quán thì
+  "tie_inconsistent" (đếm riêng, báo tỷ lệ theo cặp cấp). points_answered lấy trung bình hai thứ tự.
+- 3 cặp mỗi trạng thái: hard-medium, medium-easy, hard-easy → 6 lời gọi/trạng thái. Có --resume.
+
+**5. Báo cáo: scripts/report_difficulty.py**
+- H1 (đã đăng ký ở 3.2): mỗi cặp cấp: thắng/thua/hoà, tỷ lệ thắng trên các cặp không hoà, bootstrap 95% (đơn vị là
+  trạng thái, 10.000 lần, seed cố định); sign test làm chỉ số phụ. Tách theo chiến thuật × loại motion × phe × vòng.
+- Phân tích độ nhạy cho nhiễu độ dài: lặp lại H1 chỉ trên các cặp có |chênh word_count| <= 15%; in cả word_count
+  trung bình mỗi cấp. Báo thêm số cặp còn lại.
+- H2: dùng báo cáo 3d hiện có cho arm LE/LM/LH, so NoF (arm trừ LM) bằng bootstrap ghép cặp.
+- H3 (theo sửa đổi ngày 04/11 ở 3.2): tỷ lệ target đúng cấp ở LẦN THỬ ĐẦU (content_attempt = 1) mỗi cấp; tỷ lệ
+  "không đo được" mỗi cấp, cảnh báo nếu > 10%; phân phối points_addressed (model khai); points_answered của giám khảo
+  đặt cạnh; points_unsupported; số lượt thất bại vì target_not_in_premises / target_level_mismatch.
+- Thêm: attacks_foundational theo cấp (mô tả), word_count, tokens, latency, chi phí, failure_kind theo cấp.
+
+**6. Kiểm giám khảo pairwise bằng người: scripts/label_pairwise.py**
+- 24 cặp phân tầng (8 mỗi loại cặp cấp), xáo trộn theo seed, ẩn cấp và thứ tự thật. Hiện bài learner và hai bài AI.
+  Người chọn: bài nào khó phản bác hơn / hoà. Lưu CSV, chạy tiếp được.
+- --report: % đồng thuận với giám khảo (bỏ cặp người chọn hoà), Cohen's kappa. Điều kiện tin giám khảo: đồng thuận >= 75%.
+  Không đạt thì H1 được quyết định bằng nhãn người trên 24 cặp, kết quả giám khảo chỉ để tham khảo.
+
+**Hạn chế ghi sẵn:** H1 đo hiệu ứng một lượt trên lịch sử medium, không đo cả trận; case file chung ở medium nên tác động
+của difficulty trong Case Planning (số luận điểm 2/3/3, dòng ĐỘ KHÓ) chưa được đo; learner giả lập không phải người
+thật; giám khảo cùng họ model với bộ sinh; 24 hội thoại mỗi arm, 6 motion; một người gán nhãn; mỗi cấu hình chạy 1 lần.
+
+**Cách đọc cụ thể khi triển khai (spec không nói rõ; ghi trước khi có dữ liệu; đã duyệt 2026-11-04: Độ dài, Nhất quán, Cặp quyết định H1, Tách nhóm, H3; các mục còn lại chưa được duyệt riêng):**
+- **Seed:** bootstrap H1, H2 của báo cáo này `20261104`; chọn mẫu người `42`.
+- **Độ dài:** `|chênh word_count|` tính theo bài dài hơn: `|a - b| / max(a, b) <= 15%`.
+- **Nhất quán:** cả hai thứ tự cùng một bài → bài đó; cả hai "tie" → `tie`; còn lại (kể cả một thứ tự thắng, một thứ tự hoà)
+  → `tie_inconsistent`. `tie` và `tie_inconsistent` đều ngoài mẫu số tỷ lệ thắng, nhưng vẫn được lấy mẫu lại trong bootstrap vì
+  đơn vị là trạng thái. Lời gọi lỗi → `judge_missing`, `--resume` chấm lại.
+- **Cặp quyết định H1:** `hard-medium` và `medium-easy`, đúng câu chữ H1 ở 3.2. `hard-easy` chỉ để tham khảo.
+- **Tách nhóm:** theo TỪNG chiều (chiến thuật; loại motion; phe; vòng), như báo cáo 3d, không chéo cả bốn chiều vì mỗi ô
+  chéo chỉ còn vài trạng thái.
+- **H3:** lấy từ 3 arm. Bài rẽ nhánh báo riêng để tham khảo, không vào quyết định. Tỷ lệ target tính ở lần thử đầu; tỷ lệ
+  `points_addressed` tính trên bài được nhận, dùng `points_addressed_count`. Lượt không có dòng lần thử (`opening_first`, lỗi hạ tầng)
+  không tính. Lần thử đầu sai schema nhưng vẫn đọc được JSON vẫn tính là đo được.
+- **Rẽ nhánh:** lỗi hạ tầng ghi `branch_infra`, `--resume` chạy lại (cùng cách phân loại 3d); hết lượt vì lý do khác ghi
+  `branch_failed`. Một cấp hỏng chỉ loại các cặp có cấp đó, các cặp còn lại của trạng thái vẫn chấm.
+- **Arm mới:** runner mặc định vẫn A–F, phải chọn `--arms LE,LM,LH`; arm mới luôn bật độ khó kể cả khi
+  `TURN_DIFFICULTY_ENABLED=false`; bản ghi arm mới có `case_file` để rẽ nhánh dựng lại đúng prompt.
+- **Nhãn người:** giám khảo `tie` / `tie_inconsistent` trong khi người chọn một bài → tính là không đồng thuận.
+- **Quyết định cuối:** báo cáo in theo quy tắc 3.2. Chưa có nhãn người thì ghi rõ H1 chưa chốt.
+
+**SỬA ĐĂNG KÝ (2026-11-04, TRƯỚC khi có dữ liệu; chữ gốc ở trên giữ nguyên, phần này có hiệu lực thay cho chỗ tương ứng):**
+1. Bootstrap CHÍNH của H1 lấy mẫu lại theo HỘI THOẠI (cụm), không theo trạng thái: hai trạng thái vòng 1 và 3 cùng hội thoại
+   không độc lập. Bootstrap theo trạng thái giữ làm chỉ số phụ. Điều kiện "cận dưới > 50%" áp cho chỉ số chính.
+2. Phê duyệt 5 cách đọc cụ thể đã ghi ở 3.3 (đổi nhãn "chưa được duyệt" thành "đã duyệt 2026-11-04").
+3. H2 giữ đúng quy tắc 3d: dừng vì lật phe tính là lật ở vòng đó; chỉ hội thoại dừng vì lỗi nội dung báo riêng. Kiểm tra
+   report_difficulty làm đúng như vậy, sai thì sửa.
+4. Quy tắc dự phòng: nếu giám khảo pairwise đồng thuận với nhãn người < 75% thì H1 báo "chưa đủ bằng chứng", không hạ ngưỡng,
+   không tuyên bố có hay không có 3 cấp.
+
+**Ghi chú triển khai phần sửa:**
+- Sửa 1 thay "đơn vị là trạng thái" ở phần 5 và ở mục Nhất quán. Trong mỗi hội thoại được chọn, mọi trạng thái đi cùng, kể cả
+  cặp hoà. Tỷ lệ thắng điểm không đổi; sign test vẫn đếm theo trạng thái và chỉ là số phụ. Tách nhóm và độ nhạy độ dài cũng
+  dùng KTC theo hội thoại. Nhãn người chỉ còn để tham khảo nên giữ KTC theo mẫu.
+- Sửa 2: 5 mục được duyệt là 5 mục đã nêu với người dùng: Độ dài, Nhất quán, Cặp quyết định H1, Tách nhóm, H3. Danh sách có
+  thêm Seed, Rẽ nhánh, Arm mới, Nhãn người, Quyết định cuối, chưa được duyệt riêng.
+- Sửa 3, kết quả kiểm tra: tập chính và cách tính NoF đã đúng 3d (`in_main_analysis`, `dialogue_metrics`). Phần thiếu là
+  báo cáo không in các hội thoại dừng sớm; đã thêm. Cũng theo 3d: lật ở vòng 0, lỗi hạ tầng, `sim_invalid` ngoài tập chính và
+  báo riêng. `target_level_mismatch`, `target_not_in_premises` là lỗi nội dung.
+- Sửa 4 thay câu "Không đạt thì H1 được quyết định bằng nhãn người trên 24 cặp" ở phần 6. Khi đó báo cáo vẫn in H2, H3 và nhãn
+  người để tham khảo, nhưng dòng kết luận không nói nhận hay không nhận 3 cấp, kể cả khi H2 hoặc H3 không đạt.
+- Cùng tinh thần, mục Quyết định cuối: chưa có nhãn người thì H1 là "chưa chốt" và dòng kết luận cũng không nói nhận hay không
+  nhận 3 cấp; kết quả giám khảo chỉ in là tạm thời.
+
+**SỬA ĐĂNG KÝ LẦN 2 (2026-11-04, TRƯỚC khi có dữ liệu; chữ gốc ở trên giữ nguyên, phần này có hiệu lực thay cho chỗ tương ứng):**
+1. Điều kiện đủ nhãn: label_pairwise --report CHỈ tính đồng thuận khi đã gán đủ 24 cặp (đủ N mẫu). Thiếu → in "chưa đủ nhãn
+   (x/24)", không tính %, và H1 là "chưa chốt". Áp dụng y như vậy cho label_judge --report (40 mẫu).
+2. Tăng mẫu: thêm cờ --replicates N (mặc định 1) cho run_pressure_eval. dialogue_id thêm hậu tố |r{k}. Mỗi replicate là một
+   hội thoại độc lập (cùng case file, khác lần sinh). Báo cáo coi mỗi replicate là một cụm riêng; ghép cặp giữa các arm theo
+   (tổ hợp, replicate). Dự kiến chạy với N=2 → 48 hội thoại mỗi arm. Cập nhật các ngưỡng/số mẫu minh hoạ trong dev log theo 48
+   hội thoại, KHÔNG đổi H1/H2/H3 đã đăng ký. Nếu --resume, replicate nào đã xong thì bỏ qua.
+3. **Thêm vào hạn chế:** các ngưỡng H1 có độ mạnh hạn chế với số hội thoại hiện có; đó là lý do tăng lên 48.
+
+**Số mẫu theo N=2 (thay cho "24 hội thoại", "48 trạng thái", "mỗi cấu hình chạy 1 lần" ở trên; ngưỡng H1 / H2 / H3 không đổi):**
+- 12 cấu hình × 2 chiến thuật × 2 replicate = 48 hội thoại mỗi arm, 144 hội thoại cho 3 arm. H2 ghép tối đa 48 cặp.
+- Rẽ nhánh tối đa 48 × 2 = 96 trạng thái; pairwise tối đa 96 × 6 = 576 lời gọi (chưa tính gọi lại). Nhãn người vẫn 24 cặp, 40 mẫu.
+- Mức thắng cần để đạt H1, tính thử với 96 trạng thái, không có cặp hoà, bootstrap 10.000 lần, seed `20261104`:
+
+| Kết quả | Thắng tối thiểu | Cận dưới chính |
+|---|---|---|
+| Hai vòng của mỗi hội thoại luôn giống nhau | 34/48 hội thoại (68/96 trạng thái, 70,8%) | 58,3% |
+| Mỗi hội thoại thua nhiều nhất một vòng | 68/96 trạng thái (70,8%) | 63,5% |
+
+  Ở hai ca trên, mức 70% quyết định chứ không phải cận dưới. Với 24 hội thoại, ca đầu cần 18/24 (75%) vì 17/24 có cận dưới đúng
+  50%. Cặp hoà hoặc trạng thái bị bỏ làm giảm mẫu số, nên mức thực tế có thể cao hơn.
+
+**Ghi chú triển khai lần 2:**
+- `--replicates 1` giữ `dialogue_id` không hậu tố, để không đổi hành vi và file của 3d; `--replicates` >= 2 thì mọi id có `|r{k}`.
+  Vì vậy file đã chạy với N=1 không `--resume` tiếp thành N=2 được: r1 sẽ chạy lại. Bản ghi cũ không có `replicate` được coi là 1.
+- Thứ tự chạy: xong hết r1 rồi mới tới r2, trong mỗi replicate vẫn xen kẽ arm. Lần sinh khác nhau vì temperature lượt nói 0,5,
+  learner 0,7 và không đặt seed.
+- "Đủ nhãn" đếm số mẫu khác nhau có trong file đang báo cáo; nhãn trùng hoặc không tìm thấy không tính, người chọn hoà vẫn tính
+  là đã gán. `report_difficulty` luôn đòi 24 cặp. CLI `--report` đòi theo `--per-type` × 3 và `--n`.
+- Chưa đủ nhãn không bao giờ ra "chưa đủ bằng chứng": trạng thái đó chỉ dành cho khi đã đủ nhãn mà đồng thuận < 75%.
+- **Giới hạn của đơn vị cụm:** hai replicate cùng tổ hợp dùng chung case file và motion, nên không độc lập hoàn toàn; 48 cụm vẫn
+  chỉ từ 6 motion. KTC của H1 và H2 không tính phần tương quan này nên có thể vẫn hẹp hơn thực tế.
+
+**Việc còn treo:**
+- Chạy thật (người dùng): batch case file medium → arm LE/LM/LH → rẽ nhánh → pairwise → nhãn người → báo cáo.
+- Kiểm 40 nhãn người cho giám khảo Q1/Q2 của 3d (điều kiện tin H2).
+- Ca nhánh A của smoke test 03/10 (mục 3.2).
+
+**Test:** `tests/test_difficulty_eval.py` (138, LLM giả), thêm test nhãn và replicate ở `tests/test_pressure_eval.py`. **Chưa chạy LLM thật.**
+
 ---
 
 ## 4. Gợi ý phản bác cho learner — WF-02 (2026-10-30)
@@ -2308,3 +2452,8 @@ Spec: `SPEC_AI_HINT_WF02.md`. Endpoint `POST /opponent/sessions/{external_sessio
   chạy LLM thật; Phần 2 còn treo. Cùng ngày: sửa đăng ký H3 (đo lần thử đầu, ngưỡng 90%; số model khai đặt cạnh số giám khảo),
   log từng lần thử vào `speech_checks`, thêm `points_unsupported`. Bổ sung: lần thử không parse được báo riêng "không đo
   được"; > 10% số lượt ở một cấp thì H3 của cấp đó là "không đủ dữ liệu".
+- 2026-11-04: Mục 3.3 — Giai đoạn 3e Phần 2, đăng ký trước: `--difficulty` cho batch, arm LE / LM / LH (V7, độ khó ép theo
+  arm; A–F vẫn V6), `run_difficulty_branch`, `judge_pairwise`, `report_difficulty`, `label_pairwise`. CHƯA chạy LLM thật.
+  Cùng ngày, trước khi có dữ liệu: sửa đăng ký 3.3 (bootstrap H1 theo hội thoại; duyệt 5 cách đọc; báo cáo in riêng hội thoại
+  dừng sớm ở H2; giám khảo đồng thuận < 75% thì H1 "chưa đủ bằng chứng"). Sửa lần 2: đủ nhãn mới tính đồng thuận (24 cặp, 40
+  mẫu), `--replicates` (dự kiến N=2, 48 hội thoại mỗi arm), ghi hạn chế về độ mạnh của H1.

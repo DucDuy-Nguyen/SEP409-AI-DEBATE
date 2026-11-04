@@ -21,6 +21,8 @@ Chay tu thu muc goc service:
     python -m scripts.run_case_plan_batch --motions experiments/motions_v3.json --prompt-version v6b
     # kiem chung ganh nang chung minh (muc 2.16): v7 = v5 + khoi ganh nang; --repeat N = N vong 24 cau hinh
     python -m scripts.run_case_plan_batch --motions experiments/motions_v3.json --prompt-version v7 --repeat 3
+    # case file CO DINH mot do kho thay vi xoay vong (Giai doan 3e, muc 3.3)
+    python -m scripts.run_case_plan_batch --motions experiments/motions_v3.json --prompt-version v7 --difficulty medium --repeat 2
     # chay lai LOI HA TANG (llm_error, budget_exceeded) cua 1 file; them loi noi dung: --include-content-failures
     python -m scripts.run_case_plan_batch --only-failed experiments/case_plan/<file>.jsonl
 So sanh 2 file ket qua: python -m scripts.compare_case_plan_batches --v5 <a.jsonl> --v6 <b.jsonl>  (hoac --v6b)
@@ -82,17 +84,18 @@ def load_records(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def build_runs(motions: list[dict], repeat: int = 1) -> list[dict]:
+def build_runs(motions: list[dict], repeat: int = 1, difficulty: OpponentDifficulty | None = None) -> list[dict]:
     """
     Moi motion x (pro, con); difficulty xoay vong theo chi so TRONG VONG (moi vong cung cau hinh -> ghep duoc khi so
     sanh). repeat > 1 (muc 2.16): lap N vong; run_index tang lien tuc qua cac vong, repeat_round = 1..N.
+    difficulty (muc 3.3): co dinh cho moi lan chay thay vi xoay vong.
     """
     runs = []
     for repeat_round in range(1, repeat + 1):
         in_round = 0
         for motion in motions:
             for ai_side in (DebateSide.PRO, DebateSide.CON):
-                runs.append(_run(motion, ai_side, len(runs), DIFFICULTY_CYCLE[in_round % len(DIFFICULTY_CYCLE)],
+                runs.append(_run(motion, ai_side, len(runs), difficulty or DIFFICULTY_CYCLE[in_round % len(DIFFICULTY_CYCLE)],
                                  repeat_round))
                 in_round += 1
     return runs
@@ -401,6 +404,10 @@ async def main() -> int:
         help="Chay N vong toan bo cau hinh (moi dong JSONL ghi repeat_round); bo qua voi --only-failed",
     )
     parser.add_argument(
+        "--difficulty", choices=[d.value for d in OpponentDifficulty], default=None,
+        help="Co dinh do kho cho moi lan chay (mac dinh: xoay vong easy -> medium -> hard); bo qua voi --only-failed",
+    )
+    parser.add_argument(
         "--allow-draft", action="store_true",
         help='Cho phep chay khi file motion con cach hieu reading_status "draft" (chua duoc duyet)',
     )
@@ -451,7 +458,7 @@ async def main() -> int:
         if args.repeat < 1:
             print("--repeat phai >= 1")
             return 2
-        runs = build_runs(motions, args.repeat)
+        runs = build_runs(motions, args.repeat, OpponentDifficulty(args.difficulty) if args.difficulty else None)
 
     client = get_llm_client(settings)
     reviewer_client = None
@@ -460,7 +467,8 @@ async def main() -> int:
             settings, provider=settings.stance_review_provider, model=settings.stance_review_model
         )
 
-    suffix = "_rerun" if rerun_of else (f"_x{args.repeat}" if args.repeat > 1 else "")
+    suffix = "_rerun" if rerun_of else (f"_x{args.repeat}" if args.repeat > 1 else "") + (
+        f"_{args.difficulty}" if args.difficulty else "")
     out_path = args.out_dir / f"{datetime.now():%Y%m%d-%H%M%S}_{settings.case_plan_prompt_version}{suffix}.jsonl"
     print(
         f"{len(runs)} lan chay | prompt {settings.case_plan_prompt_version} | planner {client.provider}/{client.model} | "

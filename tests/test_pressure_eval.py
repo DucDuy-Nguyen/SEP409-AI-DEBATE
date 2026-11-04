@@ -684,12 +684,78 @@ def test_label_flow_and_report(tmp_path):
     answers = iter(["u", "n", "y"] * 3)
     labels = tmp_path / "labels.csv"
     assert lj.label_samples(samples, labels, input_fn=lambda _p: next(answers), out=lambda *_: None)
-    report = lj.build_report(lj.read_csv(labels), pool)
+    report = lj.build_report(lj.read_csv(labels), pool, required=3)
     assert report["n"] == 3 and report["q1"]["agreement"] == 1.0  # giam khao gia cham "pro" het
     assert report["q2_concession"]["agreement"] == pytest.approx(2 / 3)  # 1 mau giam khao "lat" (nhuong bo)
     assert report["judge_trusted"] is False
     # dung giua chung roi chay lai: bo qua mau da gan
     assert lj.label_samples(samples, labels, input_fn=lambda _p: "q", out=lambda *_: None)
+
+
+def _judge_labels(pool, n):
+    return [{"sample_id": s["sample_id"], "q1": s["verdict"]["q1_stance"], "q2": "n", "q3": "yes"} for s in pool[:n]]
+
+
+def test_label_report_partial_not_computed():
+    pool = lj.build_pool(_pool_records())
+    report = lj.build_report(_judge_labels(pool, 39), pool)  # Q1 khop het nhung moi 39/40
+    assert report["complete"] is False and report["q1"]["agreement"] is None and report["judge_trusted"] is False
+    text = lj.format_report(report)
+    assert "chua du nhan (39/40)" in text and "%" not in text and "KHONG DAT" not in text
+
+
+def test_label_report_full_at_exactly_required():
+    pool = lj.build_pool(_pool_records())
+    report = lj.build_report(_judge_labels(pool, 40), pool)
+    assert report["complete"] is True and report["labeled"] == 40 and report["q1"]["agreement"] == 1.0
+
+
+def test_label_report_outside_pool_and_duplicates_do_not_count():
+    pool = lj.build_pool(_pool_records())
+    rows = _judge_labels(pool, 30) + _judge_labels(pool, 1) * 5 + [{"sample_id": "khac", "q1": "pro", "q2": "n", "q3": "yes"}] * 9
+    report = lj.build_report(rows, pool)
+    assert report["labeled"] == 30 and report["complete"] is False and report["missing_in_pool"] == 9
+
+
+def test_build_specs_replicates():
+    configs, _ = pc.load_case_configs()
+    base = pc.build_specs(configs, ["A", "B"], list(pc.STRATEGIES))
+    assert pc.build_specs(configs, ["A", "B"], list(pc.STRATEGIES), replicates=1) == base  # mac dinh: id khong hau to
+    assert all(s.replicate is None and "|r" not in s.dialogue_id for s in base)
+    specs = pc.build_specs(configs, ["A", "B"], list(pc.STRATEGIES), replicates=2)
+    assert len(specs) == 2 * len(base) and len({s.dialogue_id for s in specs}) == len(specs)
+    half = len(base)
+    assert specs[0].dialogue_id == "A|P1|pro|moi_nhuong_bo|r1" and specs[half].dialogue_id == "A|P1|pro|moi_nhuong_bo|r2"
+    assert all(s.replicate == 1 for s in specs[:half]) and all(s.replicate == 2 for s in specs[half:])  # xong r1 roi toi r2
+    assert specs[0].case_file is specs[half].case_file  # cung case file
+    assert [s.arm for s in specs[:2]] == ["A", "B"]  # van xen ke nhanh
+
+
+@pytest.mark.parametrize("bad", ["0", "-1"])
+def test_cli_rejects_invalid_replicates(bad):
+    with pytest.raises(SystemExit):
+        runner.main(["--replicates", bad])
+
+
+async def test_runner_resume_skips_done_replicate_only(tmp_path):
+    out = tmp_path / "run.jsonl"
+    specs = [_spec("D", "con"), _spec("D", "con")]
+    specs[0].replicate, specs[1].replicate = 1, 2
+    out.write_text(json.dumps({"dialogue_id": specs[0].dialogue_id, "status": "completed"}) + "\n", encoding="utf-8")
+    lines = []
+    counts = await runner.run_all(specs, SETTINGS, Harness("con").factories, out, resume=True, out=lines.append)
+    rows = [json.loads(x) for x in out.read_text(encoding="utf-8").splitlines()]
+    assert counts["completed"] == 1 and "bo qua 1 da xong" in lines[0]
+    assert [r["dialogue_id"] for r in rows] == ["D|P1|con|moi_nhuong_bo|r1", "D|P1|con|moi_nhuong_bo|r2"]
+    assert rows[1]["replicate"] == 2
+    assert runner.done_ids(out) == {s.dialogue_id for s in specs}
+    counts2 = await runner.run_all(specs, SETTINGS, Harness("con").factories, out, resume=True, out=lines.append)
+    assert counts2["completed"] == 0
+
+
+def test_pair_key_old_records_are_replicate_one():
+    old = {"motion_id": "P1", "ai_side": "pro", "strategy": "s"}
+    assert rep.pair_key(old) == rep.pair_key({**old, "replicate": 1}) != rep.pair_key({**old, "replicate": 2})
 
 
 def test_cohen_kappa():

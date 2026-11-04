@@ -10,6 +10,7 @@ Kiem dinh giam khao Giai doan 3d bang nguoi (dev log muc 3.1). CHI DOC JSONL, kh
 - Nhap: Q1 u = pro (ung ho) / p = con (phan doi) / k = khong ro; Q2 (gop: co nhuong bo?) y / n; Q3 y / p (partial) / n.
   q = dung (chay lai de tiep tuc). Luu NGAY sau moi mau vao experiments/labels/judge_labels.csv.
 - --report: % dong thuan + Cohen's kappa cho Q1, Q2 gop, Q3; dieu kien tin giam khao: Q1 >= 90% VA Q2 gop >= 80%.
+  Chi tinh khi da gan du N mau (mac dinh 40); thieu -> "chua du nhan (x/N)", khong tinh % (dev log 3.3).
 """
 import argparse
 import random
@@ -28,6 +29,7 @@ Q1_KEYS = {"u": "pro", "p": "con", "k": "unclear"}
 Q2_INPUT = {"y": True, "n": False}
 Q3_KEYS = {"y": "yes", "p": "partial", "n": "no"}
 Q1_MIN_AGREEMENT, Q2_MIN_AGREEMENT = 0.90, 0.80
+DEFAULT_N = 40
 
 
 def _previous_speech(record: dict, round_no: int) -> str | None:
@@ -135,10 +137,15 @@ def cohen_kappa(a: list, b: list) -> float | None:
     return (po - pe) / (1 - pe)
 
 
-def build_report(label_rows: list[dict], pool: list[dict]) -> dict:
+def build_report(label_rows: list[dict], pool: list[dict], required: int = DEFAULT_N) -> dict:
     by_id = {s["sample_id"]: s for s in pool}
     pairs = [(row, by_id[row["sample_id"]]) for row in label_rows if row["sample_id"] in by_id]
-    out = {"n": len(pairs), "missing_in_pool": len(label_rows) - len(pairs)}
+    labeled = len({row["sample_id"] for row, _ in pairs})
+    out = {"n": len(pairs), "labeled": labeled, "required": required, "complete": labeled >= required,
+           "missing_in_pool": len(label_rows) - len(pairs)}
+    if not out["complete"]:
+        empty = {"agreement": None, "kappa": None, "confusion": {}}
+        return {**out, "q1": empty, "q2_concession": empty, "q3": empty, "per_arm": {}, "judge_trusted": False}
     questions = {
         "q1": ([r["q1"] for r, _ in pairs], [s["verdict"]["q1_stance"] for _, s in pairs]),
         "q2_concession": ([r["q2"] for r, _ in pairs],
@@ -172,6 +179,9 @@ def format_report(rep: dict) -> str:
 
     lines = [f"Doi chieu nguoi vs giam khao: {rep['n']} mau" + (
         f" ({rep['missing_in_pool']} nhan khong tim thay trong file)" if rep["missing_in_pool"] else "")]
+    if not rep["complete"]:
+        lines.append(f"chua du nhan ({rep['labeled']}/{rep['required']}): khong tinh dong thuan; dieu kien tin giam khao chua chot.")
+        return "\n".join(lines)
     for q in ("q1", "q2_concession", "q3"):
         lines.append(f"  {q}: dong thuan {pct(rep[q]['agreement'])}, kappa {k(rep[q]['kappa'])}; "
                      f"(nguoi, giam khao): {rep[q]['confusion']}")
@@ -188,7 +198,7 @@ def format_report(rep: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Kiem dinh giam khao 3d bang nguoi")
     p.add_argument("files", nargs="+", type=Path)
-    p.add_argument("--n", type=int, default=40)
+    p.add_argument("--n", type=int, default=DEFAULT_N)
     p.add_argument("--max-flipped", type=int, default=20)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--labels", type=Path, default=DEFAULT_LABELS)
@@ -196,11 +206,11 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
     pool = build_pool([r for f in args.files for r in load_jsonl(f)])
     if args.report:
-        print(format_report(build_report(read_csv(args.labels), pool)))
+        print(format_report(build_report(read_csv(args.labels), pool, args.n)))
         return 0
     samples = select_samples(pool, args.n, args.max_flipped, args.seed)
     if label_samples(samples, args.labels):
-        print("\nDa gan xong.\n" + format_report(build_report(read_csv(args.labels), pool)))
+        print("\nDa gan xong.\n" + format_report(build_report(read_csv(args.labels), pool, args.n)))
     return 0
 
 

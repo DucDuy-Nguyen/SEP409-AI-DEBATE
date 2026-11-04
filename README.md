@@ -53,6 +53,10 @@ scripts/pressure_common.py   # 3d: nhánh A–F, learner giả lập, giám kh�
 scripts/run_pressure_eval.py # 3d: stress test độ vững lập trường (LLM thật), JSONL mỗi hội thoại 1 dòng, --resume
 scripts/report_pressure_eval.py  # 3d: ToF / NoF theo nhánh, tách nhóm, KTC 95% bootstrap so với B (chỉ đọc JSONL)
 scripts/label_judge.py       # 3d: gán nhãn người 40 bài AI (mù nhánh / verdict) → đồng thuận + kappa với giám khảo
+scripts/run_difficulty_branch.py  # 3e: từ hội thoại nhánh LM, rẽ một bài easy + một bài hard ở vòng 1, 3 (LLM thật)
+scripts/judge_pairwise.py    # 3e: giám khảo so hai bài mù cấp, đảo thứ tự (LLM thật), --resume
+scripts/report_difficulty.py # 3e: H1 / H2 / H3 + quyết định theo mục 3.2 (chỉ đọc JSONL)
+scripts/label_pairwise.py    # 3e: gán nhãn người 24 cặp → đồng thuận + kappa với giám khảo pairwise
 experiments/                 # DỮ LIỆU CHO BÁO CÁO — commit, KHÔNG gitignore
   motions_v1.json            # 10 motion dùng cho batch
   motions_v2.json            # 12 motion cân bằng theo loại + cách hiểu chuẩn (thí nghiệm v6 — KHÔNG ĐẠT, mục 2.13)
@@ -359,6 +363,30 @@ Giám khảo dự phòng: `--judge-provider groq --judge-model openai/gpt-oss-12
   lại. Report in thêm phân tích độ nhạy (loại `ai_failed`).
 - **Giá:** gpt-oss-20b trong `scripts/pressure_common.PRICES` **chưa xác nhận**. Sửa bảng rồi chạy lại report, không
   cần chạy lại LLM.
+
+### Giai đoạn 3e — đo 3 cấp độ đối thủ (dev log mục 3.2, 3.3)
+
+Tất cả dùng LLM THẬT trừ báo cáo và gán nhãn. Thứ tự chạy:
+
+```bash
+# 1. case file cố định ở medium
+python -m scripts.run_case_plan_batch --motions experiments/motions_v3.json --prompt-version v7 --difficulty medium --repeat 2
+# 2. 3 arm: 12 cấu hình × 2 chiến thuật × 2 replicate = 48 hội thoại mỗi arm, 5 vòng (arm A–F vẫn ghim v6; mặc định runner vẫn là A–F, 1 lần)
+python -m scripts.run_pressure_eval --arms LE,LM,LH --replicates 2 --case-batch experiments/case_plan/<batch medium>.jsonl --case-rounds 1,2
+# 3. rẽ nhánh từ LM (tối đa 96 trạng thái), rồi giám khảo pairwise (6 lời gọi / trạng thái)
+python -m scripts.run_difficulty_branch experiments/pressure_eval/<file>.jsonl
+python -m scripts.judge_pairwise experiments/difficulty_eval/<file>_branch.jsonl
+# 4. gán nhãn 24 cặp, rồi báo cáo
+python -m scripts.label_pairwise experiments/difficulty_eval/<file>_pairwise.jsonl
+python -m scripts.report_difficulty --arms experiments/pressure_eval/<file>.jsonl --branch experiments/difficulty_eval/<file>_branch.jsonl \
+    --pairwise experiments/difficulty_eval/<file>_pairwise.jsonl --labels experiments/labels/pairwise_labels.csv
+```
+
+Bước 2, 3 có `--resume --out <file>`. Việc còn treo: kiểm 40 nhãn người cho giám khảo Q1/Q2 của 3d (`label_judge`).
+
+Đọc báo cáo: KTC chính của H1 lấy mẫu theo hội thoại, bản theo trạng thái chỉ là số phụ. Giám khảo pairwise đồng thuận với nhãn
+người < 75% thì H1 là "chưa đủ bằng chứng" và báo cáo không kết luận có hay không có 3 cấp. Chưa gán đủ 24 cặp thì H1 là "chưa
+chốt" và không tính đồng thuận; `label_judge --report` cũng cần đủ 40 mẫu.
 
 ### Case Planning
 

@@ -56,8 +56,8 @@ REFERENCE_ARM = "B"
 
 
 def pair_key(record: dict) -> tuple:
-    """To hop (cau hinh x chien thuat) — giong nhau giua cac nhanh."""
-    return record["motion_id"], record["ai_side"], record["strategy"]
+    """To hop (cau hinh x chien thuat x replicate) — giong nhau giua cac nhanh. Ban ghi cu khong co replicate = 1."""
+    return record["motion_id"], record["ai_side"], record["strategy"], record.get("replicate") or 1
 
 
 def _ci(diffs: list[float], n_boot: int) -> tuple[float, float]:
@@ -130,19 +130,19 @@ def _nof_by_pair(records: list[dict], rounds: int) -> dict:
     return {pair_key(r): dialogue_metrics(r, rounds)["nof"] for r in records}
 
 
-def _compare(sets: dict[str, list[dict]], rounds: int, n_boot: int, seed: int) -> dict:
+def _compare(sets: dict[str, list[dict]], rounds: int, n_boot: int, seed: int, reference: str = REFERENCE_ARM) -> dict:
     out = {}
-    if REFERENCE_ARM not in sets:
+    if reference not in sets:
         return out
-    ref_pairs = _nof_by_pair(sets[REFERENCE_ARM], rounds)
+    ref_pairs = _nof_by_pair(sets[reference], rounds)
     ref_list = list(ref_pairs.values())
     for arm in sorted(sets):
-        if arm == REFERENCE_ARM:
+        if arm == reference:
             continue
         pairs = _nof_by_pair(sets[arm], rounds)
         paired = paired_bootstrap_diff(pairs, ref_pairs, n_boot, seed)
         indep = bootstrap_diff(list(pairs.values()), ref_list, n_boot, seed)
-        out[f"{arm}-{REFERENCE_ARM}"] = {"paired": {**paired, "conclusion": conclusion(paired)},
+        out[f"{arm}-{reference}"] = {"paired": {**paired, "conclusion": conclusion(paired)},
                                           "independent": {**indep, "conclusion": conclusion(indep)}}
     return out
 

@@ -10,6 +10,9 @@ Giai doan 3d — chay stress test do vung lap truong (dev log muc 3.1). GOI LLM 
 - --resume: bo qua hoi thoai DA XONG (co dong trong file, theo dialogue_id = arm|motion|side|strategy).
 - Thu tu XEN KE nhanh (moi cau hinh -> A, B, C, ... ) de tai provider phan bo deu.
 - Case file: batch case_plan_v7_x3, repeat_round 1, chi ready + reviewer pass (cau hinh khac bi bo, in ra).
+- Giai doan 3e (muc 3.3): --arms LE,LM,LH --case-batch <batch medium> --replicates 2. Mac dinh van A-F, 1 lan.
+- --replicates N >= 2: moi to hop chay N lan doc lap, dialogue_id them |r{k}; --resume bo qua replicate da xong. N = 1: id khong
+  hau to (nhu file 3d), nen file chay voi N = 1 khong resume tiep duoc thanh N = 2.
 """
 import argparse
 import asyncio
@@ -23,6 +26,7 @@ from app.core.config import get_settings
 from app.llm.client import get_llm_client
 from scripts.pressure_common import (
     ARMS,
+    DEFAULT_ARMS,
     UNCONFIRMED_PRICES,
     DEFAULT_CASE_BATCH,
     DEFAULT_MOTIONS,
@@ -109,11 +113,12 @@ def _csv(value: str) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Stress test do vung lap truong (Giai doan 3d) — LLM THAT")
-    p.add_argument("--arms", default=",".join(ARMS))
+    p.add_argument("--arms", default=",".join(DEFAULT_ARMS), help=f"Mac dinh A-F; co the chon: {','.join(ARMS)}")
     p.add_argument("--motions", default=",".join(DEFAULT_MOTIONS))
     p.add_argument("--strategies", default=",".join(STRATEGIES))
     p.add_argument("--rounds", type=int, default=DEFAULT_ROUNDS)
     p.add_argument("--limit", type=int, default=None, help="N hoi thoai moi nhanh (smoke test)")
+    p.add_argument("--replicates", type=int, default=1, help="So lan chay doc lap moi to hop (cung case file, khac lan sinh)")
     p.add_argument("--concurrency", type=int, default=2)
     p.add_argument("--resume", action="store_true")
     p.add_argument("--out", type=Path, default=None, help="File JSONL (bat buoc khi --resume)")
@@ -136,6 +141,8 @@ def main(argv: list[str] | None = None) -> int:
         p.error(f"Nhanh / chien thuat khong hop le: {bad}")
     if args.resume and args.out is None:
         p.error("--resume can --out <file JSONL dang chay>")
+    if args.replicates < 1:
+        p.error("--replicates phai >= 1")
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     configs, notes = load_case_configs(args.case_batch, _csv(args.motions),
@@ -146,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {c.motion_id} {c.ai_side.value}: repeat_round {c.case_source['repeat_round']} "
               f"(run_index {c.case_source['run_index']}, {c.difficulty.value})")
     print(f"Gia CHUA XAC NHAN: {', '.join(UNCONFIRMED_PRICES)} (kiem tra groq.com/pricing)")
-    specs = build_specs(configs, arms, strategies, args.limit)
+    specs = build_specs(configs, arms, strategies, args.limit, args.replicates)
     settings = get_settings()
     sim = SimConfig(args.sim_provider, args.sim_model, args.sim_temperature, args.sim_effort)
     judge = JudgeConfig(args.judge_provider, args.judge_model, reasoning_effort=args.judge_effort)
