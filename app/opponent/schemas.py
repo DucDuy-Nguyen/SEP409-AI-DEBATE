@@ -170,6 +170,11 @@ class SessionResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def normalize_learner_speech(text: str) -> str:
+    """Dang chuan de luu va so snapshot (idempotent): khong lech vi xuong dong Windows / dang to hop dau / khoang trang thua."""
+    return unicodedata.normalize("NFC", text.replace("\r\n", "\n")).strip()
+
+
 class LearnerSpeechIn(BaseModel):
     turn_index: int
     round_type: RoundType
@@ -178,8 +183,7 @@ class LearnerSpeechIn(BaseModel):
     @field_validator("text")
     @classmethod
     def normalized_not_blank(cls, v: str) -> str:
-        # NFC + strip: so sanh snapshot (idempotent) khong bi lech vi dang to hop dau / khoang trang thua.
-        v = unicodedata.normalize("NFC", v).strip()
+        v = normalize_learner_speech(v)
         if not v:
             raise ValueError("khong duoc de trong")
         return v

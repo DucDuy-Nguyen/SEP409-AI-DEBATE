@@ -2,6 +2,7 @@ import logging
 from collections.abc import Callable
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
@@ -152,11 +153,12 @@ async def create_turn(
     llm_client_factory: Callable[[], LLMClient] = Depends(get_llm_client_factory),
     reviewer_factory: Callable[[], LLMClient | None] = Depends(get_stance_reviewer_factory),
     settings: Settings = Depends(get_settings),
-) -> TurnResponse:
+) -> TurnResponse | JSONResponse:
     """
     Sinh bai noi cua AI cho luot turn_index (format 6 luot: match_format.py). new_learner_speeches = moi bai noi
     cua learner ke tu luot AI truoc (co the rong). 201 khi sinh moi; 200 khi luot da co va bai learner khop snapshot
-    (khong goi LLM). 400 sai format / sai nguoi noi; 409 session chua READY, thieu luot truoc, khac snapshot.
+    (khong goi LLM). 400 sai format / sai nguoi noi; 409 session chua READY, thieu luot truoc, khac snapshot (rieng
+    khac snapshot co them "code": "LEARNER_SPEECH_MISMATCH" vi goi lai khong het loi).
     502 ca khi het luot thu ma Stance Reviewer van bao lat phe (turn_full_v*: khong bao gio tra bai noi lat phe).
     """
     try:
@@ -167,6 +169,8 @@ async def create_turn(
         raise _not_found(external_session_id)
     except turn_service.TurnRequestError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except turn_service.LearnerSpeechMismatchError as e:
+        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(e), "code": e.code})
     except turn_service.TurnConflictError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except service.LLMNotConfiguredError as e:
