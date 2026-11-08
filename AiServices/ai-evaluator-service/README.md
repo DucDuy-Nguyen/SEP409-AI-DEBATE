@@ -229,6 +229,52 @@ Cấu trúc response (nội dung nhận xét do LLM sinh bằng tiếng Việt):
 `raw_model_output` là output thô của LLM, chỉ để debug/audit — **không hiển
 thị cho learner**.
 
+**Kiểm chứng số liệu (RAG, thử nghiệm):** request có thể gửi thêm `topic`
+(`"education"`, `"environment"` hoặc `"technology"`). Khi service bật
+`RAG_ENABLED=true` và request có `topic`, service tách các claim thực chứng
+(số liệu, sự kiện), đối chiếu với kho fact rồi đưa kết quả vào prompt chấm. Kết
+quả đối chiếu chỉ ảnh hưởng tiêu chí `Evidence`. Thêm một luật bằng code: nếu có
+ít nhất một claim `CONTRADICTED` thì `Evidence` không được 5 (hạ về 4), và
+`overall_score` được tính lại. Không gửi `topic`, hoặc RAG tắt, thì chấm y như
+trước và `evidence_check` là `null`. Lỗi RAG (DB tắt, embed lỗi...) không làm
+hỏng lượt chấm: vẫn chấm như không có RAG, `evidence_check.status` là
+`"unavailable"`.
+
+```json
+{
+  "motion": "Hợp tác quốc tế là chìa khóa để khắc phục ô nhiễm",
+  "side": "pro",
+  "argument_text": "USAID đã bàn giao 29.383 mét vuông đất đã xử lý dioxin tại sân bay Biên Hòa...",
+  "topic": "environment"
+}
+```
+
+Response có thêm:
+
+```json
+"evidence_check": {
+  "status": "checked",
+  "claims": [
+    {
+      "claim": "USAID đã bàn giao 29.383 mét vuông đất đã xử lý dioxin tại sân bay Biên Hòa.",
+      "label": "SUPPORTED",
+      "reason": "Fact nêu đúng diện tích và địa điểm.",
+      "citations": [{"fact_id": "...", "content": "... (tối đa 300 ký tự)", "citation": "Chính Phủ - https://..."}]
+    }
+  ],
+  "counts": {"SUPPORTED": 1, "CONTRADICTED": 0, "NOT_FOUND": 0},
+  "evidence_capped": false,
+  "evidence_score_before_cap": null,
+  "error": null,
+  "version": "v1_soft_cap"
+}
+```
+
+`status`: `"checked"` (có claim đã kiểm chứng), `"no_claims"` (lập luận không có
+claim thực chứng, chấm Evidence như bình thường) hoặc `"unavailable"` (RAG lỗi,
+xem `error`). `NOT_FOUND` nghĩa là kho fact không đủ để kết luận, không phải
+claim sai. Thiết kế ở `docs/AI_DEVELOPMENT_LOG.md` mục 3.21.
+
 ### 4.2. `POST /evaluate/round` — chấm cả 1 giai đoạn
 
 `turns` liệt kê các lượt nói **theo đúng thứ tự thời gian**; bắt buộc có ít
@@ -525,6 +571,17 @@ python scripts/rag/eval_verify.py --set all                  # in_kb + out_of_kb
 python scripts/rag/eval_verify.py --set in_kb --oracle       # fact = gold evidence, tách lỗi retrieval và lỗi verify
 cp docs/rag_eval/extract_set.jsonl data/eval/                # bộ 15 lập luận (bản nháp, xem docs/rag_eval/README.md)
 python scripts/rag/eval_extract.py                           # tách claim, so với expected bằng cosine bge-m3 >= 0.8
+```
+
+### Bước 3: kiểm chứng vào điểm Evidence của `/evaluate`
+
+Luồng và kết quả ở `docs/AI_DEVELOPMENT_LOG.md` mục 3.21; field `topic` / `evidence_check` ở mục 4.1.
+
+```bash
+python scripts/rag/build_evidence_pairs.py candidates --topic education   # fact có số liệu của bài train, để soạn lập luận
+python scripts/rag/build_evidence_pairs.py build     # sinh bản bịa bằng script -> docs/rag_eval/evidence_pairs.jsonl
+python scripts/rag/eval_evidence_pairs.py --limit 2  # chạy thử 2 cặp, in ước tính token (GỌI LLM THẬT)
+python scripts/rag/eval_evidence_pairs.py            # 60 lần chấm; bị ngắt thì --resume, chấm lại từ đầu thì --fresh
 ```
 
 Kết quả được ghi vào `data/results/` và chép sang `docs/rag_results/`; các lần

@@ -3,7 +3,9 @@ Danh gia tach claim tren data/eval/extract_set.jsonl (docs/RAG_STEP2_SPEC.md muc
 nhung KHONG dung LLM de cham: claim tach ra khop expected khi cosine bge-m3 >= 0.8 (ghep 1-1, cap cao nhat truoc).
 
 Do: so lap luan quan diem bi tach ra claim (ky vong 0); so claim tach ra so voi expected; claim co chuan hoa so
-khong (moi so trong expected phai xuat hien duoi dang chu so trong claim tach ra). In tung lap luan de doc tay.
+khong: moi so trong expected phai xuat hien trong claim tach ra voi CUNG gia tri khi doc theo dinh dang tieng Viet
+(dau cham hang nghin, dau phay thap phan), va dem rieng so viet dau phay hang nghin kieu tieng Anh ("29,383").
+In tung lap luan de doc tay.
 
 Cach dung:
     python scripts/rag/eval_extract.py
@@ -31,12 +33,24 @@ RESULTS_DIR = SERVICE_DIR / "data" / "results"
 DOCS_RESULTS_DIR = SERVICE_DIR / "docs" / "rag_results"
 MATCH_THRESHOLD = 0.8
 
-# 8.000 / 29.383 / 22/3 -> chi giu chu so de so "8.000" voi "8000"
 _NUMBER = re.compile(r"\d+(?:[.,/]\d+)*")
+# Dau phay phan cach hang nghin kieu tieng Anh ("29,383", "12,000"): tieng Viet doc la so thap phan -> sai dinh dang
+_EN_THOUSANDS = re.compile(r"^\d{1,3}(?:,\d{3})+$")
 
 
-def _digits(text: str) -> set[str]:
-    return {re.sub(r"[.,]", "", number) for number in _NUMBER.findall(text)}
+def vn_number_values(text: str) -> set[str]:
+    """
+    Gia tri cac so, doc theo dinh dang TIENG VIET: dau cham hang nghin, dau phay thap phan. "8.000" va "8000" -> "8000";
+    "3,5" -> "3.5"; "29,383" -> "29.383" (thap phan) nen KHONG khop "29.383" kieu tieng Viet (= 29383). Ngay "22/3" giu nguyen.
+    """
+    values = set()
+    for token in _NUMBER.findall(text):
+        values.add(token if "/" in token else token.replace(".", "").replace(",", "."))
+    return values
+
+
+def english_thousands(text: str) -> list[str]:
+    return [token for token in _NUMBER.findall(text) if _EN_THOUSANDS.match(token)]
 
 
 def match_claims(expected: list[str], extracted: list[str], vectors: dict[str, list[float]]) -> list[tuple[int, int, float]]:
@@ -76,23 +90,28 @@ def main() -> None:
 
     total_expected = total_extracted = total_matched = 0
     numbers_expected = numbers_found = 0
-    print("\n| id | loai | expected | tach ra | khop | so da chuan hoa |")
-    print("|---|---|---|---|---|---|")
+    wrong_format: list[str] = []
+    print("\n| id | loai | expected | tach ra | khop | so dung dinh dang VN | so dau phay hang nghin |")
+    print("|---|---|---|---|---|---|---|")
     for row in rows:
         extracted = [c["text"] for c in row["extracted"]]
         matches = match_claims(row["expected_claims"], extracted, vectors)
         row["matches"] = [{"expected": row["expected_claims"][i], "extracted": extracted[j], "cosine": round(s, 3)}
                           for i, j, s in matches]
-        wanted = set().union(*(_digits(c) for c in row["expected_claims"])) if row["expected_claims"] else set()
-        found = wanted & set().union(*(_digits(c) for c in extracted)) if extracted else set()
-        row["numbers"] = {"expected": sorted(wanted), "found": sorted(found)}
+        # expected_claims viet dung dinh dang VN; so cua claim tach ra phai cho CUNG gia tri khi doc theo dinh dang VN
+        wanted = set().union(*(vn_number_values(c) for c in row["expected_claims"])) if row["expected_claims"] else set()
+        found = wanted & set().union(*(vn_number_values(c) for c in extracted)) if extracted else set()
+        bad = [token for claim in extracted for token in english_thousands(claim)]
+        wrong_format.extend(bad)
+        row["numbers"] = {"expected": sorted(wanted), "found": sorted(found), "english_thousands": bad}
         total_expected += len(row["expected_claims"])
         total_extracted += len(extracted)
         total_matched += len(matches)
         numbers_expected += len(wanted)
         numbers_found += len(found)
         number_cell = f"{len(found)}/{len(wanted)}" if wanted else "-"
-        print(f"| {row['id']} | {row['kind']} | {len(row['expected_claims'])} | {len(extracted)} | {len(matches)} | {number_cell} |")
+        print(f"| {row['id']} | {row['kind']} | {len(row['expected_claims'])} | {len(extracted)} | {len(matches)} "
+              f"| {number_cell} | {', '.join(bad) or '-'} |")
 
     opinion_rows = [row for row in rows if row["kind"] == "opinion"]
     summary = {
@@ -105,7 +124,8 @@ def main() -> None:
         "recall": total_matched / total_expected if total_expected else 0.0,
         "precision": total_matched / total_extracted if total_extracted else 0.0,
         "numbers_expected": numbers_expected,
-        "numbers_found_as_digits": numbers_found,
+        "numbers_found_vn_format": numbers_found,
+        "english_thousands_separator": wrong_format,
         "errors": sum(row["error"] is not None for row in rows),
         "match_threshold": MATCH_THRESHOLD,
         "llm": {"requests": stats.requests, "llm_calls": stats.llm_calls, "retries": stats.retries,

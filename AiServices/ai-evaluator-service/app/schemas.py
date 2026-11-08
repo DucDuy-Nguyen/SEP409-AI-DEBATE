@@ -6,7 +6,7 @@ demo truoc) vi JSON de parse chac chan hon trong code that, giam rui ro
 regex parse sai khi LLM tra loi khong dung dinh dang tuyet doi.
 """
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -38,6 +38,13 @@ class ArgumentEvaluationRequest(BaseModel):
         default=None,
         description="Lap luan cua doi phuong ngay truoc do (neu co) — giup danh gia tinh relevance/rebuttal",
     )
+    topic: Optional[Literal["education", "environment", "technology"]] = Field(
+        default=None,
+        description=(
+            "Chu de kho fact de kiem chung so lieu (RAG Evidence, docs/AI_DEVELOPMENT_LOG.md muc 3.21). "
+            "Bo trong, hoac service tat RAG_ENABLED, thi cham y nhu truoc"
+        ),
+    )
 
     @field_validator("argument_text")
     @classmethod
@@ -60,6 +67,38 @@ class CriterionScore(BaseModel):
     name: str
     score: int = Field(..., ge=1, le=5)
     reasoning: str = Field(..., description="Giai thich TAI SAO cham diem nay — bat buoc, khong duoc de trong")
+
+
+# Phien ban cach dung ket qua kiem chung trong diem Evidence (docs/AI_DEVELOPMENT_LOG.md muc 3.21, phuong an C):
+# ket qua verify dua vao prompt + luat mem bang code (co CONTRADICTED thi Evidence khong duoc 5).
+EVIDENCE_CHECK_VERSION = "v1_soft_cap"
+
+
+class EvidenceCitation(BaseModel):
+    fact_id: str
+    content: str = Field(..., description="Noi dung fact rut gon toi da 300 ky tu")
+    citation: Optional[str] = Field(default=None, description="Nguon cua fact (vd tac gia - url)")
+
+
+class EvidenceClaimSummary(BaseModel):
+    claim: str
+    label: Literal["SUPPORTED", "CONTRADICTED", "NOT_FOUND"]
+    reason: str
+    citations: list[EvidenceCitation] = Field(default_factory=list)
+
+
+class EvidenceCheckSummary(BaseModel):
+    """Ket qua kiem chung so lieu/su kien cua luot lap luan, tra kem ket qua cham (chi khi co `topic` va RAG bat)."""
+
+    status: Literal["checked", "no_claims", "unavailable"]
+    claims: list[EvidenceClaimSummary] = Field(default_factory=list)
+    counts: dict[str, int] = Field(default_factory=dict)
+    evidence_capped: bool = Field(default=False, description="Luat mem da ha Evidence tu 5 xuong 4 vi co claim CONTRADICTED")
+    evidence_score_before_cap: Optional[int] = Field(
+        default=None, description="Diem Evidence LLM cho truoc khi ha (chi co khi evidence_capped)"
+    )
+    error: Optional[str] = Field(default=None, description="Ly do khi status = unavailable")
+    version: str = EVIDENCE_CHECK_VERSION
 
 
 class ArgumentEvaluationResult(BaseModel):
@@ -101,6 +140,9 @@ class ArgumentEvaluationResult(BaseModel):
     scoring_version: str = Field(
         default=SCORING_VERSION_LEGACY,
         description="Phien ban cong thuc diem tong (v1_5x20 cu, v2_4x25 moi); khong tron hai thang khi tinh Session",
+    )
+    evidence_check: Optional[EvidenceCheckSummary] = Field(
+        default=None, description="Ket qua kiem chung so lieu (RAG); None khi request khong co topic hoac RAG tat"
     )
 
 
