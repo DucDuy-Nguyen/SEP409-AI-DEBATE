@@ -159,7 +159,7 @@ def test_contradicted_adjusts_only_evidence_and_recomputes_overall():
     assert result.overall_score == 6.5  # 2 x 0.25 x (4 + 2 + 4 + 3)
     summary = result.evidence_check
     assert (summary.status, summary.evidence_score_before, summary.evidence_score_after) == ("checked", 5, 2)
-    assert "CONTRADICTED" in summary.rule_applied and summary.version == EVIDENCE_CHECK_VERSION == "v3_conflicting"
+    assert "CONTRADICTED" in summary.rule_applied and summary.version == EVIDENCE_CHECK_VERSION == "v4_detail_conflict"
     assert "[Điều chỉnh theo kiểm chứng số liệu: 5 -> 2." in next(c.reasoning for c in result.criteria if c.name == "Evidence")
 
 

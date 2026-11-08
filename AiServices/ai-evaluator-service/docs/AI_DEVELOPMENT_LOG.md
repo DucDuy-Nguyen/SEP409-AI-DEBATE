@@ -1399,6 +1399,36 @@ Ca 2 dat dieu kien (0 ban that bi tru, p < 0,01) nen trien khai bien the khong t
 
 **Gioi han:** 2 lan lap (SD rat tho); lap luan va ban bia do Claude soan tu chinh fact trong kho; chua chay lai luot cham (diem goc dung lai tu lan D).
 
+
+### 3.21.3. CONFLICTING / CONTRADICTED xet theo tung chi tiet (quyet dinh nguoi dung, 2026-11)
+
+**Vi sao:** o 3.21.2, 3/5 claim CONFLICTING nam o ban bia: LLM gan "supports" cho fact khop chi tiet KHAC cua cau (vd "Robot Iris to bang hop dung giay") va "contradicts" cho fact chua con so bia (pin 50 gio), nen luat theo claim bien loi sai so thanh "nguon chua thong nhat" va khong tru.
+
+**Luat moi** (`detail_conflicts` trong `app/rag/verifier.py`; dung anh xa chi tiet -> fact_id da co trong output verify, KHONG doi prompt):
+- Voi tung chi tiet trong `details`: gom stance cua cac fact (hop le, sau khi bo fact_id la) gan voi chi tiet do.
+- Chi tiet chi co "contradicts" -> chi tiet sai. Chi tiet co ca "supports" va "contradicts" -> chi tiet mau thuan nguon.
+- Nhan claim: co it nhat 1 chi tiet sai -> CONTRADICTED (uu tien cao nhat, ke ca hon luat ep vi fact_id la); khong co chi tiet sai nhung co chi tiet mau thuan nguon -> CONFLICTING; con lai giu nhan LLM qua cac luat cu (LLM tu gan CONFLICTING, fact_id la, unsupported_details).
+- 1 fact duoc trich voi CA 2 stance (output that: env-1 "Long go dai 27 m da duoc phat hien trong bai chua", fact vua trai "27 m" vua khop "bai chua") -> khong biet stance nao thuoc chi tiet nao, nen bo qua fact do khi xet chi tiet (claim giu nhan qua luat cu). Truoc day (3.21.2) truong hop nay bi bat retry, de lam ca lo loi.
+- `EVIDENCE_CHECK_VERSION = "v4_detail_conflict"`. Test: ca "robot hop dung giay" ra CONTRADICTED voi ca 3 nhan LLM; ca 68/69 cung 1 chi tiet ra CONFLICTING; chi tiet sai thang chi tiet mau thuan; fact noi trai khong gan chi tiet nao thi giu luat cu; fact_id la tren chi tiet khong tao chi tiet sai.
+
+**Danh gia lai khong ton token** (`scripts/rag/reapply_verify_rules.py`): audit log (`logs/eval_audit.jsonl`) con nguyen prompt + raw output cua 61 lo verify co stance; script dung lai claim/fact tu prompt, chay luat moi, ghep voi 60 lap luan cua 2 lan do on dinh theo dung danh sach claim (bo qua 1 lo cua lan uoc tinh truoc dot do). Lan chay D (3.21.1) dung output cu chi co `fact_ids`, khong co stance, nen KHONG ap duoc luat nay. Ket qua `docs/rag_results/evidence_stability_reapplied_20261108_220140.json`:
+
+| Luat | Lan | Evidence that | Evidence bia | Chenh TB | Wilcoxon exact | That bi tru | Bia bi phat hien | Claim CONFLICTING |
+|---|---|---|---|---|---|---|---|---|
+| Cu (theo claim) | 1 | 3,33 | 2,13 | 1,20 | p = 0,0024 | 0 | 12/15 | 3 |
+| Cu (theo claim) | 2 | 3,33 | 2,00 | 1,33 | p = 0,00085 | 0 | 13/15 | 2 |
+| **Moi (theo chi tiet)** | 1 | 3,33 | 2,00 | 1,33 | p = 0,0012 | 0 | 13/15 | 2 |
+| **Moi (theo chi tiet)** | 2 | 3,33 | 2,00 | 1,33 | p = 0,00085 | 0 | 13/15 | 1 |
+
+- 2 claim doi nhan, ca 2 o ban bia, CONFLICTING -> CONTRADICTED: env-4 lan 1 ("hon 290 dai bieu, 10 dien gia... 7 quoc gia": "10 dien gia", "7 quoc gia" chi co contradicts) va tech-5 lan 2 ("hop dung giay" supports, "pin 70 gio" contradicts). env-4 lan 1 nho vay duoc phat hien.
+- Ban that bi tru: van 0 o ca 2 lan. edu-3 that van CONFLICTING (khong tru).
+- CONFLICTING con lai deu chua dung tinh than "cung 1 chi tiet so lieu": edu-3 that (fact "5.000" bi gan vao chi tiet chu the "TPHCM", chi tiet "8.000 phong hoc" chi supports) va edu-5 bia (chi tiet so bia khong gan fact nao, 1 chi tiet phu co fact mang ca 2 stance).
+
+**Gioi han:**
+- Stance van gan theo FACT, khong theo cap (chi tiet, fact): 1 fact co the khop chi tiet nay nhung trai chi tiet khac; LLM dang tu xu ly bang cach trich 2 lan voi 2 stance (1/153 claim). Muon chinh xac hon can doi output thanh `details[].facts[] = {fact_id, stance}` (doi prompt, can chay lai LLM).
+- **tech-4 khong bi phat hien o ca 4 lan do** (D, 2 lan on dinh, ap lai luat): retrieval lay fact cua MOT VU LUA DAO KHAC co con so gan trung (fanpage ban xe: khoan 12-16 trieu, tong gan 3 ty), verify gan SUPPORTED cho ban bia ("tu vai trieu den 16 trieu, tong hon 119 trieu"). Day la loi retrieval/doi chieu su kien, luat dieu chinh Evidence khong sua duoc.
+- 2 lan lap, lap luan do Claude soan; ap lai luat chi dung output da luu, khong do bien dong cua lan chay moi voi luat nay.
+
 ---
 
 ## 4. Viec con treo (chua lam / dang cho)
@@ -1471,3 +1501,4 @@ Ca 2 dat dieu kien (0 ban that bi tru, p < 0,01) nen trien khai bien the khong t
 - 2026-11: RAG Evidence buoc 3 (phuong an C, da bo): /evaluate nhan `topic`, ket qua kiem chung vao prompt + luat mem Evidence <= 4 khi co CONTRADICTED. RAG bat chenh Evidence 2,00 nhung NOT_FOUND van bi tru diem va lan sang Logic/Persuasiveness — xem 3.21.
 - 2026-11: Doi sang phuong an D: luot cham khong chua khoi RAG, Evidence dieu chinh bang code, kiem chung chay song song. Chenh Evidence that/bia 1,27 (Wilcoxon exact p = 0,00085), 2/15 ban that bi tru do nguon trong kho tu mau thuan; do tre 9,3 s — xem 3.21.1.
 - 2026-11: Them nhan CONFLICTING (fact supports + fact contradicts -> khong tru). 2 lan lap kiem chung: 0 ban that bi tru, chenh Evidence 1,27 +/- 0,09; nhung CONFLICTING che 1 ban bia (fact khop chi tiet khac) — xem 3.21.2.
+- 2026-11: CONFLICTING / CONTRADICTED xet theo tung chi tiet: ap lai tren output da luu (0 token), 2 claim bia CONFLICTING -> CONTRADICTED, bia bi phat hien 13/15 o ca 2 lan, van 0 ban that bi tru; tech-4 van lot do retrieval lay nham su kien — xem 3.21.3.

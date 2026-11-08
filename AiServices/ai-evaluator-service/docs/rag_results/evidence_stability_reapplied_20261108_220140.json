@@ -1,0 +1,151 @@
+{
+  "rules": "v4_detail_conflict",
+  "stability_file": "evidence_stability_20261108_172832.json",
+  "base_file": "evidence_pairs_rag_on_20261108_165841.json",
+  "runs_old": [
+    {
+      "run": 1,
+      "evidence_mean_true": 3.333,
+      "evidence_mean_fake": 2.133,
+      "mean_diff": 1.2,
+      "wilcoxon": {
+        "statistic": 3.0,
+        "p_exact": 0.00244140625,
+        "nonzero_pairs": 12
+      },
+      "true_penalized": 0,
+      "fake_detected": 12,
+      "fake_not_detected": [
+        "env-2",
+        "env-4",
+        "tech-4"
+      ],
+      "conflicting_claims": 3,
+      "tokens": 204568,
+      "seconds_mean": 11.57,
+      "penalized_detail": []
+    },
+    {
+      "run": 2,
+      "evidence_mean_true": 3.333,
+      "evidence_mean_fake": 2.0,
+      "mean_diff": 1.333,
+      "wilcoxon": {
+        "statistic": 4.0,
+        "p_exact": 0.0008544921875,
+        "nonzero_pairs": 14
+      },
+      "true_penalized": 0,
+      "fake_detected": 13,
+      "fake_not_detected": [
+        "edu-1",
+        "tech-4"
+      ],
+      "conflicting_claims": 2,
+      "tokens": 192195,
+      "seconds_mean": 9.71,
+      "penalized_detail": []
+    }
+  ],
+  "runs_new": [
+    {
+      "run": 1,
+      "evidence_mean_true": 3.333,
+      "evidence_mean_fake": 2.0,
+      "mean_diff": 1.333,
+      "wilcoxon": {
+        "statistic": 3.0,
+        "p_exact": 0.001220703125,
+        "nonzero_pairs": 13
+      },
+      "true_penalized": 0,
+      "fake_detected": 13,
+      "fake_not_detected": [
+        "env-2",
+        "tech-4"
+      ],
+      "conflicting_claims": 2,
+      "tokens": 204568,
+      "seconds_mean": 11.57,
+      "penalized_detail": []
+    },
+    {
+      "run": 2,
+      "evidence_mean_true": 3.333,
+      "evidence_mean_fake": 2.0,
+      "mean_diff": 1.333,
+      "wilcoxon": {
+        "statistic": 4.0,
+        "p_exact": 0.0008544921875,
+        "nonzero_pairs": 14
+      },
+      "true_penalized": 0,
+      "fake_detected": 13,
+      "fake_not_detected": [
+        "edu-1",
+        "tech-4"
+      ],
+      "conflicting_claims": 1,
+      "tokens": 192195,
+      "seconds_mean": 9.71,
+      "penalized_detail": []
+    }
+  ],
+  "changed_claims": [
+    {
+      "key": "1:env-4:fake",
+      "claim": "Đối thoại Biển tổ chức tại Nha Trang về năng lượng tái tạo ngoài khơi có hơn 290 đại biểu, 10 diễn giả và đại diện từ 7 quốc gia.",
+      "old": "CONFLICTING",
+      "new": "CONTRADICTED",
+      "details": [
+        [
+          "tổ chức tại Nha Trang",
+          [
+            "supports"
+          ]
+        ],
+        [
+          "về năng lượng tái tạo ngoài khơi",
+          [
+            "supports"
+          ]
+        ],
+        [
+          "10 diễn giả",
+          [
+            "contradicts"
+          ]
+        ],
+        [
+          "đại diện từ 7 quốc gia",
+          [
+            "contradicts"
+          ]
+        ]
+      ]
+    },
+    {
+      "key": "2:tech-5:fake",
+      "claim": "Robot Iris có kích thước bằng một hộp đựng giày và thời lượng pin khoảng 70 giờ.",
+      "old": "CONFLICTING",
+      "new": "CONTRADICTED",
+      "details": [
+        [
+          "kích thước bằng một hộp đựng giày",
+          [
+            "supports"
+          ]
+        ],
+        [
+          "thời lượng pin khoảng 70 giờ",
+          [
+            "contradicts"
+          ]
+        ]
+      ]
+    }
+  ],
+  "skipped_batches": [
+    "2026-11-08T10:16:35.333858+00:00"
+  ]
+}

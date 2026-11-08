@@ -72,8 +72,8 @@ class CriterionScore(BaseModel):
 # Phien ban cach dung ket qua kiem chung trong diem Evidence (docs/AI_DEVELOPMENT_LOG.md muc 3.21, phuong an D):
 # luot cham dung prompt cu (khong chen ket qua kiem chung), Evidence dieu chinh bang code theo so claim CONTRADICTED.
 # v1_soft_cap (phuong an C, prompt co khoi kiem chung) da bo. v3: them nhan CONFLICTING (nguon trong kho chua thong nhat),
-# khong tru diem (muc 3.21.2).
-EVIDENCE_CHECK_VERSION = "v3_conflicting"
+# khong tru diem (muc 3.21.2). v4: CONFLICTING / CONTRADICTED xet theo tung chi tiet cua claim (muc 3.21.3).
+EVIDENCE_CHECK_VERSION = "v4_detail_conflict"
 
 
 class EvidenceCitation(BaseModel):

@@ -26,12 +26,17 @@ def test_verdict_without_fact_ids_is_coerced_to_not_found(label):
     assert stats.coerced == 1
 
 
-@pytest.mark.parametrize("label", ["SUPPORTED", "CONTRADICTED"])
-def test_verdict_with_unknown_fact_id_is_coerced_and_unknown_id_dropped(label):
-    result, _ = _verify_one(label, [fid(1), fid(99)])
+def test_supported_with_unknown_fact_id_is_coerced_and_unknown_id_dropped():
+    result, _ = _verify_one("SUPPORTED", [fid(1), fid(99)])
     assert result.label == VerdictLabel.NOT_FOUND
     assert result.coerced is True
     assert result.fact_ids == [fid(1)]
+
+
+def test_valid_contradicting_fact_on_a_detail_wins_over_unknown_fact_id():
+    # Muc 3.21.3: chi tiet chi bi fact (hop le) noi trai -> CONTRADICTED, uu tien hon luat ep vi fact_id la
+    result, _ = _verify_one("CONTRADICTED", [fid(1), fid(99)])
+    assert (result.label, result.coerced, result.fact_ids) == (VerdictLabel.CONTRADICTED, False, [fid(1)])
 
 
 def test_fact_id_of_another_claim_in_the_batch_is_not_accepted():
@@ -297,9 +302,64 @@ def test_prompt_asks_for_stance_per_cited_fact():
     assert '"contradicts"' in llm.system_prompts[0]
 
 
-def test_same_fact_with_two_stances_is_retried():
-    bad = verdict(1, "SUPPORTED", [fid(1)])
-    bad["cited_facts"].append({"fact_id": fid(1), "stance": "contradicts"})
-    llm = ScriptedLLM({"results": [bad]}, {"results": [verdict(1, "SUPPORTED", [fid(1)])]})
+def test_fact_cited_with_two_stances_is_ignored_by_detail_rules():
+    # Output that da gap (env-1): cung fact vua "contradicts" (27 m) vua "supports" (bai chua), gan ca 2 chi tiet
+    details = [{"detail": "Lóng gỗ dài khoảng 27 m", "fact_ids": [fid(1)]},
+               {"detail": "đã được phát hiện trong bãi chứa", "fact_ids": [fid(1)]}]
+    item = verdict(1, "CONTRADICTED", [fid(1)], details=details)
+    item["cited_facts"] = [{"fact_id": fid(1), "stance": "contradicts"}, {"fact_id": fid(1), "stance": "supports"}]
+    llm = ScriptedLLM({"results": [item]})
     [result] = verify_with_facts(["claim A"], [[fact(1)]], llm_client=llm)
-    assert result.label == VerdictLabel.SUPPORTED and llm.calls == 2
+    assert llm.calls == 1  # khong retry
+    assert result.fact_stances == {}  # fact mo ho khong dung de xet chi tiet
+    assert result.label == VerdictLabel.CONTRADICTED  # giu nhan LLM qua luat cu (fact_id hop le)
+
+
+
+# --------------------------------------------------------------------------- xet theo chi tiet (muc 3.21.3)
+
+
+@pytest.mark.parametrize("llm_label", ["SUPPORTED", "CONTRADICTED", "NOT_FOUND"])
+def test_robot_shoebox_case_fact_matching_other_detail_does_not_hide_wrong_number(llm_label):
+    # "Robot Iris to bang hop dung giay va pin khoang 70 gio": fact 1 khop "hop dung giay", fact 2 ghi pin 50 gio
+    details = [{"detail": "kích thước bằng hộp đựng giày", "fact_ids": [fid(1)]},
+               {"detail": "thời lượng pin khoảng 70 giờ", "fact_ids": [fid(2)]}]
+    item = verdict(1, llm_label, [fid(1), fid(2)], details=details,
+                   stances={fid(1): "supports", fid(2): "contradicts"})
+    result, _ = _verify_item(item)
+    assert result.label == VerdictLabel.CONTRADICTED
+
+
+@pytest.mark.parametrize("llm_label", ["SUPPORTED", "CONTRADICTED", "NOT_FOUND"])
+def test_68_vs_69_on_the_same_detail_is_conflicting(llm_label):
+    # "68 hoc sinh dat giai": fact 1 ghi 68, fact 2 (bai khac) ghi 69 — cung 1 chi tiet
+    details = [{"detail": "68 học sinh đạt giải", "fact_ids": [fid(1), fid(2)]}]
+    item = verdict(1, llm_label, [fid(1), fid(2)], details=details,
+                   stances={fid(1): "supports", fid(2): "contradicts"})
+    result, _ = _verify_item(item)
+    assert result.label == VerdictLabel.CONFLICTING
+
+
+def test_wrong_detail_wins_over_conflicting_detail():
+    details = [{"detail": "68 học sinh đạt giải", "fact_ids": [fid(1), fid(2)]},
+               {"detail": "25 giải nhì", "fact_ids": [fid(2)]}]
+    item = verdict(1, "SUPPORTED", [fid(1), fid(2)], details=details,
+                   stances={fid(1): "supports", fid(2): "contradicts"})
+    result, _ = _verify_item(item)
+    assert result.label == VerdictLabel.CONTRADICTED
+
+
+def test_contradicting_fact_not_attached_to_any_detail_keeps_old_rules():
+    # Fact 2 noi trai nhung khong gan voi chi tiet nao: khong co chi tiet sai, giu nhan LLM qua luat cu
+    details = [{"detail": "kích thước bằng hộp đựng giày", "fact_ids": [fid(1)]}]
+    item = verdict(1, "SUPPORTED", [fid(1), fid(2)], details=details,
+                   stances={fid(1): "supports", fid(2): "contradicts"})
+    result, _ = _verify_item(item)
+    assert result.label == VerdictLabel.SUPPORTED
+
+
+def test_unknown_fact_on_a_detail_cannot_make_it_wrong():
+    details = [{"detail": "thời lượng pin khoảng 70 giờ", "fact_ids": [fid(99)]}]
+    item = verdict(1, "NOT_FOUND", [fid(99)], details=details, stances={fid(99): "contradicts"})
+    result, _ = _verify_item(item)
+    assert result.label == VerdictLabel.NOT_FOUND

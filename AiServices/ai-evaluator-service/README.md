@@ -238,8 +238,9 @@ chỉnh riêng tiêu chí `Evidence` (n = số claim đã kiểm, n_c = số `CO
 
 - Không có claim `CONTRADICTED`: giữ nguyên điểm. `NOT_FOUND` (kho không đủ để
   kết luận) và `CONFLICTING` (trong kho có fact xác nhận lẫn fact nói trái, tức
-  nguồn chưa thống nhất) không bao giờ làm giảm điểm; `CONFLICTING` do code gán
-  từ `stance` của từng fact.
+  nguồn chưa thống nhất) không bao giờ làm giảm điểm. Code xét theo từng chi tiết
+  của claim: chi tiết chỉ bị fact nói trái thì claim là `CONTRADICTED`; chi tiết
+  vừa có fact xác nhận vừa có fact nói trái thì claim là `CONFLICTING`.
 - Có `CONTRADICTED`: `min(điểm gốc, 4) - 1` nếu n_c < n/2, ngược lại `- 2`;
   tối thiểu 1.
 
@@ -279,7 +280,7 @@ Response có thêm:
   "evidence_score_after": 4,
   "rule_applied": "Không có claim CONTRADICTED (1 claim đã kiểm): giữ nguyên điểm Evidence.",
   "error": null,
-  "version": "v3_conflicting"
+  "version": "v4_detail_conflict"
 }
 ```
 
@@ -597,6 +598,7 @@ python scripts/rag/eval_evidence_pairs.py --conditions rag_on --limit 2 --budget
 python scripts/rag/eval_evidence_pairs.py --conditions rag_on  # chỉ RAG bật (điểm gốc nằm sẵn trong lượt chấm); --resume / --fresh
 python scripts/rag/eval_evidence_stability.py --estimate       # ước tính token cho đợt lặp kiểm chứng
 python scripts/rag/eval_evidence_stability.py --runs 2         # lặp tách claim + verify, áp luật offline trên điểm gốc của lần chạy D
+python scripts/rag/reapply_verify_rules.py                     # áp lại luật verify hiện tại lên output đã lưu trong audit log (0 token)
 ```
 
 Kết quả được ghi vào `data/results/` và chép sang `docs/rag_results/`; các lần
