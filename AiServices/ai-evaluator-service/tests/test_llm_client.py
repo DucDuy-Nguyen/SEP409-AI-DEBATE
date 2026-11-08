@@ -42,6 +42,28 @@ def test_json_validate_failed_becomes_parse_error():
         _groq_client(create).generate("system", "user")
 
 
+def _capture_kwargs(settings: Settings) -> dict:
+    seen = {}
+
+    def create(**kwargs):
+        seen.update(kwargs)
+        return _ok_response('{"ok": true}')
+
+    client = GroqClient(settings)
+    client._client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    client.generate("system", "user")
+    return seen
+
+
+def test_reasoning_effort_is_not_sent_by_default():
+    assert "extra_body" not in _capture_kwargs(Settings(llm_provider="groq", groq_api_key="test-not-real"))
+
+
+def test_reasoning_effort_is_sent_when_configured():
+    settings = Settings(llm_provider="groq", groq_api_key="test-not-real", groq_reasoning_effort="low")
+    assert _capture_kwargs(settings)["extra_body"] == {"reasoning_effort": "low"}
+
+
 def test_other_bad_request_is_not_swallowed():
     """Loi 400 khac (vi du model sai) KHONG duoc doi thanh loi dinh dang de retry vo ich."""
     def create(**kwargs):
@@ -73,3 +95,10 @@ def test_evaluation_retries_after_json_validate_failed():
 
     assert result.overall_score == 6.0
     assert calls["n"] == 2
+
+
+def test_invalid_reasoning_effort_is_rejected_by_settings():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        Settings(groq_reasoning_effort="fast")

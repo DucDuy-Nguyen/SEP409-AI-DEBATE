@@ -1223,11 +1223,57 @@ Spec: `docs/RAG_STEP2_SPEC.md`. Chua noi vao diem Evidence, chua sua `/evaluate*
 - Chuan hoa so: 10/11 so expected xuat hien duoi dang chu so theo thuoc do cua script, nhung **2 so dung dau phay kieu tieng Anh** ("29,383", "12,000" — tieng Viet doc la so thap phan) va "mot trieu ha" khong duoc doi sang "1 trieu". Neu tinh dung dinh dang tieng Viet thi 8/11. Ban STT: claim giu chu thuong, co 1 claim trung lap la manh cau.
 - 1 claim khong du doc lap: "Du thao quy dinh neu 12 loai hinh dich vu" mat chu the "Ho Tay".
 
-**Token (Groq, gpt-oss-120b; khoang 1/4-1/2 la completion do model reasoning):** retrieve 200 claim 280.494; oracle 150 claim 75.446; extract 15 lap luan 18.477; 2 lan chay thu `--limit 10` 18.092. **Tong 392.509**, vuot nguong 300.000 cua spec; nguoi dung da dong y chay day du sau khi xem uoc tinh.
+**Token (Groq, gpt-oss-120b; completion, gom ca phan reasoning cua model, chiem 21% o retrieve va 50% o oracle):** retrieve 200 claim 280.494; oracle 150 claim 75.446; extract 15 lap luan 18.477; 2 lan chay thu `--limit 10` 18.092. **Tong 392.509**, vuot nguong 300.000 cua spec; nguoi dung da dong y chay day du sau khi xem uoc tinh.
 
 **Gioi han:** 1 lan chay moi tap, temperature 0.2, chua do do dao dong giua cac lan; out_of_kb chi 50 claim va chua loai tru truong hop bai khac trong kho dua cung tin; extract_set do Claude soan, claim thuc chung lay tu bai trong kho; nhan ViFactCheck khong hoan toan trung voi dinh nghia nhan cua spec (xem CONTRADICTED -> NOT_FOUND).
 
 Ket qua: `docs/rag_results/verify_retrieve_20261108_115856.json`, `docs/rag_results/verify_oracle_20261108_120059.json`, `docs/rag_results/extract_20261108_120439.json`.
+
+### 3.20.1. Sua verify: tach chi tiet + `unsupported_details` (quyet dinh nguoi dung, 2026-11) — NEI -> SUPPORTED giam mot nua, CONTRADICTED giam nhe
+
+**Thay doi:**
+- Prompt verify yeu cau tach moi claim thanh chi tiet (chu the, con so, thoi gian, dia diem, ten rieng, quan he nhan qua), moi chi tiet chi ra fact_id chua no, va tra them `unsupported_details`. SUPPORTED chi khi MOI chi tiet co trong fact.
+- **Rang buoc bang code:** SUPPORTED ma con chi tiet khong co trong fact -> NOT_FOUND, `downgraded=True`. Chi tiet LLM khong chi ra duoc fact_id hop le cung tinh la khong co trong fact (them ngoai yeu cau, cung tinh than "moi chi tiet phai chi ra fact_id"). Ep `coerced` xet truoc; chi SUPPORTED bi ha.
+- `rag_verify_max_tokens = 6000`: verify dung gioi han token rieng. **Lan chay dau voi `LLM_MAX_TOKENS=2000` chung bi cat cut JSON** (format moi dai gap doi, gioi han tinh ca reasoning): 29/30 lo loi, bo ket qua.
+- `groq_reasoning_effort` (mac dinh trong = khong gui, giu hanh vi cu). Groq co ho tro `reasoning_effort` cho gpt-oss-120b (gui qua `extra_body`).
+- `eval_verify.py`: bat moi loi theo lo, checkpoint sau moi lo, `--resume`. **Lan chay oracle thu 2 bi ngat o claim 105/150 vi `APIConnectionError`** va mat het ket qua vi chua co checkpoint.
+- Sua dem `retries`: lan goi bi provider tu choi (Groq `json_validate_failed`) truoc day khong duoc dem, ra so am.
+
+**Ket qua oracle (in_kb 150 claim, gold evidence):**
+
+| | Macro F1 | F1 SUPPORTED | F1 CONTRADICTED | F1 NOT_FOUND | NEI -> SUPPORTED | downgraded | false contradiction | token/claim |
+|---|---|---|---|---|---|---|---|---|
+| Truoc | 0.826 | 0.824 | 0.913 | 0.742 | 17 | - | 0/100 | 503 |
+| Sau | **0.861** | 0.857 | 0.882 | **0.843** | **6** | 0 | 2/100 | 867 |
+
+Confusion sau (dong = dung, cot = S/C/N): S 45/1/4, C 4/41/5, N 6/1/43 (truoc: S 49/0/1, C 3/42/5, N 17/0/33).
+
+Dieu kien cua nguoi dung (NOT_FOUND cai thien, SUPPORTED khong giam qua 0.05 F1) dat, nen chay tiep retrieve.
+
+**Ket qua retrieve (in_kb 150 + out_of_kb 50):**
+
+| | Macro F1 in_kb | F1 SUPPORTED | F1 CONTRADICTED | F1 NOT_FOUND | NEI -> SUPPORTED | out_of_kb NOT_FOUND | false contradiction (in_kb) | coerced | token/claim |
+|---|---|---|---|---|---|---|---|---|---|
+| Truoc | 0.717 | 0.758 | 0.762 | 0.630 | 20 | 48/50 | 2/100 | 0 | 1.402 |
+| Sau | **0.748** | 0.814 | 0.707 | **0.724** | **10** | **49/50** | 3/100 | 1 | 1.729 |
+
+Confusion sau: S 46/1/3, C 7/29/14, N 10/2/38 (truoc: S 47/1/2, C 7/32/11, N 20/1/29). Accuracy in_kb 0.720 -> 0.753.
+
+**Cach doc:**
+- **`downgraded = 0` o ca 2 lan chay:** cai thien den tu prompt (model tu gan NOT_FOUND khi thay chi tiet thieu), luat code chua lan nao kich hoat. Luat van giu lam lop bao ve.
+- **Cai gia: CONTRADICTED giam** (oracle 0.913 -> 0.882, retrieve 0.762 -> 0.707; retrieve C -> N 11 -> 14). Prompt nghieng ve NOT_FOUND, ke ca voi claim sai o chi tiet ma fact noi ro. Theo dinh nghia cua spec, C -> N khong tru oan learner.
+- **False contradiction tang nhe** (oracle 0 -> 2, retrieve in_kb 2 -> 3 tren 100). So tuyet doi nho, 1 lan chay, chua du ket luan, nhung la loi nang nhat nen can theo doi.
+- 1 lan chay moi cau hinh, temperature 0.2, chua do do dao dong.
+
+**Reasoning effort (oracle `--limit 10`, cung 10 claim):** mac dinh 948 token/claim, 10/10 dung; `low` 479 token/claim, 8/10 dung va 1 lan Groq tu choi JSON. Chua du mau de ket luan, giu mac dinh.
+
+**Token Viec 2 (prompt moi):** oracle 130.114; retrieve 345.739; chay hong 100.319 (them cac lan bi tu choi khong co usage); chay bi ngat 88.075; thu `--limit 10` 30.431; probe reasoning effort 314. **Tong khoang 695.000.**
+
+Ket qua: `docs/rag_results/verify_oracle_20261108_142059.json`, `docs/rag_results/verify_retrieve_20261108_144957.json`.
+
+### 3.20.2. Tach claim: dinh dang so tieng Viet (2026-11) — CHUA chay lai eval_extract
+
+Prompt tach claim them luat: dau cham phan cach hang nghin, dau phay thap phan ("29.383", "3,5%"), cam viet "29,383"; moi so bang chu doi het sang chu so, ke ca "mot trieu ha" -> "1 trieu ha". Chua sua phan loc claim quan diem (cho nguoi dung duyet `extract_set.jsonl`), chua chay lai `eval_extract.py`. Thuoc do so cua `eval_extract.py` van bo dau phan cach khi so, nen khong phat hien "29,383"; can sua thuoc do truoc lan chay toi.
 
 
 
@@ -1299,3 +1345,4 @@ Ket qua: `docs/rag_results/verify_retrieve_20261108_115856.json`, `docs/rag_resu
 - 2026-11: Them `skipped_stages` o cap Session: giai doan bo trong tinh 0 diem, giu `scoring_version`, tra lai trong response — xem 3.18.
 - 2026-11: RAG Evidence buoc 1: pgvector, bge-m3, hybrid RRF, tach `requirements-rag.txt`, loc ViFactCheck 3 chu de. Keyword AND khong co ket qua 262/308 claim nen doi sang OR + bo stopword; chon k=5; chua test claim ngoai kho — xem 3.19.
 - 2026-11: RAG Evidence buoc 2: tach claim + verify bang LLM, rang buoc fact_ids bang code, endpoint debug /rag/check-evidence. in_kb accuracy 0.720 (oracle 0.827), out_of_kb NOT_FOUND 0.960, false_contradiction 0.013; loi chinh NEI -> SUPPORTED — xem 3.20.
+- 2026-11: Verify tach chi tiet + `unsupported_details`, ha SUPPORTED bang code. Oracle macro F1 0.826 -> 0.861, retrieve 0.717 -> 0.748, NEI -> SUPPORTED 20 -> 10, out_of_kb 49/50; CONTRADICTED giam nhe. Tach claim them luat dinh dang so tieng Viet (chua chay lai) — xem 3.20.1, 3.20.2.

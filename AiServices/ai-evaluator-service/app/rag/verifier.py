@@ -2,14 +2,15 @@
 Verify claim bang LLM, chi dua tren fact retrieve duoc (hoac fact truyen san, vd gold evidence o che do oracle).
 
 Rang buoc cung bang code: SUPPORTED/CONTRADICTED ma fact_ids rong hoac co id khong nam trong fact da dua vao
-cua CHINH claim do -> ep ve NOT_FOUND, coerced=True. Claim khong co fact nao thi tra NOT_FOUND luon, khong goi LLM.
+cua CHINH claim do -> ep ve NOT_FOUND, coerced=True. SUPPORTED ma con chi tiet khong co trong fact (unsupported_details
+khac rong) -> ha xuong NOT_FOUND, downgraded=True. Claim khong co fact nao thi tra NOT_FOUND luon, khong goi LLM.
 """
 from typing import TYPE_CHECKING, Optional, Sequence
 
 from app.config import Settings, get_settings
 from app.rag.llm_usage import LLMCallStats, tracking_generate
 from app.rag.prompts import build_verify_prompt
-from app.rag.schemas import ClaimVerification, RetrievedFact, VerdictLabel
+from app.rag.schemas import ClaimDetail, ClaimVerification, RetrievedFact, VerdictLabel
 from app.services.json_utils import EvaluationParseError, call_llm_with_retry
 from app.services.llm_client import LLMClient, get_llm_client
 
@@ -21,6 +22,7 @@ VERIFY_BATCH_SIZE = 5  # So claim toi da trong 1 lan goi LLM
 
 NO_FACT_REASON = "Không tìm thấy fact nào trong kho cho claim này."
 COERCED_PREFIX = "[Ép về NOT_FOUND vì thiếu fact_id hợp lệ] "
+DOWNGRADED_PREFIX = "[Hạ xuống NOT_FOUND vì có chi tiết không có trong fact] "
 
 
 def _build_batch_results(
@@ -55,9 +57,13 @@ def _build_batch_results(
         allowed = {str(fact.fact_id).lower() for fact in facts}
         fact_ids = [str(fact_id).strip().lower() for fact_id in raw_ids]
         valid_ids = [fact_id for fact_id in fact_ids if fact_id in allowed]
-        coerced = False
+        details, unsupported = _parse_details(item, allowed, index)
+
+        coerced = downgraded = False
         if label != VerdictLabel.NOT_FOUND and (not fact_ids or len(valid_ids) != len(fact_ids)):
             label, coerced, reason = VerdictLabel.NOT_FOUND, True, COERCED_PREFIX + reason
+        elif label == VerdictLabel.SUPPORTED and unsupported:
+            label, downgraded, reason = VerdictLabel.NOT_FOUND, True, DOWNGRADED_PREFIX + reason
         results.append(
             ClaimVerification(
                 claim=claim,
@@ -65,10 +71,46 @@ def _build_batch_results(
                 fact_ids=valid_ids,
                 reason=reason.strip(),
                 coerced=coerced,
+                details=details,
+                unsupported_details=unsupported,
+                downgraded=downgraded,
                 retrieved=list(facts),
             )
         )
     return results
+
+
+def _verify_settings(settings: Optional[Settings]) -> Settings:
+    """Settings cho client verify: rieng gioi han token, khong doi gioi han cua luong cham diem."""
+    settings = settings or get_settings()
+    return settings.model_copy(update={"llm_max_tokens": settings.rag_verify_max_tokens})
+
+
+def _parse_details(item: dict, allowed: set[str], index: int) -> tuple[list[ClaimDetail], list[str]]:
+    """
+    Chi tiet + fact chua no, va danh sach chi tiet khong co trong fact. Chi tiet LLM khong chi ra duoc fact_id hop le
+    cung tinh la khong co trong fact, du LLM khong ghi no vao unsupported_details.
+    """
+    raw_details = item.get("details")
+    raw_unsupported = item.get("unsupported_details")
+    if not isinstance(raw_details, list) or not isinstance(raw_unsupported, list):
+        raise EvaluationParseError(f"details/unsupported_details phai la mang o claim {index}")
+
+    details = []
+    unsupported = [str(text).strip() for text in raw_unsupported if str(text).strip()]
+    for raw in raw_details:
+        if not isinstance(raw, dict) or not isinstance(raw.get("detail"), str) or not raw["detail"].strip():
+            raise EvaluationParseError(f"Chi tiet khong hop le o claim {index}: {raw}")
+        ids = raw.get("fact_ids", [])
+        if not isinstance(ids, list):
+            raise EvaluationParseError(f"fact_ids cua chi tiet khong hop le o claim {index}")
+        valid = [str(fact_id).strip().lower() for fact_id in ids if str(fact_id).strip().lower() in allowed]
+        text = raw["detail"].strip()
+        details.append(ClaimDetail(detail=text, fact_ids=valid))
+        if not valid:
+            unsupported.append(text)
+    # Bo trung nhung giu thu tu
+    return details, list(dict.fromkeys(unsupported))
 
 
 def verify_with_facts(
@@ -96,7 +138,7 @@ def verify_with_facts(
         batch_claims = [claims[position] for position in positions]
         batch_facts = [facts_per_claim[position] for position in positions]
         if client is None:
-            client = llm_client if llm_client is not None else get_llm_client(settings or get_settings())
+            client = llm_client if llm_client is not None else get_llm_client(_verify_settings(settings))
         system_prompt, user_prompt = build_verify_prompt(batch_claims, batch_facts)
         if stats is not None:
             stats.requests += 1
@@ -109,8 +151,9 @@ def verify_with_facts(
         )
         for position, result in zip(positions, batch_results):
             results[position] = result
-            if stats is not None and result.coerced:
-                stats.coerced += 1
+            if stats is not None:
+                stats.coerced += result.coerced
+                stats.downgraded += result.downgraded
     return results
 
 

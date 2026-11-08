@@ -58,6 +58,13 @@ class VerdictLabel(str, Enum):
     NOT_FOUND = "NOT_FOUND"
 
 
+class ClaimDetail(BaseModel):
+    """1 chi tiet cua claim (chu the, con so, thoi gian, dia diem, ten rieng, quan he nhan qua) va fact chua no."""
+
+    detail: str
+    fact_ids: list[str] = Field(default_factory=list)
+
+
 class ClaimVerification(BaseModel):
     claim: str
     label: VerdictLabel
@@ -65,6 +72,11 @@ class ClaimVerification(BaseModel):
     reason: str
     # True khi LLM tra SUPPORTED/CONTRADICTED nhung fact_ids rong hoac co id khong duoc dua vao prompt
     coerced: bool = False
+    details: list[ClaimDetail] = Field(default_factory=list)
+    # Chi tiet khong co trong fact nao: LLM tu khai, cong voi chi tiet LLM khong chi ra duoc fact_id hop le
+    unsupported_details: list[str] = Field(default_factory=list)
+    # True khi LLM tra SUPPORTED nhung con chi tiet khong co trong fact -> ha xuong NOT_FOUND
+    downgraded: bool = False
     retrieved: list[RetrievedFact] = Field(default_factory=list)
 
 

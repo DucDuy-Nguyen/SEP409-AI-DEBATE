@@ -86,3 +86,13 @@ def test_pipeline_verifies_extracted_claims_and_counts_labels(monkeypatch):
     assert result.counts == {"SUPPORTED": 1, "CONTRADICTED": 0, "NOT_FOUND": 1}
     assert [c.label for c in result.claims] == [VerdictLabel.SUPPORTED, VerdictLabel.NOT_FOUND]
     assert result.skipped_reason is None
+
+
+def test_extract_prompt_requires_vietnamese_number_format():
+    llm = ScriptedLLM(_claims(0))
+    extract_claims("Lap luan.", "Kien nghi", Settings(), llm)
+    system_prompt = llm.system_prompts[0]
+    # Dau cham hang nghin, dau phay thap phan, so bang chu (ke ca "mot") doi het sang chu so
+    assert '"29.383"' in system_prompt and '"3,5%"' in system_prompt
+    assert '("29,383" la SAI)' in system_prompt
+    assert '"mot trieu ha" -> "1 trieu ha"' in system_prompt

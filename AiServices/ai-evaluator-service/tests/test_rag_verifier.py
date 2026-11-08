@@ -5,7 +5,7 @@ from app.config import Settings
 from app.rag.llm_usage import LLMCallStats
 from app.rag.prompts import FACT_MAX_CHARS, build_verify_prompt
 from app.rag.schemas import VerdictLabel
-from app.rag.verifier import COERCED_PREFIX, NO_FACT_REASON, verify_claims, verify_with_facts
+from app.rag.verifier import COERCED_PREFIX, DOWNGRADED_PREFIX, NO_FACT_REASON, verify_claims, verify_with_facts
 from app.services.json_utils import EvaluationParseError
 from tests.rag_fakes import ScriptedLLM, fact, fid, verdict
 
@@ -53,6 +53,58 @@ def test_not_found_is_never_coerced_and_keeps_only_valid_ids():
     assert (result.label, result.coerced, result.fact_ids) == (VerdictLabel.NOT_FOUND, False, [fid(1)])
 
 
+def _verify_item(item: dict, facts=(1, 2)):
+    llm = ScriptedLLM({"results": [item]})
+    stats = LLMCallStats()
+    [result] = verify_with_facts(["claim A"], [[fact(n) for n in facts]], llm_client=llm, stats=stats)
+    return result, stats
+
+
+def test_supported_with_unsupported_details_is_downgraded_to_not_found():
+    result, stats = _verify_item(verdict(1, "SUPPORTED", [fid(1)], unsupported=["60 tuổi"]))
+    assert (result.label, result.downgraded, result.coerced) == (VerdictLabel.NOT_FOUND, True, False)
+    assert result.unsupported_details == ["60 tuổi"]
+    assert result.reason.startswith(DOWNGRADED_PREFIX)
+    assert (stats.downgraded, stats.coerced) == (1, 0)
+
+
+def test_detail_without_valid_fact_id_counts_as_unsupported():
+    details = [{"detail": "ông Trần Tấn", "fact_ids": [fid(1)]}, {"detail": "60 tuổi", "fact_ids": [fid(99)]}]
+    result, stats = _verify_item(verdict(1, "SUPPORTED", [fid(1)], details=details))
+    assert (result.label, result.downgraded) == (VerdictLabel.NOT_FOUND, True)
+    assert result.unsupported_details == ["60 tuổi"]
+    assert [d.fact_ids for d in result.details] == [[fid(1)], []]
+
+
+def test_fully_supported_claim_keeps_label():
+    details = [{"detail": "số thứ tự 27", "fact_ids": [fid(1)]}, {"detail": "ra quầy", "fact_ids": [fid(2)]}]
+    result, stats = _verify_item(verdict(1, "SUPPORTED", [fid(1), fid(2)], details=details))
+    assert (result.label, result.downgraded, result.unsupported_details) == (VerdictLabel.SUPPORTED, False, [])
+    assert stats.downgraded == 0
+
+
+@pytest.mark.parametrize("label", ["CONTRADICTED", "NOT_FOUND"])
+def test_only_supported_is_downgraded(label):
+    result, stats = _verify_item(verdict(1, label, [fid(1)], unsupported=["chi tiết thừa"]))
+    assert result.label == VerdictLabel(label)
+    assert result.downgraded is False and stats.downgraded == 0
+    assert result.unsupported_details == ["chi tiết thừa"]
+
+
+def test_coercion_takes_precedence_over_downgrade():
+    result, stats = _verify_item(verdict(1, "SUPPORTED", [], unsupported=["chi tiết thừa"]))
+    assert (result.label, result.coerced, result.downgraded) == (VerdictLabel.NOT_FOUND, True, False)
+    assert (stats.coerced, stats.downgraded) == (1, 0)
+
+
+def test_prompt_asks_for_details_and_unsupported_details():
+    llm = ScriptedLLM({"results": [verdict(1, "NOT_FOUND")]})
+    verify_with_facts(["claim A"], [[fact(1)]], llm_client=llm)
+    system_prompt = llm.system_prompts[0]
+    assert '"unsupported_details"' in system_prompt and '"details"' in system_prompt
+    assert "SUPPORTED: MOI chi tiet deu co trong fact" in system_prompt
+
+
 def test_claims_are_batched_by_five_with_their_own_facts():
     claims = [f"claim {n}" for n in range(1, 8)]
     llm = ScriptedLLM(
@@ -93,7 +145,10 @@ def test_all_claims_without_facts_never_calls_llm():
         {"results": []},
         {"results": [verdict(1, "SUPPORTED", [fid(1)]), verdict(1, "SUPPORTED", [fid(1)])]},
         {"results": [{"claim_index": 1, "label": "SUPPORTED", "fact_ids": [fid(1)], "reason": ""}]},
-        {"results": [{"claim_index": True, "label": "SUPPORTED", "fact_ids": [fid(1)], "reason": "Khớp."}]},
+        {"results": [{**verdict(1, "SUPPORTED", [fid(1)]), "claim_index": True}]},
+        {"results": [{key: value for key, value in verdict(1, "SUPPORTED", [fid(1)]).items() if key != "details"}]},
+        {"results": [verdict(1, "SUPPORTED", [fid(1)], details=[{"detail": "", "fact_ids": [fid(1)]}])]},
+        {"results": [{**verdict(1, "SUPPORTED", [fid(1)]), "unsupported_details": "60 tuổi"}]},
     ],
 )
 def test_invalid_output_is_retried_through_call_llm_with_retry(bad_output):
@@ -156,3 +211,41 @@ def test_verify_claims_retrieves_hybrid_with_top_k_per_claim():
     assert {call[0] for call in store.calls} == {"vector", "keyword"}
     assert all(call[1] == "education" for call in store.calls)
     assert len(result.retrieved) == 2 and result.label == VerdictLabel.SUPPORTED
+
+
+def test_verify_client_uses_its_own_token_limit(monkeypatch):
+    from app.rag import verifier
+
+    seen = {}
+
+    def fake_get_llm_client(settings):
+        seen["max_tokens"] = settings.llm_max_tokens
+        return ScriptedLLM({"results": [verdict(1, "NOT_FOUND")]})
+
+    monkeypatch.setattr(verifier, "get_llm_client", fake_get_llm_client)
+    settings = Settings(llm_max_tokens=2000, rag_verify_max_tokens=6000)
+    verify_with_facts(["claim A"], [[fact(1)]], settings=settings)
+    assert seen["max_tokens"] == 6000
+    assert settings.llm_max_tokens == 2000  # Khong doi settings goc
+
+
+class _RejectingLLM(ScriptedLLM):
+    """Lan dau bi provider tu choi (khong co usage), lan sau tra ket qua hop le."""
+
+    def __init__(self, ok_output):
+        super().__init__(ok_output)
+        self._rejected = False
+
+    def generate(self, system_prompt, user_prompt):
+        if not self._rejected:
+            self._rejected = True
+            raise EvaluationParseError("Groq tu choi output vi JSON khong hop le")
+        return super().generate(system_prompt, user_prompt)
+
+
+def test_rejected_call_is_counted_as_a_retry_without_usage():
+    stats = LLMCallStats()
+    llm = _RejectingLLM({"results": [verdict(1, "NOT_FOUND")]})
+    verify_with_facts(["claim A"], [[fact(1)]], llm_client=llm, stats=stats)
+    assert (stats.requests, stats.llm_calls, stats.retries, stats.calls_without_usage) == (1, 2, 1, 1)
+    assert stats.prompt_tokens == 100

@@ -528,8 +528,16 @@ python scripts/rag/eval_extract.py                           # tách claim, so v
 ```
 
 Kết quả được ghi vào `data/results/` và chép sang `docs/rag_results/`; các lần
-chạy thử `--limit` chỉ ghi vào `data/results/`. Lần chạy đầy đủ đo được khoảng
-390.000 token.
+chạy thử `--limit` chỉ ghi vào `data/results/`. Với prompt verify hiện tại, một
+lần `--set all` tốn khoảng 345.000 token và `--oracle` khoảng 130.000.
+
+`eval_verify.py` lưu checkpoint sau mỗi lô: bị ngắt (lỗi mạng...) thì chạy lại
+cùng lệnh kèm `--resume` để chỉ chấm các claim còn thiếu hoặc bị `ERROR`.
+
+Cấu hình liên quan (`.env`): `RAG_VERIFY_MAX_TOKENS` (mặc định 6000, giới hạn
+token riêng của một lô verify, tính cả phần reasoning) và `GROQ_REASONING_EFFORT`
+(`low` / `medium` / `high` cho model reasoning như `openai/gpt-oss-120b`; để
+trống thì không gửi, giữ mức mặc định của model).
 
 Endpoint debug `POST /rag/check-evidence` chỉ có khi `RAG_ENABLED=true`, cần DB
 và `requirements-rag.txt`:
@@ -540,5 +548,6 @@ và `requirements-rag.txt`:
 
 `topic` là `education`, `environment` hoặc `technology`. Response gồm `claims`
 (mỗi claim có `label` SUPPORTED / CONTRADICTED / NOT_FOUND, `fact_ids`,
-`reason`, `coerced`, `retrieved`), `counts` theo nhãn và `skipped_reason` khi
-lập luận không có claim thực chứng.
+`reason`, `coerced`, `details`, `unsupported_details`, `downgraded`,
+`retrieved`), `counts` theo nhãn và `skipped_reason` khi lập luận không có claim
+thực chứng.

@@ -39,5 +39,17 @@ def fid(n: int) -> str:
     return str(UUID(int=n))
 
 
-def verdict(index: int, label: str, fact_ids=(), reason: str = "Fact xác nhận số liệu.") -> dict:
-    return {"claim_index": index, "label": label, "fact_ids": list(fact_ids), "reason": reason}
+def verdict(
+    index: int, label: str, fact_ids=(), reason: str = "Fact xác nhận số liệu.", details=None, unsupported=()
+) -> dict:
+    """Mac dinh: 1 chi tiet nam trong chinh cac fact_ids cua claim, khong co chi tiet thieu."""
+    if details is None:
+        details = [{"detail": "chi tiết chính", "fact_ids": list(fact_ids)}] if fact_ids else []
+    return {
+        "claim_index": index,
+        "label": label,
+        "fact_ids": list(fact_ids),
+        "reason": reason,
+        "details": details,
+        "unsupported_details": list(unsupported),
+    }

@@ -9,7 +9,8 @@ from app.services.llm_client import LLMClient
 class LLMCallStats:
     requests: int = 0  # So lan goi call_llm_with_retry (1 lan tach claim hoac 1 lo verify)
     llm_calls: int = 0  # So lan goi LLM that, tinh ca lan retry vi JSON loi
-    coerced: int = 0  # So claim bi ep ve NOT_FOUND
+    coerced: int = 0  # So claim bi ep ve NOT_FOUND vi thieu fact_id hop le
+    downgraded: int = 0  # So claim SUPPORTED bi ha xuong NOT_FOUND vi con chi tiet khong co trong fact
     prompt_tokens: int = 0
     completion_tokens: int = 0
     calls_without_usage: int = 0  # Provider khong tra usage thi token o tren thieu
@@ -27,15 +28,20 @@ def tracking_generate(client: LLMClient, system_prompt: str, stats: Optional[LLM
     """generate_fn cho call_llm_with_retry, cong usage vao stats sau moi lan goi."""
 
     def generate(user_prompt: str) -> str:
-        raw = client.generate(system_prompt, user_prompt)
-        if stats is not None:
-            stats.llm_calls += 1
+        if stats is None:
+            return client.generate(system_prompt, user_prompt)
+        # Dem truoc khi goi: lan goi bi provider tu choi (vd Groq json_validate_failed) van la 1 lan goi that
+        stats.llm_calls += 1
+        client.last_usage = None
+        try:
+            return client.generate(system_prompt, user_prompt)
+        finally:
+            # Lan bi tu choi khong co usage nen token thuc te cao hon so dem duoc
             usage = getattr(client, "last_usage", None)
             if usage is None:
                 stats.calls_without_usage += 1
             else:
                 stats.prompt_tokens += getattr(usage, "prompt_tokens", 0) or 0
                 stats.completion_tokens += getattr(usage, "completion_tokens", 0) or 0
-        return raw
 
     return generate

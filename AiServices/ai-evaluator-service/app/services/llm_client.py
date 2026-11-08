@@ -150,6 +150,9 @@ class GroqClient(LLMClient):
         self._model = settings.groq_model
         self._temperature = settings.llm_temperature
         self._max_tokens = settings.llm_max_tokens
+        # Gui qua extra_body: tham so rieng cua Groq, khong phu thuoc phien ban SDK openai
+        effort = settings.groq_reasoning_effort.strip()
+        self._extra_body = {"reasoning_effort": effort} if effort else None
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         max_attempts = 5
@@ -166,6 +169,7 @@ class GroqClient(LLMClient):
                     temperature=self._temperature,
                     max_tokens=self._max_tokens,
                     response_format={"type": "json_object"},
+                    **({"extra_body": self._extra_body} if self._extra_body else {}),
                 )
                 self.last_usage = getattr(response, "usage", None)
                 content = response.choices[0].message.content

@@ -19,7 +19,9 @@ import json
 import shutil
 import sys
 import time
+import traceback
 from collections import Counter, defaultdict
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
@@ -31,7 +33,6 @@ from app.config import get_settings
 from app.rag.llm_usage import LLMCallStats
 from app.rag.schemas import RetrievedFact
 from app.rag.verifier import VERIFY_BATCH_SIZE, verify_with_facts
-from app.services.json_utils import EvaluationParseError
 
 sys.stdout.reconfigure(encoding="utf-8")
 
@@ -82,6 +83,37 @@ def retrieve_facts(rows: list[dict]) -> list[list[RetrievedFact]]:
         return [retrieve(row["claim"], row["topic"], settings.rag_top_k, "hybrid", store, _Precomputed()) for row in rows]
 
 
+def _row_key(row: dict) -> str:
+    return f"{row['set']}:{row['claim_id']}"
+
+
+def load_checkpoint(path: Path) -> tuple[dict[str, dict], LLMCallStats]:
+    """Claim da co ket qua (bo qua ERROR de chay lai) va stats cong don toi lo cuoi, gom ca token cua lo loi."""
+    done: dict[str, dict] = {}
+    stats = LLMCallStats()
+    if not path.exists():
+        return done, stats
+    with path.open(encoding="utf-8") as lines:
+        for number, line in enumerate(lines, start=1):
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                # Dong cuoi bi cut khi tien trinh bi ngat giua luc ghi: bo qua, cac claim cua no se duoc chay lai
+                print(f"Canh bao: bo qua dong {number} hong trong checkpoint {path}", flush=True)
+                continue
+            stats = LLMCallStats(**record["stats"])
+            for prediction in record["predictions"]:
+                if prediction["predicted"] != ERROR_LABEL:
+                    done[_row_key(prediction)] = prediction
+    return done, stats
+
+
+def append_checkpoint(path: Path, predictions: list[dict], stats: LLMCallStats) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as output:
+        output.write(json.dumps({"predictions": predictions, "stats": asdict(stats)}, ensure_ascii=False) + "\n")
+
+
 def classification_metrics(pairs: list[tuple[str, str]]) -> dict:
     """pairs = (nhan dung, nhan du doan). Du doan ERROR tinh la sai, khong cong vao cot nao cua confusion."""
     confusion = {gold: {pred: 0 for pred in LABELS + (ERROR_LABEL,)} for gold in LABELS}
@@ -125,35 +157,60 @@ def main() -> None:
     parser.add_argument("--set", choices=("in_kb", "out_of_kb", "all"), default="all")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--oracle", action="store_true", help="Fact = gold evidence (chi in_kb)")
+    parser.add_argument("--resume", action="store_true",
+                        help="Chay tiep tu checkpoint cua lan truoc (bo qua claim da xong, chay lai claim bi ERROR)")
     args = parser.parse_args()
     if args.oracle and args.set != "in_kb":
         parser.error("--oracle chi dung voi --set in_kb (out_of_kb khong co gold evidence trong kho)")
 
     mode = "oracle" if args.oracle else "retrieve"
     rows = load_rows(args.set, args.limit)
-    print(f"mode={mode} set={args.set} {len(rows)} claim, provider={get_settings().llm_provider}", flush=True)
+    print(f"mode={mode} set={args.set} {len(rows)} claim, provider={get_settings().llm_provider}, "
+          f"reasoning_effort={get_settings().groq_reasoning_effort or 'default'}", flush=True)
     facts_per_row = [oracle_facts(row) for row in rows] if args.oracle else retrieve_facts(rows)
 
-    stats = LLMCallStats()
-    predictions: list[dict] = []
-    started = time.perf_counter()
-    for start in range(0, len(rows), VERIFY_BATCH_SIZE):
-        batch_rows = rows[start : start + VERIFY_BATCH_SIZE]
-        batch_facts = facts_per_row[start : start + VERIFY_BATCH_SIZE]
-        try:
-            results = verify_with_facts([row["claim"] for row in batch_rows], batch_facts, stats=stats)
-            for row, result in zip(batch_rows, results):
-                predictions.append({**row, "predicted": result.label.value, "fact_ids": result.fact_ids,
-                                    "reason": result.reason, "coerced": result.coerced,
-                                    "retrieved": [{"fact_id": str(f.fact_id), "content": f.content[:300]}
-                                                  for f in result.retrieved]})
-        except (EvaluationParseError, RuntimeError) as exc:  # Mot lo loi khong lam mat ket qua cac lo khac
-            print(f"Lo {start // VERIFY_BATCH_SIZE + 1} loi: {exc}", flush=True)
-            predictions.extend({**row, "predicted": ERROR_LABEL, "reason": str(exc)} for row in batch_rows)
-        print(f"{len(predictions)}/{len(rows)} claim, {stats.total_tokens} token", flush=True)
-    elapsed = time.perf_counter() - started
+    checkpoint = RESULTS_DIR / f"verify_{mode}_{args.set}{f'_limit{args.limit}' if args.limit else ''}_checkpoint.jsonl"
+    done, stats = load_checkpoint(checkpoint) if args.resume else ({}, LLMCallStats())
+    if not args.resume:
+        checkpoint.unlink(missing_ok=True)
+    elif done:
+        print(f"Chay tiep tu checkpoint: {len(done)} claim da xong, {stats.total_tokens} token da dung", flush=True)
 
-    report: dict = {"mode": mode, "set": args.set, "limit": args.limit, "n": len(rows), "seconds": round(elapsed, 1)}
+    pending = [(row, facts) for row, facts in zip(rows, facts_per_row) if _row_key(row) not in done]
+    started = time.perf_counter()
+    for start in range(0, len(pending), VERIFY_BATCH_SIZE):
+        batch = pending[start : start + VERIFY_BATCH_SIZE]
+        batch_rows = [row for row, _ in batch]
+        try:
+            results = verify_with_facts([row["claim"] for row in batch_rows], [facts for _, facts in batch], stats=stats)
+            batch_predictions = [
+                {**row, "predicted": result.label.value, "fact_ids": result.fact_ids,
+                 "reason": result.reason, "coerced": result.coerced,
+                 "downgraded": result.downgraded,
+                 "unsupported_details": result.unsupported_details,
+                 "details": [d.model_dump() for d in result.details],
+                 "retrieved": [{"fact_id": str(f.fact_id), "content": f.content[:300]} for f in result.retrieved]}
+                for row, result in zip(batch_rows, results)
+            ]
+        except Exception as exc:  # Ca loi mang: 1 lo loi khong lam mat ket qua cac lo khac, --resume se chay lai lo nay
+            print(f"Lo {start // VERIFY_BATCH_SIZE + 1} loi: {type(exc).__name__}: {exc}", flush=True)
+            # Traceback ra stderr de loi lap trinh (KeyError...) khong bi lan vao loi mang/LLM
+            traceback.print_exc()
+            batch_predictions = [{**row, "predicted": ERROR_LABEL, "reason": f"{type(exc).__name__}: {exc}"}
+                                 for row in batch_rows]
+        append_checkpoint(checkpoint, batch_predictions, stats)
+        for prediction in batch_predictions:
+            done[_row_key(prediction)] = prediction
+        print(f"{len(done)}/{len(rows)} claim, {stats.total_tokens} token", flush=True)
+    elapsed = time.perf_counter() - started
+    # Giu thu tu cua verify_set de bao cao on dinh giua cac lan chay
+    predictions = [done[_row_key(row)] for row in rows]
+
+    settings = get_settings()
+    report: dict = {"mode": mode, "set": args.set, "limit": args.limit, "n": len(rows), "seconds": round(elapsed, 1),
+                    "model": settings.groq_model if settings.llm_provider == "groq" else settings.llm_provider,
+                    "reasoning_effort": settings.groq_reasoning_effort or "default",
+                    "tokens_per_claim": round(stats.total_tokens / len(rows), 1) if rows else 0.0}
     in_kb = [p for p in predictions if p["set"] == "in_kb"]
     out_kb = [p for p in predictions if p["set"] == "out_of_kb"]
 
@@ -186,7 +243,7 @@ def main() -> None:
         for name, subset in (("in_kb", in_kb), ("out_of_kb", out_kb), ("all", predictions)) if subset
     }
     report["llm"] = {"requests": stats.requests, "llm_calls": stats.llm_calls, "retries": stats.retries,
-                     "coerced": stats.coerced, "prompt_tokens": stats.prompt_tokens,
+                     "coerced": stats.coerced, "downgraded": stats.downgraded, "prompt_tokens": stats.prompt_tokens,
                      "completion_tokens": stats.completion_tokens, "total_tokens": stats.total_tokens,
                      "calls_without_usage": stats.calls_without_usage,
                      "errors": sum(p["predicted"] == ERROR_LABEL for p in predictions)}
@@ -215,6 +272,11 @@ def main() -> None:
         DOCS_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         shutil.copy2(output_path, DOCS_RESULTS_DIR / output_path.name)
         print(f"Da chep sang {DOCS_RESULTS_DIR / output_path.name}")
+    # Xong tron ven thi bo checkpoint; con claim ERROR thi giu de --resume chay lai
+    if not any(p["predicted"] == ERROR_LABEL for p in predictions):
+        checkpoint.unlink(missing_ok=True)
+    else:
+        print(f"Con claim ERROR: chay lai voi --resume (checkpoint {checkpoint})")
 
 
 if __name__ == "__main__":

@@ -31,8 +31,11 @@ Nhiem vu: tu 1 luot lap luan, tach ra cac claim THUC CHUNG co the kiem chung ban
 [CACH VIET MOI CLAIM]
 - Viet lai thanh 1 cau DOC LAP, hieu duoc khi dung rieng: thay dai tu ("no", "ho", "dieu nay") bang chu the ro rang.
 - Giu dung noi dung learner noi, KHONG sua cho dung, KHONG them thong tin learner khong noi.
-- Chuan hoa so: so viet bang chu doi sang chu so ("hai muoi phan tram" -> "20%", "ba trieu" -> "3 trieu",
-  "nam hai nghin khong tram hai muoi ba" -> "nam 2023").
+- Chuan hoa so: MOI so viet bang chu deu doi sang chu so, ke ca "mot" ("hai muoi phan tram" -> "20%",
+  "ba trieu" -> "3 trieu", "mot trieu ha" -> "1 trieu ha", "nam hai nghin khong tram hai muoi ba" -> "nam 2023").
+- Viet so theo dinh dang TIENG VIET: dau CHAM phan cach hang nghin, dau PHAY la dau thap phan
+  ("29.383", "12.000 ty dong", "3,5%"). KHONG dung dau phay de phan cach hang nghin ("29,383" la SAI).
+  So learner da viet bang chu so thi giu nguyen gia tri, chi sua dau phan cach cho dung dinh dang tren.
 - Van ban co the la ban ghi giong noi (khong dau cau, co tu dem "thi", "kieu nhu", "a"): bo tu dem, tach y cho dung.
 - Toi da {max_claims} claim, uu tien claim quan trong nhat voi lap luan. Khong co claim thuc chung thi tra mang rong.
 
@@ -53,18 +56,29 @@ Hay gan nhan cho tung claim CHI DUA TREN CAC FACT DUOC DUA VAO CUA CHINH CLAIM D
 - fact_ids CHI duoc chua fact_id xuat hien trong danh sach fact cua chinh claim do, chep dung tung ky tu.
 - SUPPORTED va CONTRADICTED bat buoc co it nhat 1 fact_id lam bang chung.
 
+[CACH LAM CHO TUNG CLAIM]
+1. Tach claim thanh cac chi tiet: chu the, con so, thoi gian, dia diem, ten rieng, quan he nhan qua.
+   Moi chi tiet la 1 cum ngan chep tu claim. KHONG bo sot chi tiet nao, ke ca chi tiet phu o cuoi cau
+   (vd "vi day la van nan nhieu nguoi gap", "60 tuoi", "ong Tran Van A").
+2. Voi tung chi tiet, tim fact chua no: ghi fact_id vao "fact_ids" cua chi tiet do. Chi tiet khong co trong
+   fact nao thi fact_ids de rong VA chep chi tiet do vao "unsupported_details".
+3. Roi moi gan nhan cho ca claim.
+
 [DINH NGHIA NHAN]
-- SUPPORTED: fact xac nhan noi dung chinh cua claim (so lieu, su kien khop).
+- SUPPORTED: MOI chi tiet deu co trong fact va khop (unsupported_details phai rong).
 - CONTRADICTED: fact noi RO dieu trai voi claim: sai so, sai thoi gian, sai chu the, dao nguoc quan he.
 - NOT_FOUND: fact khong du de khang dinh hay bac bo, ke ca khi fact cung chu de.
-  Claim co them chi tiet ma fact khong nhac toi -> NOT_FOUND, KHONG phai CONTRADICTED.
+  Claim co them chi tiet ma fact khong nhac toi -> NOT_FOUND, KHONG phai SUPPORTED, KHONG phai CONTRADICTED.
   NOT_FOUND khong co nghia la claim sai, chi la kho fact khong du de ket luan.
 
 [reason]
 1-2 cau tieng Viet co dau, neu ro diem khop hoac diem vo ly giua claim va fact.
 
 [OUTPUT - CHI tra ve JSON hop le, khong them text nao khac; moi claim dung 1 phan tu]
-{"results": [{"claim_index": 1, "label": "SUPPORTED", "fact_ids": ["<fact_id>"], "reason": "..."}]}
+{"results": [{"claim_index": 1,
+  "details": [{"detail": "<chi tiet>", "fact_ids": ["<fact_id>"]}],
+  "unsupported_details": ["<chi tiet khong co trong fact nao>"],
+  "label": "SUPPORTED", "fact_ids": ["<fact_id>"], "reason": "..."}]}
 """
 
 
