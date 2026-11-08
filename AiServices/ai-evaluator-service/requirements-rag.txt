@@ -1,0 +1,7 @@
+# Dependency nang cho RAG Evidence (thu nghiem), cai them khi RAG_ENABLED=true hoac chay scripts/rag/.
+-r requirements.txt
+torch>=2.2.0
+sentence-transformers>=3.0.0
+datasets>=2.20.0
+psycopg[binary]>=3.2.0
+pgvector>=0.3.0

@@ -482,3 +482,63 @@ làm ngay):
 - **Thời gian phản hồi** — mỗi request gọi LLM thật, thường mất vài giây đến
   vài chục giây (timeout mặc định 60 giây, cấu hình bằng `LLM_TIMEOUT_SECONDS`).
   Phía gọi nên đặt timeout đủ dài và hiển thị trạng thái đang chấm.
+
+---
+
+## 9. RAG Evidence (thử nghiệm)
+
+Kho fact và retrieval cho tiêu chí Evidence. **Chưa nối vào `/evaluate*`.** Tính
+năng tắt mặc định (`RAG_ENABLED=false`): khi tắt, service không import
+torch/sentence-transformers và không cần DB. Thiết kế ở
+`docs/AI_DEVELOPMENT_LOG.md` mục 3.19.
+
+```bash
+docker compose up -d                  # Postgres + pgvector, cổng host 5434
+pip install -r requirements-rag.txt   # torch, sentence-transformers, datasets, psycopg, pgvector
+```
+
+Cổng 5434 vì `ai-opponent-service` đã dùng 5433. Đổi DB qua `RAG_DATABASE_URL`.
+Schema nằm ở `docker/postgres-init/` và chỉ chạy khi volume còn trống.
+
+Chạy 4 script theo thứ tự (không gọi LLM, không tốn token):
+
+```bash
+python scripts/rag/explore_vifactcheck.py   # tải dataset, in tên cột và phân bố
+python scripts/rag/filter_vifactcheck.py    # lọc 3 chủ đề, ghi data/vifactcheck_3topics.jsonl
+python scripts/rag/ingest_vifactcheck.py    # chunk, embed bge-m3, nạp vào DB (chạy lại không trùng)
+python scripts/rag/eval_retrieval.py        # đo article_hit@k, evidence_hit@k, ghi data/results/
+```
+
+Lần ingest đầu tải model bge-m3 (khoảng 4,3 GB vào `.hf_cache/`). `data/` và
+`.hf_cache/` đã gitignore. Ingest bị ngắt giữa chừng thì chạy tiếp bằng
+`--skip-existing`.
+
+### Bước 2: tách claim + verify bằng LLM
+
+Thiết kế và kết quả ở `docs/AI_DEVELOPMENT_LOG.md` mục 3.20. Các script dưới
+đây **gọi LLM thật (tốn token)**, cần `.env` có API key:
+
+```bash
+python scripts/rag/build_verify_set.py                       # ghi data/eval/verify_set.jsonl (in_kb 150 + out_of_kb 50)
+python scripts/rag/eval_verify.py --set all --limit 10       # chạy thử, in ước tính token cho cả kế hoạch
+python scripts/rag/eval_verify.py --set all                  # in_kb + out_of_kb, fact lấy bằng retrieve
+python scripts/rag/eval_verify.py --set in_kb --oracle       # fact = gold evidence, tách lỗi retrieval và lỗi verify
+cp docs/rag_eval/extract_set.jsonl data/eval/                # bộ 15 lập luận (bản nháp, xem docs/rag_eval/README.md)
+python scripts/rag/eval_extract.py                           # tách claim, so với expected bằng cosine bge-m3 >= 0.8
+```
+
+Kết quả được ghi vào `data/results/` và chép sang `docs/rag_results/`; các lần
+chạy thử `--limit` chỉ ghi vào `data/results/`. Lần chạy đầy đủ đo được khoảng
+390.000 token.
+
+Endpoint debug `POST /rag/check-evidence` chỉ có khi `RAG_ENABLED=true`, cần DB
+và `requirements-rag.txt`:
+
+```json
+{"argument_text": "...", "motion": "...", "topic": "education"}
+```
+
+`topic` là `education`, `environment` hoặc `technology`. Response gồm `claims`
+(mỗi claim có `label` SUPPORTED / CONTRADICTED / NOT_FOUND, `fact_ids`,
+`reason`, `coerced`, `retrieved`), `counts` theo nhãn và `skipped_reason` khi
+lập luận không có claim thực chứng.

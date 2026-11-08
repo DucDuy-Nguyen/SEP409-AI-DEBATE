@@ -16,6 +16,10 @@ from app.services.json_utils import EvaluationParseError
 
 
 class LLMClient(ABC):
+    # Usage cua lan goi thanh cong gan nhat (prompt_tokens, completion_tokens...), None neu provider khong tra.
+    # Chi script do chi phi doc (scripts/rag/), luong cham diem khong dung.
+    last_usage = None
+
     @abstractmethod
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         """Goi LLM, tra ve text output (raw). Nem exception neu goi that bai."""
@@ -45,6 +49,7 @@ class OpenAIClient(LLMClient):
             max_tokens=self._max_tokens,
             response_format={"type": "json_object"},  # bat che do JSON mode cua OpenAI cho chac chan
         )
+        self.last_usage = getattr(response, "usage", None)
         content = response.choices[0].message.content
         if content is None:
             raise RuntimeError("OpenAI tra ve noi dung rong")
@@ -162,6 +167,7 @@ class GroqClient(LLMClient):
                     max_tokens=self._max_tokens,
                     response_format={"type": "json_object"},
                 )
+                self.last_usage = getattr(response, "usage", None)
                 content = response.choices[0].message.content
                 if content is None:
                     raise RuntimeError("Groq tra ve noi dung rong")

@@ -1,0 +1,221 @@
+"""
+Danh gia verify tren data/eval/verify_set.jsonl (docs/RAG_STEP2_SPEC.md muc 3.1). GOI LLM THAT (ton token).
+
+- Mac dinh: fact = retrieve hybrid top settings.rag_top_k nhu luong that.
+- --oracle: fact = gold evidence cua ViFactCheck (chi in_kb), de tach loi do retrieval hay do verify.
+- Do: accuracy, macro F1, F1 tung nhan, confusion 3x3 (in_kb theo chu de va tong); out_of_kb: ty le NOT_FOUND;
+  false_contradiction_rate (thuc te SUPPORTED/NOT_FOUND ma bi gan CONTRADICTED); coerced, retry, token.
+
+Chay --limit 10 truoc de uoc tinh token. Ket qua: data/results/verify_<mode>_<timestamp>.json, ban chay day du
+(khong --limit) duoc chep sang docs/rag_results/.
+
+Cach dung:
+    python scripts/rag/eval_verify.py --set all --limit 10
+    python scripts/rag/eval_verify.py --set all
+    python scripts/rag/eval_verify.py --set in_kb --oracle
+"""
+import argparse
+import json
+import shutil
+import sys
+import time
+from collections import Counter, defaultdict
+from datetime import datetime
+from pathlib import Path
+from uuid import NAMESPACE_URL, uuid5
+
+SERVICE_DIR = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(SERVICE_DIR))
+
+from app.config import get_settings
+from app.rag.llm_usage import LLMCallStats
+from app.rag.schemas import RetrievedFact
+from app.rag.verifier import VERIFY_BATCH_SIZE, verify_with_facts
+from app.services.json_utils import EvaluationParseError
+
+sys.stdout.reconfigure(encoding="utf-8")
+
+INPUT_PATH = SERVICE_DIR / "data" / "eval" / "verify_set.jsonl"
+RESULTS_DIR = SERVICE_DIR / "data" / "results"
+DOCS_RESULTS_DIR = SERVICE_DIR / "docs" / "rag_results"
+
+LABELS = ("SUPPORTED", "CONTRADICTED", "NOT_FOUND")
+ERROR_LABEL = "ERROR"  # Lo verify loi sau khi da retry: khong tinh la du doan nao
+# Ke hoach day du cua spec: in_kb retrieve + in_kb oracle + out_of_kb, dung de uoc tinh tong token
+FULL_PLAN_CLAIMS = 150 + 150 + 50
+TOKEN_BUDGET = 300_000
+
+
+def load_rows(selected_set: str, limit: int | None) -> list[dict]:
+    rows = []
+    with INPUT_PATH.open(encoding="utf-8") as lines:
+        for line in lines:
+            row = json.loads(line)
+            if selected_set in ("all", row["set"]):
+                rows.append(row)
+    return rows[:limit] if limit else rows
+
+
+def oracle_facts(row: dict) -> list[RetrievedFact]:
+    if not row["gold_evidence"].strip():
+        return []
+    return [RetrievedFact(fact_id=uuid5(NAMESPACE_URL, f"vifactcheck-gold:{row['claim_id']}"),
+                          content=row["gold_evidence"], score=1.0)]
+
+
+def retrieve_facts(rows: list[dict]) -> list[list[RetrievedFact]]:
+    from app.rag.embedder import Embedder
+    from app.rag.retriever import retrieve
+    from app.rag.store import FactStore
+
+    settings = get_settings()
+    texts = list(dict.fromkeys(row["claim"] for row in rows))
+    started = time.perf_counter()
+    vectors = dict(zip(texts, Embedder().encode(texts)))
+    print(f"Embed {len(texts)} claim: {time.perf_counter() - started:.0f}s", flush=True)
+
+    class _Precomputed:
+        def encode(self, batch):
+            return [vectors[text] for text in batch]
+
+    with FactStore() as store:
+        return [retrieve(row["claim"], row["topic"], settings.rag_top_k, "hybrid", store, _Precomputed()) for row in rows]
+
+
+def classification_metrics(pairs: list[tuple[str, str]]) -> dict:
+    """pairs = (nhan dung, nhan du doan). Du doan ERROR tinh la sai, khong cong vao cot nao cua confusion."""
+    confusion = {gold: {pred: 0 for pred in LABELS + (ERROR_LABEL,)} for gold in LABELS}
+    for gold, pred in pairs:
+        confusion[gold][pred] += 1
+    per_label = {}
+    for label in LABELS:
+        tp = confusion[label][label]
+        predicted = sum(confusion[gold][label] for gold in LABELS)
+        actual = sum(confusion[label].values())
+        precision = tp / predicted if predicted else 0.0
+        recall = tp / actual if actual else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        per_label[label] = {"precision": precision, "recall": recall, "f1": f1, "support": actual}
+    present = [label for label in LABELS if per_label[label]["support"]]
+    return {
+        "n": len(pairs),
+        "accuracy": sum(gold == pred for gold, pred in pairs) / len(pairs) if pairs else 0.0,
+        "macro_f1": sum(per_label[label]["f1"] for label in present) / len(present) if present else 0.0,
+        "per_label": per_label,
+        "confusion": confusion,
+    }
+
+
+def false_contradiction(pairs: list[tuple[str, str]]) -> dict:
+    eligible = [pred for gold, pred in pairs if gold in ("SUPPORTED", "NOT_FOUND")]
+    wrong = sum(pred == "CONTRADICTED" for pred in eligible)
+    return {"count": wrong, "eligible": len(eligible), "rate": wrong / len(eligible) if eligible else 0.0}
+
+
+def _print_metrics(name: str, metrics: dict) -> None:
+    f1 = " ".join(f"{label}={metrics['per_label'][label]['f1']:.3f}" for label in LABELS)
+    print(f"\n### {name}: n={metrics['n']} accuracy={metrics['accuracy']:.3f} macro_f1={metrics['macro_f1']:.3f} | F1 {f1}")
+    print("dung \\ du doan | " + " | ".join(LABELS + (ERROR_LABEL,)))
+    for gold in LABELS:
+        print(f"{gold} | " + " | ".join(str(metrics["confusion"][gold][pred]) for pred in LABELS + (ERROR_LABEL,)))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--set", choices=("in_kb", "out_of_kb", "all"), default="all")
+    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--oracle", action="store_true", help="Fact = gold evidence (chi in_kb)")
+    args = parser.parse_args()
+    if args.oracle and args.set != "in_kb":
+        parser.error("--oracle chi dung voi --set in_kb (out_of_kb khong co gold evidence trong kho)")
+
+    mode = "oracle" if args.oracle else "retrieve"
+    rows = load_rows(args.set, args.limit)
+    print(f"mode={mode} set={args.set} {len(rows)} claim, provider={get_settings().llm_provider}", flush=True)
+    facts_per_row = [oracle_facts(row) for row in rows] if args.oracle else retrieve_facts(rows)
+
+    stats = LLMCallStats()
+    predictions: list[dict] = []
+    started = time.perf_counter()
+    for start in range(0, len(rows), VERIFY_BATCH_SIZE):
+        batch_rows = rows[start : start + VERIFY_BATCH_SIZE]
+        batch_facts = facts_per_row[start : start + VERIFY_BATCH_SIZE]
+        try:
+            results = verify_with_facts([row["claim"] for row in batch_rows], batch_facts, stats=stats)
+            for row, result in zip(batch_rows, results):
+                predictions.append({**row, "predicted": result.label.value, "fact_ids": result.fact_ids,
+                                    "reason": result.reason, "coerced": result.coerced,
+                                    "retrieved": [{"fact_id": str(f.fact_id), "content": f.content[:300]}
+                                                  for f in result.retrieved]})
+        except (EvaluationParseError, RuntimeError) as exc:  # Mot lo loi khong lam mat ket qua cac lo khac
+            print(f"Lo {start // VERIFY_BATCH_SIZE + 1} loi: {exc}", flush=True)
+            predictions.extend({**row, "predicted": ERROR_LABEL, "reason": str(exc)} for row in batch_rows)
+        print(f"{len(predictions)}/{len(rows)} claim, {stats.total_tokens} token", flush=True)
+    elapsed = time.perf_counter() - started
+
+    report: dict = {"mode": mode, "set": args.set, "limit": args.limit, "n": len(rows), "seconds": round(elapsed, 1)}
+    in_kb = [p for p in predictions if p["set"] == "in_kb"]
+    out_kb = [p for p in predictions if p["set"] == "out_of_kb"]
+
+    if in_kb:
+        by_topic = defaultdict(list)
+        for p in in_kb:
+            by_topic[p["topic"]].append((p["expected"], p["predicted"]))
+        report["in_kb"] = {"TONG": classification_metrics([(p["expected"], p["predicted"]) for p in in_kb])}
+        for topic in sorted(by_topic):
+            report["in_kb"][topic] = classification_metrics(by_topic[topic])
+        for name, metrics in report["in_kb"].items():
+            _print_metrics(f"in_kb {name}", metrics)
+
+    if out_kb:
+        wrong = [p for p in out_kb if p["predicted"] != "NOT_FOUND"]
+        report["out_of_kb"] = {
+            "n": len(out_kb),
+            "not_found_rate": sum(p["predicted"] == "NOT_FOUND" for p in out_kb) / len(out_kb),
+            "predicted": dict(Counter(p["predicted"] for p in out_kb)),
+            "wrong": [{key: p[key] for key in ("claim_id", "topic", "source_topic", "claim", "predicted", "reason", "fact_ids")}
+                      for p in wrong],
+        }
+        print(f"\n### out_of_kb: n={len(out_kb)} ty le NOT_FOUND={report['out_of_kb']['not_found_rate']:.3f} "
+              f"du doan {report['out_of_kb']['predicted']}")
+        for p in wrong:
+            print(f"  SAI {p['predicted']} | {p['claim'][:120]} | {p['reason'][:160]}")
+
+    report["false_contradiction"] = {
+        name: false_contradiction([(p["expected"], p["predicted"]) for p in subset])
+        for name, subset in (("in_kb", in_kb), ("out_of_kb", out_kb), ("all", predictions)) if subset
+    }
+    report["llm"] = {"requests": stats.requests, "llm_calls": stats.llm_calls, "retries": stats.retries,
+                     "coerced": stats.coerced, "prompt_tokens": stats.prompt_tokens,
+                     "completion_tokens": stats.completion_tokens, "total_tokens": stats.total_tokens,
+                     "calls_without_usage": stats.calls_without_usage,
+                     "errors": sum(p["predicted"] == ERROR_LABEL for p in predictions)}
+    print(f"\nfalse_contradiction_rate: { {k: round(v['rate'], 3) for k, v in report['false_contradiction'].items()} }")
+    print(f"LLM: {report['llm']}")
+
+    # Uoc tinh chi co nghia o lan chay thu --limit, truoc khi chay day du
+    if args.limit and rows and stats.total_tokens:
+        per_claim = stats.total_tokens / len(rows)
+        report["estimate"] = {"tokens_per_claim": per_claim, "full_plan_claims": FULL_PLAN_CLAIMS,
+                              "full_plan_tokens": round(per_claim * FULL_PLAN_CLAIMS)}
+        print(f"Uoc tinh: {per_claim:.0f} token/claim -> ke hoach day du {FULL_PLAN_CLAIMS} claim ~ "
+              f"{per_claim * FULL_PLAN_CLAIMS:,.0f} token (nguong {TOKEN_BUDGET:,})")
+        if per_claim * FULL_PLAN_CLAIMS > TOKEN_BUDGET:
+            print("VUOT NGUONG: dung lai, bao nguoi dung truoc khi chay day du.")
+    if stats.calls_without_usage:
+        print(f"Canh bao: {stats.calls_without_usage} lan goi khong co usage, so token o tren thieu.")
+
+    report["predictions"] = predictions
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    suffix = f"_limit{args.limit}" if args.limit else ""
+    output_path = RESULTS_DIR / f"verify_{mode}{suffix}_{datetime.now():%Y%m%d_%H%M%S}.json"
+    output_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\nDa ghi {output_path}")
+    if not args.limit:
+        DOCS_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(output_path, DOCS_RESULTS_DIR / output_path.name)
+        print(f"Da chep sang {DOCS_RESULTS_DIR / output_path.name}")
+
+
+if __name__ == "__main__":
+    main()

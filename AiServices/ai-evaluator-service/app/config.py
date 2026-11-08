@@ -49,6 +49,16 @@ class Settings(BaseSettings):
     eval_audit_log_max_bytes: int = 50_000_000  # 0 = khong gioi han
     eval_audit_log_backups: int = 3
 
+    # ---- RAG Evidence (thu nghiem) ----
+    # Tat thi service khong import torch/sentence-transformers va khong can DB.
+    # Chi dieu khien endpoint debug /rag/* (app/main.py); RAG chua noi vao /evaluate*.
+    rag_enabled: bool = False
+    # Port 5434: 5433 da duoc ai-opponent-service dung (xem docker-compose.yml)
+    rag_database_url: str = "postgresql://adpp:adpp@localhost:5434/ai_evaluation"
+    rag_embedding_model: str = "BAAI/bge-m3"
+    rag_top_k: int = 5
+    rag_max_claims: int = 5  # So claim thuc chung toi da tach tu 1 luot lap luan
+
     # ---- App ----
     app_name: str = "ADPP AI Evaluator Service"
 
