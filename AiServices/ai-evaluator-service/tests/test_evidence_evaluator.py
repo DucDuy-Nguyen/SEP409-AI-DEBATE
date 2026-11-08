@@ -1,10 +1,13 @@
 """
-Test cham Argument co kiem chung RAG (phuong an C, docs/RAG_STEP3_SPEC.md) bang LLM gia va pipeline gia:
-khong can DB, khong goi LLM that, khong load model.
+Test cham Argument co kiem chung RAG theo phuong an D (dev log muc 3.21): prompt cham khong doi, Evidence dieu chinh
+bang code. LLM gia va pipeline gia: khong can DB, khong goi LLM that, khong load model.
 """
 import json
+import os
 import subprocess
 import sys
+import threading
+import time
 from uuid import UUID
 
 import pytest
@@ -12,36 +15,30 @@ import pytest
 from app.config import Settings
 from app.prompts.evaluator_prompt import build_evaluation_prompt
 from app.rag.schemas import ClaimVerification, EvidenceCheckResult, RetrievedFact, VerdictLabel
-from app.schemas import ArgumentEvaluationRequest, DebateSide
-from app.services.evidence_evaluator import CAP_NOTE, evaluate_argument_with_evidence
+from app.schemas import EVIDENCE_CHECK_VERSION, ArgumentEvaluationRequest, DebateSide
+from app.services.evaluator import evaluate_argument
+from app.services.evidence_evaluator import adjust_evidence, apply_adjustment, evaluate_argument_with_evidence, summarize
 from app.services.llm_client import LLMClient
 
 ARGUMENT = "Theo bao cao, 29.383 met vuong dat da duoc xu ly dioxin tai san bay Bien Hoa."
+OTHERS = {"Logic": 4, "Relevance": 4, "Structure": 3, "Persuasiveness": 4}
 
 
 def _payload(evidence_score: int) -> dict:
-    return {
-        "criteria": [
-            {"name": "Logic", "score": 4, "reasoning": "Chat che."},
-            {"name": "Evidence", "score": evidence_score, "reasoning": "Co so lieu cu the."},
-            {"name": "Relevance", "score": 4, "reasoning": "Bam sat motion."},
-            {"name": "Structure", "score": 3, "reasoning": "Ro rang."},
-            {"name": "Persuasiveness", "score": 4, "reasoning": "Kha thuyet phuc."},
-        ],
-        "overall_reasoning": "Lap luan tot.",
-        "strengths": [],
-        "weaknesses": [],
-        "suggestions": [],
-    }
+    criteria = [{"name": name, "score": score, "reasoning": "Ly do."} for name, score in OTHERS.items()]
+    criteria.insert(1, {"name": "Evidence", "score": evidence_score, "reasoning": "Co so lieu cu the."})
+    return {"criteria": criteria, "overall_reasoning": "Lap luan tot.", "strengths": [], "weaknesses": [],
+            "suggestions": ["Goi y cu."]}
 
 
 class CapturingLLM(LLMClient):
-    def __init__(self, evidence_score: int = 5):
-        self.payload = _payload(evidence_score)
+    def __init__(self, evidence_score: int = 5, delay: float = 0.0):
+        self.payload, self.delay = _payload(evidence_score), delay
         self.prompts: list[tuple[str, str]] = []
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         self.prompts.append((system_prompt, user_prompt))
+        time.sleep(self.delay)
         return json.dumps(self.payload, ensure_ascii=False)
 
 
@@ -56,19 +53,19 @@ def _check_result(*labels: str) -> EvidenceCheckResult:
         fact = RetrievedFact(fact_id=UUID(int=n), content="x" * 400, citation="Chinh Phu - https://vd", score=0.9)
         fact_ids = [str(fact.fact_id)] if label != "NOT_FOUND" else []
         claims.append(ClaimVerification(claim=f"claim {n}", label=VerdictLabel(label), fact_ids=fact_ids,
-                                        reason=f"ly do {n}", retrieved=[fact]))
+                                        reason=f"Nguon ghi so dung la {n * 10}.", retrieved=[fact]))
     counts = {label.value: 0 for label in VerdictLabel}
     for label in labels:
         counts[label] += 1
-    return EvidenceCheckResult(claims=claims, counts=counts,
-                               skipped_reason=None if labels else "Khong co claim")
+    return EvidenceCheckResult(claims=claims, counts=counts, skipped_reason=None if labels else "Khong co claim")
 
 
-def _checker(result=None, error: Exception = None):
+def _checker(result=None, error: Exception = None, delay: float = 0.0):
     calls = []
 
     def check(argument_text, motion, topic, settings):
-        calls.append((argument_text, motion, topic))
+        calls.append((argument_text, motion, topic, threading.current_thread().name))
+        time.sleep(delay)
         if error is not None:
             raise error
         return result
@@ -77,110 +74,177 @@ def _checker(result=None, error: Exception = None):
     return check
 
 
-def _old_prompt(req: ArgumentEvaluationRequest) -> tuple[str, str]:
-    return build_evaluation_prompt(req)
+def _evidence(result) -> int:
+    return next(c.score for c in result.criteria if c.name == "Evidence")
+
+
+def _rag(**overrides) -> Settings:
+    return Settings(rag_enabled=True, **overrides)
+
+
+# --------------------------------------------------------------------------- hanh vi cu
 
 
 @pytest.mark.parametrize(
-    "settings,topic",
-    [(Settings(rag_enabled=False), "environment"), (Settings(rag_enabled=True), None), (Settings(), None)],
+    "settings,topic", [(Settings(rag_enabled=False), "environment"), (_rag(), None), (Settings(), None)]
 )
 def test_without_rag_or_topic_prompt_and_result_are_unchanged(settings, topic):
     llm, checker = CapturingLLM(5), _checker(error=AssertionError("khong duoc goi"))
     req = _request(topic)
     result = evaluate_argument_with_evidence(req, settings, llm, checker)
 
-    assert llm.prompts == [_old_prompt(req)]
+    assert llm.prompts == [build_evaluation_prompt(req)]
     assert checker.calls == []
-    assert result.evidence_check is None
-    assert result.overall_score == 8.0  # 2 x 0.25 x (4 + 5 + 4 + 3), khong bi ha
+    assert result.evidence_check is None and result.overall_score == 8.0
 
 
 def test_topic_field_does_not_change_the_old_prompt():
-    with_topic = build_evaluation_prompt(_request("technology"))
-    without_topic = build_evaluation_prompt(_request(None))
-    assert with_topic == without_topic
+    assert build_evaluation_prompt(_request("technology")) == build_evaluation_prompt(_request(None))
 
 
-def test_pipeline_error_still_grades_with_old_prompt_and_reports_unavailable():
-    llm, checker = CapturingLLM(5), _checker(error=ConnectionError("DB tat"))
+@pytest.mark.parametrize("labels", [("CONTRADICTED", "SUPPORTED"), ("NOT_FOUND",), ()])
+def test_grading_prompt_never_contains_rag_results(labels):
+    llm = CapturingLLM(4)
     req = _request()
-    result = evaluate_argument_with_evidence(req, Settings(rag_enabled=True), llm, checker)
-
-    assert llm.prompts == [_old_prompt(req)]
-    assert result.evidence_check.status == "unavailable"
-    assert "ConnectionError" in result.evidence_check.error and "DB tat" in result.evidence_check.error
-    assert result.overall_score == 8.0
+    evaluate_argument_with_evidence(req, _rag(), llm, _checker(_check_result(*labels)))
+    assert llm.prompts == [build_evaluation_prompt(req)]
 
 
-def test_contradicted_with_evidence_five_is_capped_to_four_and_overall_recomputed():
+# --------------------------------------------------------------------------- luat dieu chinh
+
+
+@pytest.mark.parametrize("base", [1, 2, 3, 4, 5])
+@pytest.mark.parametrize("labels", [["NOT_FOUND"], ["NOT_FOUND"] * 5, ["NOT_FOUND", "SUPPORTED"], ["SUPPORTED"], []])
+@pytest.mark.parametrize("bonus", [False, True])
+def test_not_found_never_lowers_evidence(base, labels, bonus):
+    after, _ = adjust_evidence(base, labels, bonus)
+    assert after >= base
+
+
+@pytest.mark.parametrize(
+    "base,labels,expected",
+    [
+        (5, ["CONTRADICTED", "SUPPORTED", "SUPPORTED"], 3),   # 1/3 < nua: min(5,4) - 1
+        (5, ["CONTRADICTED", "SUPPORTED"], 2),                # 1/2 khong duoi nua: min(5,4) - 2
+        (3, ["CONTRADICTED", "NOT_FOUND", "NOT_FOUND"], 2),   # 3 - 1
+        (4, ["CONTRADICTED", "CONTRADICTED", "SUPPORTED"], 2),  # 2/3 >= nua: 4 - 2
+        (2, ["CONTRADICTED"], 1),                             # 2 - 2 -> san 1
+        (1, ["CONTRADICTED", "SUPPORTED", "SUPPORTED"], 1),   # san 1
+    ],
+)
+def test_contradicted_penalty_levels(base, labels, expected):
+    assert adjust_evidence(base, labels)[0] == expected
+
+
+@pytest.mark.parametrize(
+    "base,labels,bonus,expected",
+    [
+        (3, ["SUPPORTED", "NOT_FOUND"], True, 4),
+        (5, ["SUPPORTED"], True, 5),                          # toi da 5
+        (3, ["SUPPORTED", "NOT_FOUND", "NOT_FOUND"], True, 3),  # 1/3 < nua: khong thuong
+        (3, ["SUPPORTED", "NOT_FOUND"], False, 3),            # mac dinh tat thuong
+        (3, ["CONTRADICTED", "SUPPORTED", "SUPPORTED"], True, 2),  # co CONTRADICTED thi khong thuong
+    ],
+)
+def test_bonus_variant(base, labels, bonus, expected):
+    assert adjust_evidence(base, labels, bonus)[0] == expected
+
+
+def test_contradicted_adjusts_only_evidence_and_recomputes_overall():
     llm, checker = CapturingLLM(5), _checker(_check_result("CONTRADICTED", "SUPPORTED"))
-    result = evaluate_argument_with_evidence(_request(), Settings(rag_enabled=True), llm, checker)
+    result = evaluate_argument_with_evidence(_request(), _rag(), llm, checker)
 
-    evidence = next(c for c in result.criteria if c.name == "Evidence")
-    assert evidence.score == 4 and evidence.reasoning.endswith(CAP_NOTE)
-    assert result.overall_score == 7.5  # 2 x 0.25 x (4 + 4 + 4 + 3)
+    assert _evidence(result) == 2
+    assert {c.name: c.score for c in result.criteria if c.name != "Evidence"} == OTHERS
+    assert result.overall_score == 6.5  # 2 x 0.25 x (4 + 2 + 4 + 3)
     summary = result.evidence_check
-    assert (summary.status, summary.evidence_capped, summary.evidence_score_before_cap) == ("checked", True, 5)
-    assert summary.counts == {"SUPPORTED": 1, "CONTRADICTED": 1, "NOT_FOUND": 0}
-    assert checker.calls == [(ARGUMENT, "Hop tac quoc te giup xu ly o nhiem", "environment")]
+    assert (summary.status, summary.evidence_score_before, summary.evidence_score_after) == ("checked", 5, 2)
+    assert "CONTRADICTED" in summary.rule_applied and summary.version == EVIDENCE_CHECK_VERSION == "v2_code_adjust"
+    assert "[Điều chỉnh theo kiểm chứng số liệu: 5 -> 2." in next(c.reasoning for c in result.criteria if c.name == "Evidence")
 
 
-@pytest.mark.parametrize("evidence_score", [1, 3, 4])
-def test_contradicted_with_evidence_four_or_less_is_unchanged(evidence_score):
-    llm, checker = CapturingLLM(evidence_score), _checker(_check_result("CONTRADICTED"))
-    result = evaluate_argument_with_evidence(_request(), Settings(rag_enabled=True), llm, checker)
+@pytest.mark.parametrize("labels", [("SUPPORTED",), ("NOT_FOUND",), ("NOT_FOUND", "SUPPORTED"), ()])
+def test_other_criteria_and_evidence_unchanged_without_contradicted(labels):
+    off = evaluate_argument(_request(), Settings(), CapturingLLM(4))
+    on = evaluate_argument_with_evidence(_request(), _rag(), CapturingLLM(4), _checker(_check_result(*labels)))
 
-    assert next(c for c in result.criteria if c.name == "Evidence").score == evidence_score
-    assert result.evidence_check.evidence_capped is False
-    assert result.evidence_check.evidence_score_before_cap is None
-
-
-@pytest.mark.parametrize("labels", [("SUPPORTED",), ("NOT_FOUND", "SUPPORTED"), ()])
-def test_without_contradicted_evidence_five_is_kept(labels):
-    llm, checker = CapturingLLM(5), _checker(_check_result(*labels))
-    result = evaluate_argument_with_evidence(_request(), Settings(rag_enabled=True), llm, checker)
-
-    assert next(c for c in result.criteria if c.name == "Evidence").score == 5
-    assert result.overall_score == 8.0
-    assert result.evidence_check.evidence_capped is False
-    assert result.evidence_check.status == ("checked" if labels else "no_claims")
+    assert [(c.name, c.score) for c in on.criteria] == [(c.name, c.score) for c in off.criteria]
+    assert on.overall_score == off.overall_score
+    assert on.evidence_check.status == ("checked" if labels else "no_claims")
+    assert on.evidence_check.evidence_score_before == on.evidence_check.evidence_score_after == 4
 
 
-def test_checked_prompt_appends_block_with_labels_reasons_and_short_citations():
-    llm, checker = CapturingLLM(4), _checker(_check_result("CONTRADICTED", "NOT_FOUND"))
+def test_bonus_flag_from_settings():
+    result = evaluate_argument_with_evidence(_request(), _rag(rag_evidence_bonus=True), CapturingLLM(3),
+                                             _checker(_check_result("SUPPORTED")))
+    assert _evidence(result) == 4 and result.evidence_check.evidence_score_after == 4
+
+
+# --------------------------------------------------------------------------- feedback
+
+
+def test_contradicted_claims_are_added_to_suggestions_with_reason_and_source():
+    result = evaluate_argument_with_evidence(_request(), _rag(), CapturingLLM(4),
+                                             _checker(_check_result("CONTRADICTED", "NOT_FOUND", "SUPPORTED")))
+    assert result.suggestions[0] == "Goi y cu."
+    added = result.suggestions[1:]
+    assert len(added) == 1  # chi claim CONTRADICTED
+    assert '"claim 1"' in added[0] and "Nguon ghi so dung la 10." in added[0] and "Nguồn: Chinh Phu - https://vd." in added[0]
+    citation = result.evidence_check.claims[0].citations[0]
+    assert len(citation.content) == 300
+
+
+# --------------------------------------------------------------------------- RAG loi, timeout, song song
+
+
+def test_pipeline_error_keeps_base_score_and_reports_unavailable():
     req = _request()
-    result = evaluate_argument_with_evidence(req, Settings(rag_enabled=True), llm, checker)
+    llm = CapturingLLM(5)
+    result = evaluate_argument_with_evidence(req, _rag(), llm, _checker(error=ConnectionError("DB tat")))
 
-    old_system, old_user = _old_prompt(req)
-    [(system_prompt, user_prompt)] = llm.prompts
-    assert system_prompt == old_system  # chi them vao user prompt
-    assert user_prompt.startswith(old_user + "\n\n[KET QUA KIEM CHUNG SO LIEU]")
-    assert "Nhan: CONTRADICTED" in user_prompt and "Ly do: ly do 1" in user_prompt
-    assert "NOT_FOUND: KHONG coi la sai" in user_prompt
-    assert "CHI anh huong tieu chi Evidence" in user_prompt
-    assert "x" * 300 + " (nguon: Chinh Phu - https://vd)" in user_prompt and "x" * 301 not in user_prompt
-
-    claims = result.evidence_check.claims
-    assert [c.label for c in claims] == ["CONTRADICTED", "NOT_FOUND"]
-    assert len(claims[0].citations[0].content) == 300 and claims[0].citations[0].citation == "Chinh Phu - https://vd"
-    assert claims[1].citations == []  # NOT_FOUND khong trich fact nao
+    assert llm.prompts == [build_evaluation_prompt(req)]
+    assert _evidence(result) == 5 and result.overall_score == 8.0
+    summary = result.evidence_check
+    assert summary.status == "unavailable" and "ConnectionError: DB tat" in summary.error
+    assert summary.evidence_score_before == summary.evidence_score_after == 5
+    assert result.suggestions == ["Goi y cu."]
 
 
-def test_no_claims_prompt_block_says_grade_evidence_normally():
-    llm, checker = CapturingLLM(3), _checker(_check_result())
-    evaluate_argument_with_evidence(_request(), Settings(rag_enabled=True), llm, checker)
-    user_prompt = llm.prompts[0][1]
-    assert "khong co claim thuc chung" in user_prompt and "Danh gia Evidence nhu binh thuong" in user_prompt
+def test_timeout_keeps_base_score():
+    checker = _checker(_check_result("CONTRADICTED"), delay=1.0)
+    result = evaluate_argument_with_evidence(_request(), _rag(rag_check_timeout_seconds=0.1), CapturingLLM(5), checker)
+    assert result.evidence_check.status == "unavailable" and "Timeout" in result.evidence_check.error
+    assert _evidence(result) == 5
+
+
+def test_check_runs_in_parallel_with_grading():
+    checker = _checker(_check_result("CONTRADICTED"), delay=0.4)
+    started = time.perf_counter()
+    evaluate_argument_with_evidence(_request(), _rag(), CapturingLLM(5, delay=0.4), checker)
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 0.7  # tuan tu se mat >= 0.8 s
+    assert checker.calls[0][3].startswith("rag-check")
+
+
+def test_parallel_result_equals_sequential_computation():
+    labels = ("CONTRADICTED", "NOT_FOUND", "SUPPORTED")
+    parallel = evaluate_argument_with_evidence(_request(), _rag(), CapturingLLM(5), _checker(_check_result(*labels)))
+
+    sequential = evaluate_argument(_request(), Settings(), CapturingLLM(5))
+    summary = summarize(_check_result(*labels))
+    apply_adjustment(sequential, summary, bonus=False)
+    sequential.evidence_check = summary
+
+    assert parallel.model_dump(exclude={"raw_model_output"}) == sequential.model_dump(exclude={"raw_model_output"})
 
 
 def test_evaluate_endpoint_accepts_topic_and_rag_off_does_not_import_rag():
     code = (
-        "import sys, json; from fastapi.testclient import TestClient; from app.main import app; "
+        "import sys; from fastapi.testclient import TestClient; from app.main import app; "
         "r = TestClient(app).post('/evaluate', json={'motion': 'm', 'side': 'pro', 'argument_text': 'a', 'topic': 'bad'}); "
         "print(r.status_code, sorted(m for m in ('app.rag.pipeline', 'torch', 'psycopg') if m in sys.modules))"
     )
     output = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True,
-                            env={**__import__("os").environ, "RAG_ENABLED": "false", "EVAL_AUDIT_LOG_PATH": ""})
-    # topic sai gia tri -> 422 truoc khi goi LLM; khong module RAG nao bi nap
+                            env={**os.environ, "RAG_ENABLED": "false", "EVAL_AUDIT_LOG_PATH": ""})
     assert output.stdout.strip() == "422 []"

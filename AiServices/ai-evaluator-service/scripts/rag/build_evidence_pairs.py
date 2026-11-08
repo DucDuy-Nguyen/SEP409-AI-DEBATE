@@ -7,7 +7,8 @@ Hai buoc:
 2. `build`: doc 15 lap luan goc do Claude soan (docs/rag_eval/evidence_pairs_source.jsonl: argument_true, used_fact_ids,
    numbers = cac so lay tu fact can doi), kiem tra lai voi kho, roi sinh ban bia BANG SCRIPT: doi tung so +/-30-60%
    (lam tron theo do chinh xac cua so goc) hoac doi nam +/-2-5, phan con lai giu nguyen tung chu.
-   Ban bia phai khong mau thuan noi tai: nam moi <= 2025, giu thu tu truoc/sau giua cac nam trong cung lap luan, va
+   Ban bia phai khong mau thuan noi tai: nam moi <= 2025, giu thu tu truoc/sau giua cac nam trong cung lap luan,
+   so dung sau luong tu chan duoi ("hon", "tren", "ngoai") chi duoc tang (giam thi cau van dung), va
    thoa cac rang buoc khai bao trong `constraints` cua tung cap (vd "{16} >= {10}": so dien gia >= so quoc gia).
    Moi cap thu lan luot seed "42:<pair_id>:<lan thu>" den khi thoa (ghi lai `seed_attempt`).
    Ghi docs/rag_eval/evidence_pairs.jsonl.
@@ -43,6 +44,8 @@ MAX_ATTEMPTS = 1000
 # So kieu tieng Viet: 29.383 | 12.000 | 3,5 | 2023
 _NUMBER = re.compile(r"\d+(?:\.\d{3})*(?:,\d+)?")
 _YEAR = re.compile(r"(?:năm|nam)\s+$", re.IGNORECASE)
+# Luong tu chan duoi: "hon 60" giam thanh "hon 38" van la cau dung, nen so sau cac tu nay chi duoc tang
+_LOWER_BOUND = re.compile(r"(?:hơn|trên|ngoài)\s+$", re.IGNORECASE)
 
 
 def train_article_refs() -> set[str]:
@@ -120,7 +123,8 @@ def make_fake(argument: str, numbers: list[str], rng: random.Random) -> tuple[st
         is_year = is_year_context(argument, start, token)
         new = fake_number(token, rng, is_year, is_percent)
         replacements.append((start, end, new))
-        changes.append({"old": token, "new": new, "kind": "year" if is_year else "number"})
+        lower_bound = bool(_LOWER_BOUND.search(argument[:start]))
+        changes.append({"old": token, "new": new, "kind": "year" if is_year else "number", "lower_bound": lower_bound})
     fake = argument
     for start, end, new in sorted(replacements, reverse=True):
         fake = fake[:start] + new + fake[end:]
@@ -155,6 +159,11 @@ def violations(changes: list[dict], constraints: list[str]) -> list[str]:
         for old_b, new_b in years[i + 1:]:
             if (old_a > old_b) - (old_a < old_b) != (new_a > new_b) - (new_a < new_b):
                 problems.append(f"thu tu nam {old_a}/{old_b} thanh {new_a}/{new_b}")
+    problems += [
+        f"'hon/tren/ngoai {c['old']}' bi giam thanh {c['new']} (van dung)"
+        for c in changes
+        if c.get("lower_bound") and parse_vn_number(c["new"])[0] < parse_vn_number(c["old"])[0]
+    ]
     fake_values = {c["old"]: c["new"] for c in changes}
     problems += [f"vi pham '{c}'" for c in constraints if not evaluate_constraint(c, fake_values)]
     return problems

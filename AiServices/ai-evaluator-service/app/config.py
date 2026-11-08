@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     # Gioi han token rieng cho 1 lo verify (5 claim, moi claim tach chi tiet), tinh ca phan reasoning cua model.
     # llm_max_tokens chung (2000 trong .env) lam cat cut JSON giua chung (dev log muc 3.20).
     rag_verify_max_tokens: int = 6000
+    # Phuong an D (dev log muc 3.21): Evidence dieu chinh bang code. Bat co nay thi them +1 (toi da 5) khi khong co
+    # CONTRADICTED va it nhat nua so claim SUPPORTED. Mac dinh tat (de sau).
+    rag_evidence_bonus: bool = False
+    # Kiem chung chay song song voi luot cham; qua thoi gian nay thi giu diem goc, status "unavailable"
+    rag_check_timeout_seconds: float = 90.0
 
     # ---- App ----
     app_name: str = "ADPP AI Evaluator Service"

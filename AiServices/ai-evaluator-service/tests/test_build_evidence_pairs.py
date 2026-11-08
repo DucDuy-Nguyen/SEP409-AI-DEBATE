@@ -113,3 +113,15 @@ def test_power_operator_is_rejected():
 
     with pytest.raises(ValueError):
         evaluate_constraint("{9} ** {9} > 1", {"9": "9"})
+
+
+@pytest.mark.parametrize("quantifier", ["hơn", "trên", "ngoài", "Hơn"])
+def test_number_after_lower_bound_quantifier_is_only_increased(quantifier):
+    from build_evidence_pairs import generate_fake
+
+    argument = f"Có {quantifier} 60 Bộ trưởng và 90 nguyên thủ tham dự."
+    for pair_id in ("a", "b", "c", "d", "e"):
+        _, changes, _ = generate_fake(pair_id, argument, ["60", "90"], [])
+        lower, plain = changes
+        assert lower["lower_bound"] and int(lower["new"]) > 60
+        assert not plain["lower_bound"]

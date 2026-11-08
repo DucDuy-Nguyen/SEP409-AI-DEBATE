@@ -69,9 +69,10 @@ class CriterionScore(BaseModel):
     reasoning: str = Field(..., description="Giai thich TAI SAO cham diem nay — bat buoc, khong duoc de trong")
 
 
-# Phien ban cach dung ket qua kiem chung trong diem Evidence (docs/AI_DEVELOPMENT_LOG.md muc 3.21, phuong an C):
-# ket qua verify dua vao prompt + luat mem bang code (co CONTRADICTED thi Evidence khong duoc 5).
-EVIDENCE_CHECK_VERSION = "v1_soft_cap"
+# Phien ban cach dung ket qua kiem chung trong diem Evidence (docs/AI_DEVELOPMENT_LOG.md muc 3.21, phuong an D):
+# luot cham dung prompt cu (khong chen ket qua kiem chung), Evidence dieu chinh bang code theo so claim CONTRADICTED.
+# v1_soft_cap (phuong an C, prompt co khoi kiem chung) da bo.
+EVIDENCE_CHECK_VERSION = "v2_code_adjust"
 
 
 class EvidenceCitation(BaseModel):
@@ -93,10 +94,9 @@ class EvidenceCheckSummary(BaseModel):
     status: Literal["checked", "no_claims", "unavailable"]
     claims: list[EvidenceClaimSummary] = Field(default_factory=list)
     counts: dict[str, int] = Field(default_factory=dict)
-    evidence_capped: bool = Field(default=False, description="Luat mem da ha Evidence tu 5 xuong 4 vi co claim CONTRADICTED")
-    evidence_score_before_cap: Optional[int] = Field(
-        default=None, description="Diem Evidence LLM cho truoc khi ha (chi co khi evidence_capped)"
-    )
+    evidence_score_before: Optional[int] = Field(default=None, description="Diem Evidence LLM cho (luot cham khong co RAG)")
+    evidence_score_after: Optional[int] = Field(default=None, description="Diem Evidence sau khi code dieu chinh")
+    rule_applied: str = Field(default="", description="Mo ta luat dieu chinh da ap")
     error: Optional[str] = Field(default=None, description="Ly do khi status = unavailable")
     version: str = EVIDENCE_CHECK_VERSION
 

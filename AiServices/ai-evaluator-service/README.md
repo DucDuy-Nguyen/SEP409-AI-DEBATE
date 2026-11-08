@@ -232,13 +232,22 @@ thị cho learner**.
 **Kiểm chứng số liệu (RAG, thử nghiệm):** request có thể gửi thêm `topic`
 (`"education"`, `"environment"` hoặc `"technology"`). Khi service bật
 `RAG_ENABLED=true` và request có `topic`, service tách các claim thực chứng
-(số liệu, sự kiện), đối chiếu với kho fact rồi đưa kết quả vào prompt chấm. Kết
-quả đối chiếu chỉ ảnh hưởng tiêu chí `Evidence`. Thêm một luật bằng code: nếu có
-ít nhất một claim `CONTRADICTED` thì `Evidence` không được 5 (hạ về 4), và
-`overall_score` được tính lại. Không gửi `topic`, hoặc RAG tắt, thì chấm y như
-trước và `evidence_check` là `null`. Lỗi RAG (DB tắt, embed lỗi...) không làm
-hỏng lượt chấm: vẫn chấm như không có RAG, `evidence_check.status` là
-`"unavailable"`.
+(số liệu, sự kiện) và đối chiếu với kho fact, **song song** với lượt chấm. Lượt
+chấm dùng đúng prompt cũ, không chứa kết quả đối chiếu. Sau đó **code** điều
+chỉnh riêng tiêu chí `Evidence` (n = số claim đã kiểm, n_c = số `CONTRADICTED`):
+
+- Không có claim `CONTRADICTED`: giữ nguyên điểm. `NOT_FOUND` (kho không đủ để
+  kết luận) không bao giờ làm giảm điểm.
+- Có `CONTRADICTED`: `min(điểm gốc, 4) - 1` nếu n_c < n/2, ngược lại `- 2`;
+  tối thiểu 1.
+
+4 tiêu chí còn lại giữ nguyên, `overall_score` được tính lại. Mỗi claim
+`CONTRADICTED` được thêm vào `suggestions`, kèm lý do và nguồn. Không gửi
+`topic`, hoặc RAG tắt, thì chấm y như trước và `evidence_check` là `null`. Lỗi
+RAG (DB tắt, embed lỗi, quá `RAG_CHECK_TIMEOUT_SECONDS`) không làm hỏng lượt
+chấm: giữ điểm gốc, `evidence_check.status` là `"unavailable"`.
+`RAG_EVIDENCE_BONUS=true` bật thêm +1 khi không có `CONTRADICTED` và ít nhất
+một nửa số claim `SUPPORTED` (mặc định tắt).
 
 ```json
 {
@@ -263,15 +272,16 @@ Response có thêm:
     }
   ],
   "counts": {"SUPPORTED": 1, "CONTRADICTED": 0, "NOT_FOUND": 0},
-  "evidence_capped": false,
-  "evidence_score_before_cap": null,
+  "evidence_score_before": 4,
+  "evidence_score_after": 4,
+  "rule_applied": "Không có claim CONTRADICTED (1 claim đã kiểm): giữ nguyên điểm Evidence.",
   "error": null,
-  "version": "v1_soft_cap"
+  "version": "v2_code_adjust"
 }
 ```
 
 `status`: `"checked"` (có claim đã kiểm chứng), `"no_claims"` (lập luận không có
-claim thực chứng, chấm Evidence như bình thường) hoặc `"unavailable"` (RAG lỗi,
+claim thực chứng, giữ nguyên điểm Evidence) hoặc `"unavailable"` (RAG lỗi,
 xem `error`). `NOT_FOUND` nghĩa là kho fact không đủ để kết luận, không phải
 claim sai. Thiết kế ở `docs/AI_DEVELOPMENT_LOG.md` mục 3.21.
 
@@ -580,8 +590,8 @@ Luồng và kết quả ở `docs/AI_DEVELOPMENT_LOG.md` mục 3.21; field `topi
 ```bash
 python scripts/rag/build_evidence_pairs.py candidates --topic education   # fact có số liệu của bài train, để soạn lập luận
 python scripts/rag/build_evidence_pairs.py build     # sinh bản bịa bằng script -> docs/rag_eval/evidence_pairs.jsonl
-python scripts/rag/eval_evidence_pairs.py --limit 2  # chạy thử 2 cặp, in ước tính token (GỌI LLM THẬT)
-python scripts/rag/eval_evidence_pairs.py            # 60 lần chấm; bị ngắt thì --resume, chấm lại từ đầu thì --fresh
+python scripts/rag/eval_evidence_pairs.py --conditions rag_on --limit 2 --budget 300000  # chạy thử, ước tính token (GỌI LLM THẬT)
+python scripts/rag/eval_evidence_pairs.py --conditions rag_on  # chỉ RAG bật (điểm gốc nằm sẵn trong lượt chấm); --resume / --fresh
 ```
 
 Kết quả được ghi vào `data/results/` và chép sang `docs/rag_results/`; các lần
