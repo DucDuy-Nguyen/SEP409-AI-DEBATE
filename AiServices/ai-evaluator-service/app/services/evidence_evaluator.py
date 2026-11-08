@@ -7,10 +7,12 @@ Cham Argument co kiem chung so lieu bang RAG — phuong an D (docs/AI_DEVELOPMEN
 - Co topic + RAG bat: pipeline kiem chung (buoc 2) chay SONG SONG voi luot cham, roi CODE dieu chinh Evidence:
     n = so claim da kiem (S + C + N), n_c = so CONTRADICTED
     n_c = 0            -> giu nguyen (bien the co thuong, co rag_evidence_bonus: +1 neu n >= 1 va n_s >= n/2, toi da 5)
+    CONFLICTING (nguon chua thong nhat, muc 3.21.2) dem vao n nhung khong vao n_c: khong bao gio bi tru
     n_c >= 1           -> min(goc, 4) - (1 neu n_c < n/2, nguoc lai 2), toi thieu 1
   NOT_FOUND khong bao gio lam giam Evidence. 4 tieu chi con lai giu nguyen; overall tinh lai bang compute_weighted_score.
 - RAG loi hoac qua rag_check_timeout_seconds: giu diem goc, status "unavailable". Khong bao gio tra 5xx chi vi RAG.
-- Claim CONTRADICTED duoc them vao `suggestions` kem ly do + nguon cua verify (khong goi LLM them).
+- Claim CONTRADICTED duoc them vao `suggestions` kem ly do + nguon cua verify; claim CONFLICTING ghi "nguon chua thong
+  nhat" kem fact moi phia (khong goi LLM them).
 
 Tach khoi app/services/evaluator.py va app/prompts/evaluator_prompt.py de 2 file do (va config_hash cua
 scripts/config_fingerprint.py) giu nguyen tung byte.
@@ -38,6 +40,7 @@ EVIDENCE_CRITERION = "Evidence"
 MIN_SCORE, MAX_SCORE = 1, 5
 CONTRADICTED_CAP = 4  # Co CONTRADICTED thi tinh tu toi da 4 truoc khi tru
 CITATION_MAX_CHARS = 300
+SUGGESTION_SNIPPET_CHARS = 160  # Noi dung rut gon cua fact trong goi y CONFLICTING
 
 # (argument_text, motion, topic, settings) -> EvidenceCheckResult cua app/rag (kieu de lazy, tranh import RAG khi tat)
 EvidenceChecker = Callable[[str, str, str, Settings], object]
@@ -57,7 +60,10 @@ def summarize(result) -> EvidenceCheckSummary:
     for verification in result.claims:
         cited = {fact_id.lower() for fact_id in verification.fact_ids}
         citations = [
-            EvidenceCitation(fact_id=str(fact.fact_id), content=fact.content[:CITATION_MAX_CHARS], citation=fact.citation)
+            EvidenceCitation(
+                fact_id=str(fact.fact_id), content=fact.content[:CITATION_MAX_CHARS], citation=fact.citation,
+                stance=verification.fact_stances.get(str(fact.fact_id).lower()),
+            )
             for fact in verification.retrieved
             if str(fact.fact_id).lower() in cited
         ]
@@ -71,6 +77,7 @@ def summarize(result) -> EvidenceCheckSummary:
 
 def adjust_evidence(base: int, labels: list[str], bonus: bool = False) -> tuple[int, str]:
     """Diem Evidence moi va mo ta luat da ap. Ham thuan: NOT_FOUND khong bao gio lam giam diem."""
+    # CONFLICTING (nguon chua thong nhat) duoc dem vao n nhung khong vao n_c: khong bao gio bi tru
     n = len(labels)
     n_contradicted = labels.count("CONTRADICTED")
     n_supported = labels.count("SUPPORTED")
@@ -89,15 +96,31 @@ def adjust_evidence(base: int, labels: list[str], bonus: bool = False) -> tuple[
     )
 
 
+def _cite(citation: EvidenceCitation) -> str:
+    snippet = citation.content[:SUGGESTION_SNIPPET_CHARS].rstrip()
+    if len(citation.content) > SUGGESTION_SNIPPET_CHARS:
+        snippet += "..."
+    return f"\"{snippet}\"" + (f" ({citation.citation})" if citation.citation else "")
+
+
 def contradiction_suggestions(summary: EvidenceCheckSummary) -> list[str]:
-    """Goi y sua so lieu cho tung claim CONTRADICTED, lay tu ly do + nguon cua verify (khong goi LLM)."""
+    """
+    Goi y cho claim CONTRADICTED (sua so lieu theo nguon) va CONFLICTING (nguon chua thong nhat, kem fact moi phia),
+    lay tu ly do + fact cua verify, khong goi LLM.
+    """
     suggestions = []
     for claim in summary.claims:
-        if claim.label != "CONTRADICTED":
-            continue
-        sources = "; ".join(dict.fromkeys(c.citation for c in claim.citations if c.citation))
-        text = f"Kiểm tra lại số liệu: \"{claim.claim}\" mâu thuẫn với nguồn. {claim.reason}"
-        suggestions.append(text + (f" Nguồn: {sources}." if sources else ""))
+        if claim.label == "CONTRADICTED":
+            sources = "; ".join(dict.fromkeys(c.citation for c in claim.citations if c.citation))
+            text = f"Kiểm tra lại số liệu: \"{claim.claim}\" mâu thuẫn với nguồn. {claim.reason}"
+            suggestions.append(text + (f" Nguồn: {sources}." if sources else ""))
+        elif claim.label == "CONFLICTING":
+            supports = "; ".join(_cite(c) for c in claim.citations if c.stance == "supports")
+            contradicts = "; ".join(_cite(c) for c in claim.citations if c.stance == "contradicts")
+            suggestions.append(
+                f"Nguồn chưa thống nhất về \"{claim.claim}\" (không trừ điểm). "
+                f"Nguồn khớp: {supports}. Nguồn khác: {contradicts}. Nên nêu rõ nguồn mình dùng."
+            )
     return suggestions
 
 

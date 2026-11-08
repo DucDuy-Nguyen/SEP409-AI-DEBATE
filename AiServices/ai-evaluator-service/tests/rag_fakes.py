@@ -40,15 +40,21 @@ def fid(n: int) -> str:
 
 
 def verdict(
-    index: int, label: str, fact_ids=(), reason: str = "Fact xác nhận số liệu.", details=None, unsupported=()
+    index: int, label: str, fact_ids=(), reason: str = "Fact xác nhận số liệu.", details=None, unsupported=(),
+    stances=None,
 ) -> dict:
-    """Mac dinh: 1 chi tiet nam trong chinh cac fact_ids cua claim, khong co chi tiet thieu."""
+    """
+    Mac dinh: 1 chi tiet nam trong chinh cac fact_ids cua claim, khong co chi tiet thieu. stance mac dinh theo nhan
+    (CONTRADICTED -> contradicts, con lai -> supports); `stances` = {fact_id: stance} de ghi de.
+    """
     if details is None:
         details = [{"detail": "chi tiết chính", "fact_ids": list(fact_ids)}] if fact_ids else []
+    default = "contradicts" if label.upper() == "CONTRADICTED" else "supports"
+    stances = stances or {}
     return {
         "claim_index": index,
         "label": label,
-        "fact_ids": list(fact_ids),
+        "cited_facts": [{"fact_id": fact_id, "stance": stances.get(fact_id, default)} for fact_id in fact_ids],
         "reason": reason,
         "details": details,
         "unsupported_details": list(unsupported),

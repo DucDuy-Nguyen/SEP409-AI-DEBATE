@@ -60,7 +60,7 @@ def test_pipeline_with_no_claims_skips_verify():
                                      Settings(), llm, _ExplodingStore(), object())
     assert llm.calls == 1  # chi lan tach claim
     assert result.claims == [] and result.skipped_reason == pipeline.NO_CLAIM_REASON
-    assert result.counts == {"SUPPORTED": 0, "CONTRADICTED": 0, "NOT_FOUND": 0}
+    assert result.counts == {"SUPPORTED": 0, "CONTRADICTED": 0, "NOT_FOUND": 0, "CONFLICTING": 0}
 
 
 def test_pipeline_with_blank_argument_calls_nothing():
@@ -83,7 +83,7 @@ def test_pipeline_verifies_extracted_claims_and_counts_labels(monkeypatch):
     result = pipeline.check_evidence("Lap luan.", "Kien nghi", "technology", Settings(), llm)
 
     assert seen == {"claims": ["Claim so 1.", "Claim so 2."], "topic": "technology"}
-    assert result.counts == {"SUPPORTED": 1, "CONTRADICTED": 0, "NOT_FOUND": 1}
+    assert result.counts == {"SUPPORTED": 1, "CONTRADICTED": 0, "NOT_FOUND": 1, "CONFLICTING": 0}
     assert [c.label for c in result.claims] == [VerdictLabel.SUPPORTED, VerdictLabel.NOT_FOUND]
     assert result.skipped_reason is None
 

@@ -42,6 +42,10 @@ DOCS_RESULTS_DIR = SERVICE_DIR / "docs" / "rag_results"
 
 LABELS = ("SUPPORTED", "CONTRADICTED", "NOT_FOUND")
 ERROR_LABEL = "ERROR"  # Lo verify loi sau khi da retry: khong tinh la du doan nao
+# Nhan chi do code gan (muc 3.21.2): ViFactCheck khong co nhan tuong ung, nen KHONG gop vao 3 nhan khi so,
+# dem rieng va loai khoi accuracy / F1 / false_contradiction
+CONFLICTING_LABEL = "CONFLICTING"
+EXTRA_COLUMNS = (CONFLICTING_LABEL, ERROR_LABEL)
 # Ke hoach day du cua spec: in_kb retrieve + in_kb oracle + out_of_kb, dung de uoc tinh tong token
 FULL_PLAN_CLAIMS = 150 + 150 + 50
 TOKEN_BUDGET = 300_000
@@ -115,15 +119,20 @@ def append_checkpoint(path: Path, predictions: list[dict], stats: LLMCallStats) 
 
 
 def classification_metrics(pairs: list[tuple[str, str]]) -> dict:
-    """pairs = (nhan dung, nhan du doan). Du doan ERROR tinh la sai, khong cong vao cot nao cua confusion."""
-    confusion = {gold: {pred: 0 for pred in LABELS + (ERROR_LABEL,)} for gold in LABELS}
+    """
+    pairs = (nhan dung, nhan du doan). Du doan ERROR tinh la sai. Du doan CONFLICTING hien o cot rieng cua confusion
+    nhung bi loai khoi accuracy / F1 (khong so duoc voi nhan ViFactCheck); so luong o `conflicting`.
+    """
+    confusion = {gold: {pred: 0 for pred in LABELS + EXTRA_COLUMNS} for gold in LABELS}
     for gold, pred in pairs:
         confusion[gold][pred] += 1
+    conflicting = {gold: confusion[gold][CONFLICTING_LABEL] for gold in LABELS}
+    pairs = [(gold, pred) for gold, pred in pairs if pred != CONFLICTING_LABEL]
     per_label = {}
     for label in LABELS:
         tp = confusion[label][label]
         predicted = sum(confusion[gold][label] for gold in LABELS)
-        actual = sum(confusion[label].values())
+        actual = sum(confusion[label].values()) - confusion[label][CONFLICTING_LABEL]
         precision = tp / predicted if predicted else 0.0
         recall = tp / actual if actual else 0.0
         f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
@@ -135,21 +144,23 @@ def classification_metrics(pairs: list[tuple[str, str]]) -> dict:
         "macro_f1": sum(per_label[label]["f1"] for label in present) / len(present) if present else 0.0,
         "per_label": per_label,
         "confusion": confusion,
+        "conflicting": {"total": sum(conflicting.values()), "by_gold": conflicting},
     }
 
 
 def false_contradiction(pairs: list[tuple[str, str]]) -> dict:
-    eligible = [pred for gold, pred in pairs if gold in ("SUPPORTED", "NOT_FOUND")]
+    eligible = [pred for gold, pred in pairs if gold in ("SUPPORTED", "NOT_FOUND") and pred != CONFLICTING_LABEL]
     wrong = sum(pred == "CONTRADICTED" for pred in eligible)
     return {"count": wrong, "eligible": len(eligible), "rate": wrong / len(eligible) if eligible else 0.0}
 
 
 def _print_metrics(name: str, metrics: dict) -> None:
     f1 = " ".join(f"{label}={metrics['per_label'][label]['f1']:.3f}" for label in LABELS)
-    print(f"\n### {name}: n={metrics['n']} accuracy={metrics['accuracy']:.3f} macro_f1={metrics['macro_f1']:.3f} | F1 {f1}")
-    print("dung \\ du doan | " + " | ".join(LABELS + (ERROR_LABEL,)))
+    print(f"\n### {name}: n={metrics['n']} (khong tinh CONFLICTING) accuracy={metrics['accuracy']:.3f} "
+          f"macro_f1={metrics['macro_f1']:.3f} | F1 {f1} | CONFLICTING {metrics['conflicting']}")
+    print("dung \\ du doan | " + " | ".join(LABELS + EXTRA_COLUMNS))
     for gold in LABELS:
-        print(f"{gold} | " + " | ".join(str(metrics["confusion"][gold][pred]) for pred in LABELS + (ERROR_LABEL,)))
+        print(f"{gold} | " + " | ".join(str(metrics["confusion"][gold][pred]) for pred in LABELS + EXTRA_COLUMNS))
 
 
 def main() -> None:
@@ -184,7 +195,7 @@ def main() -> None:
         try:
             results = verify_with_facts([row["claim"] for row in batch_rows], [facts for _, facts in batch], stats=stats)
             batch_predictions = [
-                {**row, "predicted": result.label.value, "fact_ids": result.fact_ids,
+                {**row, "predicted": result.label.value, "fact_ids": result.fact_ids, "fact_stances": result.fact_stances,
                  "reason": result.reason, "coerced": result.coerced,
                  "downgraded": result.downgraded,
                  "unsupported_details": result.unsupported_details,
@@ -225,7 +236,8 @@ def main() -> None:
             _print_metrics(f"in_kb {name}", metrics)
 
     if out_kb:
-        wrong = [p for p in out_kb if p["predicted"] != "NOT_FOUND"]
+        # out_of_kb khong co bai goc trong kho: CONFLICTING dem rieng, khong tinh la sai
+        wrong = [p for p in out_kb if p["predicted"] not in ("NOT_FOUND", CONFLICTING_LABEL)]
         report["out_of_kb"] = {
             "n": len(out_kb),
             "not_found_rate": sum(p["predicted"] == "NOT_FOUND" for p in out_kb) / len(out_kb),

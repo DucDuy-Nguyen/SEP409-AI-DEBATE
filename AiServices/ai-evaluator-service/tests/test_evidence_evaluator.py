@@ -159,7 +159,7 @@ def test_contradicted_adjusts_only_evidence_and_recomputes_overall():
     assert result.overall_score == 6.5  # 2 x 0.25 x (4 + 2 + 4 + 3)
     summary = result.evidence_check
     assert (summary.status, summary.evidence_score_before, summary.evidence_score_after) == ("checked", 5, 2)
-    assert "CONTRADICTED" in summary.rule_applied and summary.version == EVIDENCE_CHECK_VERSION == "v2_code_adjust"
+    assert "CONTRADICTED" in summary.rule_applied and summary.version == EVIDENCE_CHECK_VERSION == "v3_conflicting"
     assert "[Điều chỉnh theo kiểm chứng số liệu: 5 -> 2." in next(c.reasoning for c in result.criteria if c.name == "Evidence")
 
 
@@ -248,3 +248,45 @@ def test_evaluate_endpoint_accepts_topic_and_rag_off_does_not_import_rag():
     output = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True,
                             env={**os.environ, "RAG_ENABLED": "false", "EVAL_AUDIT_LOG_PATH": ""})
     assert output.stdout.strip() == "422 []"
+
+
+# --------------------------------------------------------------------------- CONFLICTING (muc 3.21.2)
+
+
+def _conflicting_result(*labels: str) -> EvidenceCheckResult:
+    """Nhu _check_result nhung claim CONFLICTING co 2 fact: 1 supports, 1 contradicts."""
+    base = _check_result(*[("SUPPORTED" if label == "CONFLICTING" else label) for label in labels])
+    for claim, label in zip(base.claims, labels):
+        if label == "CONFLICTING":
+            other = RetrievedFact(fact_id=UUID(int=900), content="y" * 50, citation="Bao khac - https://khac", score=0.8)
+            claim.label = VerdictLabel.CONFLICTING
+            claim.retrieved = claim.retrieved + [other]
+            claim.fact_ids = claim.fact_ids + [str(other.fact_id)]
+            claim.fact_stances = {claim.fact_ids[0]: "supports", str(other.fact_id): "contradicts"}
+    base.counts = {label.value: [l for l in labels].count(label.value) for label in VerdictLabel}
+    return base
+
+
+@pytest.mark.parametrize("base", [1, 3, 5])
+@pytest.mark.parametrize("labels", [["CONFLICTING"], ["CONFLICTING", "NOT_FOUND"], ["CONFLICTING"] * 3 + ["NOT_FOUND"]])
+def test_conflicting_and_not_found_never_lower_evidence(base, labels):
+    assert adjust_evidence(base, labels)[0] == base
+
+
+def test_conflicting_counts_in_n_but_not_in_n_c():
+    # 1 CONTRADICTED tren 3 claim (1 la CONFLICTING): 1 < 3/2 nen tru 1, khong phai tru 2
+    assert adjust_evidence(5, ["CONTRADICTED", "CONFLICTING", "SUPPORTED"])[0] == 3
+    # Khong co CONFLICTING trong n thi 1/2 -> tru 2
+    assert adjust_evidence(5, ["CONTRADICTED", "SUPPORTED"])[0] == 2
+
+
+def test_conflicting_feedback_lists_both_sides_with_sources():
+    result = evaluate_argument_with_evidence(_request(), _rag(), CapturingLLM(4), _checker(_conflicting_result("CONFLICTING")))
+    assert _evidence(result) == 4
+    [added] = result.suggestions[1:]
+    assert added.startswith('Nguồn chưa thống nhất về "claim 1" (không trừ điểm).')
+    assert "Nguồn khớp: \"" in added and "(Chinh Phu - https://vd)" in added
+    assert "Nguồn khác: \"" + "y" * 50 + "\" (Bao khac - https://khac)" in added
+    citations = result.evidence_check.claims[0].citations
+    assert {c.stance for c in citations} == {"supports", "contradicts"}
+    assert result.evidence_check.claims[0].label == "CONFLICTING"

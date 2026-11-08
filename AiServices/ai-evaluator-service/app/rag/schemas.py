@@ -56,6 +56,8 @@ class VerdictLabel(str, Enum):
     CONTRADICTED = "CONTRADICTED"
     # Kho fact khong du de ket luan; KHONG co nghia la claim sai
     NOT_FOUND = "NOT_FOUND"
+    # CHI do code gan: claim co it nhat 1 fact supports VA it nhat 1 fact contradicts (nguon trong kho chua thong nhat)
+    CONFLICTING = "CONFLICTING"
 
 
 class ClaimDetail(BaseModel):
@@ -77,6 +79,8 @@ class ClaimVerification(BaseModel):
     unsupported_details: list[str] = Field(default_factory=list)
     # True khi LLM tra SUPPORTED nhung con chi tiet khong co trong fact -> ha xuong NOT_FOUND
     downgraded: bool = False
+    # Lap truong cua tung fact da trich (chi fact_id hop le): "supports" | "contradicts"
+    fact_stances: dict[str, str] = Field(default_factory=dict)
     retrieved: list[RetrievedFact] = Field(default_factory=list)
 
 

@@ -71,19 +71,21 @@ class CriterionScore(BaseModel):
 
 # Phien ban cach dung ket qua kiem chung trong diem Evidence (docs/AI_DEVELOPMENT_LOG.md muc 3.21, phuong an D):
 # luot cham dung prompt cu (khong chen ket qua kiem chung), Evidence dieu chinh bang code theo so claim CONTRADICTED.
-# v1_soft_cap (phuong an C, prompt co khoi kiem chung) da bo.
-EVIDENCE_CHECK_VERSION = "v2_code_adjust"
+# v1_soft_cap (phuong an C, prompt co khoi kiem chung) da bo. v3: them nhan CONFLICTING (nguon trong kho chua thong nhat),
+# khong tru diem (muc 3.21.2).
+EVIDENCE_CHECK_VERSION = "v3_conflicting"
 
 
 class EvidenceCitation(BaseModel):
     fact_id: str
     content: str = Field(..., description="Noi dung fact rut gon toi da 300 ky tu")
     citation: Optional[str] = Field(default=None, description="Nguon cua fact (vd tac gia - url)")
+    stance: Optional[Literal["supports", "contradicts"]] = Field(default=None, description="Fact xac nhan hay noi trai claim")
 
 
 class EvidenceClaimSummary(BaseModel):
     claim: str
-    label: Literal["SUPPORTED", "CONTRADICTED", "NOT_FOUND"]
+    label: Literal["SUPPORTED", "CONTRADICTED", "NOT_FOUND", "CONFLICTING"]
     reason: str
     citations: list[EvidenceCitation] = Field(default_factory=list)
 

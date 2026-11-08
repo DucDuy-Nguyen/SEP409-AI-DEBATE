@@ -237,12 +237,15 @@ chấm dùng đúng prompt cũ, không chứa kết quả đối chiếu. Sau đ
 chỉnh riêng tiêu chí `Evidence` (n = số claim đã kiểm, n_c = số `CONTRADICTED`):
 
 - Không có claim `CONTRADICTED`: giữ nguyên điểm. `NOT_FOUND` (kho không đủ để
-  kết luận) không bao giờ làm giảm điểm.
+  kết luận) và `CONFLICTING` (trong kho có fact xác nhận lẫn fact nói trái, tức
+  nguồn chưa thống nhất) không bao giờ làm giảm điểm; `CONFLICTING` do code gán
+  từ `stance` của từng fact.
 - Có `CONTRADICTED`: `min(điểm gốc, 4) - 1` nếu n_c < n/2, ngược lại `- 2`;
   tối thiểu 1.
 
 4 tiêu chí còn lại giữ nguyên, `overall_score` được tính lại. Mỗi claim
-`CONTRADICTED` được thêm vào `suggestions`, kèm lý do và nguồn. Không gửi
+`CONTRADICTED` được thêm vào `suggestions`, kèm lý do và nguồn; claim
+`CONFLICTING` được ghi "nguồn chưa thống nhất" kèm fact của mỗi phía. Không gửi
 `topic`, hoặc RAG tắt, thì chấm y như trước và `evidence_check` là `null`. Lỗi
 RAG (DB tắt, embed lỗi, quá `RAG_CHECK_TIMEOUT_SECONDS`) không làm hỏng lượt
 chấm: giữ điểm gốc, `evidence_check.status` là `"unavailable"`.
@@ -268,7 +271,7 @@ Response có thêm:
       "claim": "USAID đã bàn giao 29.383 mét vuông đất đã xử lý dioxin tại sân bay Biên Hòa.",
       "label": "SUPPORTED",
       "reason": "Fact nêu đúng diện tích và địa điểm.",
-      "citations": [{"fact_id": "...", "content": "... (tối đa 300 ký tự)", "citation": "Chính Phủ - https://..."}]
+      "citations": [{"fact_id": "...", "content": "... (tối đa 300 ký tự)", "citation": "Chính Phủ - https://...", "stance": "supports"}]
     }
   ],
   "counts": {"SUPPORTED": 1, "CONTRADICTED": 0, "NOT_FOUND": 0},
@@ -276,7 +279,7 @@ Response có thêm:
   "evidence_score_after": 4,
   "rule_applied": "Không có claim CONTRADICTED (1 claim đã kiểm): giữ nguyên điểm Evidence.",
   "error": null,
-  "version": "v2_code_adjust"
+  "version": "v3_conflicting"
 }
 ```
 
@@ -592,6 +595,8 @@ python scripts/rag/build_evidence_pairs.py candidates --topic education   # fact
 python scripts/rag/build_evidence_pairs.py build     # sinh bản bịa bằng script -> docs/rag_eval/evidence_pairs.jsonl
 python scripts/rag/eval_evidence_pairs.py --conditions rag_on --limit 2 --budget 300000  # chạy thử, ước tính token (GỌI LLM THẬT)
 python scripts/rag/eval_evidence_pairs.py --conditions rag_on  # chỉ RAG bật (điểm gốc nằm sẵn trong lượt chấm); --resume / --fresh
+python scripts/rag/eval_evidence_stability.py --estimate       # ước tính token cho đợt lặp kiểm chứng
+python scripts/rag/eval_evidence_stability.py --runs 2         # lặp tách claim + verify, áp luật offline trên điểm gốc của lần chạy D
 ```
 
 Kết quả được ghi vào `data/results/` và chép sang `docs/rag_results/`; các lần

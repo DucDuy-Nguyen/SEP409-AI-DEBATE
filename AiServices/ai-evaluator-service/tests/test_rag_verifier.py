@@ -249,3 +249,57 @@ def test_rejected_call_is_counted_as_a_retry_without_usage():
     verify_with_facts(["claim A"], [[fact(1)]], llm_client=llm, stats=stats)
     assert (stats.requests, stats.llm_calls, stats.retries, stats.calls_without_usage) == (1, 2, 1, 1)
     assert stats.prompt_tokens == 100
+
+
+# --------------------------------------------------------------------------- CONFLICTING (muc 3.21.2)
+
+
+@pytest.mark.parametrize("llm_label", ["SUPPORTED", "CONTRADICTED", "NOT_FOUND"])
+def test_supports_and_contradicts_facts_make_conflicting_whatever_llm_label(llm_label):
+    item = verdict(1, llm_label, [fid(1), fid(2)], stances={fid(1): "supports", fid(2): "contradicts"})
+    result, stats = _verify_item(item)
+    assert result.label == VerdictLabel.CONFLICTING
+    assert result.fact_stances == {fid(1): "supports", fid(2): "contradicts"}
+    assert (result.coerced, result.downgraded) == (False, False)
+
+
+def test_unknown_fact_id_cannot_create_a_fake_conflict():
+    # fid(99) khong nam trong fact cua claim: bi loai truoc khi xet CONFLICTING
+    item = verdict(1, "SUPPORTED", [fid(1), fid(99)], stances={fid(1): "supports", fid(99): "contradicts"})
+    result, _ = _verify_item(item)
+    assert result.label == VerdictLabel.NOT_FOUND and result.coerced is True  # id la -> ep NOT_FOUND nhu cu
+    assert result.fact_stances == {fid(1): "supports"}
+
+
+def test_same_stance_on_all_facts_is_not_conflicting():
+    result, _ = _verify_item(verdict(1, "CONTRADICTED", [fid(1), fid(2)]))
+    assert result.label == VerdictLabel.CONTRADICTED
+
+
+def test_llm_cannot_assign_conflicting_by_itself():
+    result, _ = _verify_item(verdict(1, "CONFLICTING", [fid(1)], stances={fid(1): "supports"}))
+    assert (result.label, result.coerced) == (VerdictLabel.NOT_FOUND, True)
+
+
+@pytest.mark.parametrize("bad_stance", ["maybe", "", None])
+def test_invalid_stance_is_retried(bad_stance):
+    bad = verdict(1, "SUPPORTED", [fid(1)])
+    bad["cited_facts"][0]["stance"] = bad_stance
+    llm = ScriptedLLM({"results": [bad]}, {"results": [verdict(1, "SUPPORTED", [fid(1)])]})
+    [result] = verify_with_facts(["claim A"], [[fact(1)]], llm_client=llm)
+    assert result.label == VerdictLabel.SUPPORTED and llm.calls == 2
+
+
+def test_prompt_asks_for_stance_per_cited_fact():
+    llm = ScriptedLLM({"results": [verdict(1, "NOT_FOUND")]})
+    verify_with_facts(["claim A"], [[fact(1)]], llm_client=llm)
+    assert '"cited_facts": [{"fact_id": "<fact_id>", "stance": "supports"}]' in llm.system_prompts[0]
+    assert '"contradicts"' in llm.system_prompts[0]
+
+
+def test_same_fact_with_two_stances_is_retried():
+    bad = verdict(1, "SUPPORTED", [fid(1)])
+    bad["cited_facts"].append({"fact_id": fid(1), "stance": "contradicts"})
+    llm = ScriptedLLM({"results": [bad]}, {"results": [verdict(1, "SUPPORTED", [fid(1)])]})
+    [result] = verify_with_facts(["claim A"], [[fact(1)]], llm_client=llm)
+    assert result.label == VerdictLabel.SUPPORTED and llm.calls == 2

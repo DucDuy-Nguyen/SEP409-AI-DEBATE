@@ -53,8 +53,10 @@ Hay gan nhan cho tung claim CHI DUA TREN CAC FACT DUOC DUA VAO CUA CHINH CLAIM D
 
 [QUY TAC BAT BUOC]
 - KHONG dung kien thuc rieng cua ban, ke ca khi ban biet claim dung hay sai. Fact khong noi toi thi coi nhu khong biet.
-- fact_ids CHI duoc chua fact_id xuat hien trong danh sach fact cua chinh claim do, chep dung tung ky tu.
-- SUPPORTED va CONTRADICTED bat buoc co it nhat 1 fact_id lam bang chung.
+- fact_id CHI duoc lay tu danh sach fact cua chinh claim do, chep dung tung ky tu.
+- SUPPORTED va CONTRADICTED bat buoc co it nhat 1 fact trong "cited_facts" lam bang chung.
+- Moi fact trong "cited_facts" ghi "stance": "supports" (fact xac nhan claim) hoac "contradicts" (fact noi trai claim).
+  Ghi dung lap truong cua TUNG fact, ke ca khi cac fact noi khac nhau.
 
 [CACH LAM CHO TUNG CLAIM]
 1. Tach claim thanh cac chi tiet: chu the, con so, thoi gian, dia diem, ten rieng, quan he nhan qua.
@@ -78,7 +80,8 @@ Hay gan nhan cho tung claim CHI DUA TREN CAC FACT DUOC DUA VAO CUA CHINH CLAIM D
 {"results": [{"claim_index": 1,
   "details": [{"detail": "<chi tiet>", "fact_ids": ["<fact_id>"]}],
   "unsupported_details": ["<chi tiet khong co trong fact nao>"],
-  "label": "SUPPORTED", "fact_ids": ["<fact_id>"], "reason": "..."}]}
+  "cited_facts": [{"fact_id": "<fact_id>", "stance": "supports"}],
+  "label": "SUPPORTED", "reason": "..."}]}
 """
 
 
