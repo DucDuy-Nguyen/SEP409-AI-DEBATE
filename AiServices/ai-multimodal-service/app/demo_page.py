@@ -648,22 +648,19 @@ DEMO_HTML = """<!DOCTYPE html>
       btn.disabled = true;
       setStatus('⏳ Đang gửi dữ liệu sang AI Evaluator để chấm điểm Nội dung + Phong thái...');
 
-      const turnData = lastMultimodalResult ? {
-        emotion_timeline: [
-          { time: 1.0, dominant: lastMultimodalResult.facial.dominant_emotion, scores: lastMultimodalResult.facial.emotion_pct, face_detected: true }
-        ],
-        total_frames_captured: lastMultimodalResult.facial.total_frames_analyzed || 1,
-        duration_seconds: lastMultimodalResult.voice.duration_seconds || 15.0,
+      const hasRecordedTurn = Boolean(lastMultimodalResult);
+      const turnData = hasRecordedTurn ? {
+        emotion_timeline: emotionTimeline,
+        total_frames_captured: lastMultimodalResult.facial.total_frames_analyzed,
+        duration_seconds: lastMultimodalResult.voice.duration_seconds,
         transcript_override: document.getElementById('transcriptInput').value,
-        include_report_chart: true
+        include_report_chart: false
       } : {
-        emotion_timeline: [
-          { time: 1.0, dominant: 'neutral', scores: { neutral: 80, happy: 15, surprise: 5 }, face_detected: true }
-        ],
-        total_frames_captured: 10,
-        duration_seconds: 15.0,
+        emotion_timeline: [],
+        total_frames_captured: 0,
+        duration_seconds: 0.0,
         transcript_override: document.getElementById('transcriptInput').value,
-        include_report_chart: true
+        include_report_chart: false
       };
 
       try {
@@ -675,11 +672,15 @@ DEMO_HTML = """<!DOCTYPE html>
             side: document.getElementById('side').value,
             stage: document.getElementById('stage').value,
             opponent_argument_text: document.getElementById('opponentText').value || null,
-            turn_data: turnData
+            turn_data: turnData,
+            existing_multimodal_result: lastMultimodalResult
           })
         });
         const data = await res.json();
-        renderMultimodalResult(data.multimodal);
+        if (!hasRecordedTurn) {
+          document.getElementById('voiceSummaryBox').innerHTML =
+            '<div style="color:var(--text-muted);">ℹ️ Bạn đang chấm điểm văn bản trực tiếp (không thu Camera/Mic ở Bước 1), nên Mục 3 giữ trống và hệ thống chỉ chấm Điểm Nội dung Lập luận ở Mục 4.</div>';
+        }
 
         const bodyEl = document.getElementById('contentEvalBody');
         if (data.content_evaluation) {

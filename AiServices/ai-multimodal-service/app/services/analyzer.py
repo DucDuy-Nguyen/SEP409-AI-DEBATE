@@ -475,9 +475,9 @@ def analyze_multimodal_turn(req: MultimodalTurnRequest) -> MultimodalTurnResult:
             else 100.0
         )
     else:
-        emotion_pct = {e: (100.0 if e == "neutral" else 0.0) for e in EMOTIONS}
-        dominant_overall = "neutral"
-        composure_score = 80.0  # Mac dinh khi khong bat cam hoac khong co mau
+        emotion_pct = {e: 0.0 for e in EMOTIONS}
+        dominant_overall = "none"
+        composure_score = 0.0
         eye_contact_rate = 0.0
 
     facial_metrics = FacialMetrics(

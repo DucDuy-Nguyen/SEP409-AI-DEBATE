@@ -130,6 +130,10 @@ class IntegratedDebateEvaluationRequest(BaseModel):
     stage: str = Field(default="rebuttal", description="opening, rebuttal, hoac closing")
     opponent_argument_text: Optional[str] = Field(default=None)
     turn_data: MultimodalTurnRequest
+    existing_multimodal_result: Optional[MultimodalTurnResult] = Field(
+        default=None,
+        description="Neu da phan tich xong o buoc /analyze-turn thi truyen nguyen ket qua sang de giu nguyen 100% cac chi so phong thai",
+    )
 
 
 class IntegratedDebateEvaluationResult(BaseModel):

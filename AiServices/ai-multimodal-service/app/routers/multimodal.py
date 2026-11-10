@@ -67,39 +67,43 @@ def _build_delivery_feedback_items(multimodal_res: MultimodalTurnResult) -> tupl
     f = multimodal_res.facial
     v = multimodal_res.voice
 
-    if f.composure_score >= 75:
-        strengths.append(
-            f"[Phong thái - DeepFace] Biểu cảm khuôn mặt rất điềm tĩnh và tự tin (Composure đạt {f.composure_score:.1f}%, cảm xúc chủ đạo: {f.dominant_emotion})."
-        )
-    else:
-        weaknesses.append(
-            f"[Phong thái - DeepFace] Biểu cảm khuôn mặt còn căng thẳng hoặc dao động (Composure: {f.composure_score:.1f}%, cảm xúc chủ đạo: {f.dominant_emotion})."
-        )
-        suggestions.append(
-            "[Phong thái] Giữ nét mặt bình tĩnh (neutral/happy) và hạn chế biểu cảm căng thẳng khi phản biện."
-        )
+    # Chi nhan xet khuon mat khi thuc su co du lieu frame tu Camera (total_frames_analyzed > 0)
+    if f.total_frames_analyzed > 0:
+        if f.composure_score >= 75:
+            strengths.append(
+                f"[Phong thái - DeepFace] Biểu cảm khuôn mặt rất điềm tĩnh và tự tin (Composure đạt {f.composure_score:.1f}%, cảm xúc chủ đạo: {f.dominant_emotion})."
+            )
+        else:
+            weaknesses.append(
+                f"[Phong thái - DeepFace] Biểu cảm khuôn mặt còn căng thẳng hoặc dao động (Composure: {f.composure_score:.1f}%, cảm xúc chủ đạo: {f.dominant_emotion})."
+            )
+            suggestions.append(
+                "[Phong thái] Giữ nét mặt bình tĩnh (neutral/happy) và hạn chế biểu cảm căng thẳng khi phản biện."
+            )
 
-    if f.eye_contact_rate >= 80:
-        strengths.append(f"[Tương tác mắt] Duy trì Eye Contact tốt với ống kính ({f.eye_contact_rate:.1f}%).")
-    elif f.total_frames_analyzed > 0:
-        weaknesses.append(f"[Tương tác mắt] Tỉ lệ nhìn thẳng vào camera còn thấp ({f.eye_contact_rate:.1f}%).")
-        suggestions.append("[Tương tác mắt] Hãy nhìn thẳng vào camera khi nhấn mạnh các luận điểm chính.")
+        if f.eye_contact_rate >= 80:
+            strengths.append(f"[Tương tác mắt] Duy trì Eye Contact tốt với ống kính ({f.eye_contact_rate:.1f}%).")
+        else:
+            weaknesses.append(f"[Tương tác mắt] Tỉ lệ nhìn thẳng vào camera còn thấp ({f.eye_contact_rate:.1f}%).")
+            suggestions.append("[Tương tác mắt] Hãy nhìn thẳng vào camera khi nhấn mạnh các luận điểm chính.")
 
-    if 110 <= v.wpm <= 170:
-        strengths.append(f"[Giọng nói - Whisper] Tốc độ nói đạt chuẩn tranh biện ({v.wpm:.1f} WPM — {v.pace_evaluation}).")
-    elif v.wpm > 170:
-        weaknesses.append(f"[Giọng nói - Whisper] Tốc độ nói hơi nhanh ({v.wpm:.1f} WPM), dễ làm giảm độ rõ của luận cứ.")
-        suggestions.append("[Giọng nói] Hạ nhịp độ nói về khoảng 120–160 WPM và ngắt nghỉ rõ sau mỗi luận điểm.")
-    elif v.word_count > 0:
-        weaknesses.append(f"[Giọng nói - Whisper] Tốc độ nói còn chậm/ngập ngừng ({v.wpm:.1f} WPM — {v.pace_evaluation}).")
-        suggestions.append("[Giọng nói] Tăng nhịp độ trình bày lên mức 110–160 WPM để tăng sức thuyết phục.")
+    # Chi nhan xet giong noi khi co thoi luong ghi am thuc te (duration_seconds > 0)
+    if v.duration_seconds > 0 and v.word_count > 0:
+        if 110 <= v.wpm <= 170:
+            strengths.append(f"[Giọng nói - Whisper] Tốc độ nói đạt chuẩn tranh biện ({v.wpm:.1f} WPM — {v.pace_evaluation}).")
+        elif v.wpm > 170:
+            weaknesses.append(f"[Giọng nói - Whisper] Tốc độ nói hơi nhanh ({v.wpm:.1f} WPM), dễ làm giảm độ rõ của luận cứ.")
+            suggestions.append("[Giọng nói] Hạ nhịp độ nói về khoảng 120–160 WPM và ngắt nghỉ rõ sau mỗi luận điểm.")
+        else:
+            weaknesses.append(f"[Giọng nói - Whisper] Tốc độ nói còn chậm/ngập ngừng ({v.wpm:.1f} WPM — {v.pace_evaluation}).")
+            suggestions.append("[Giọng nói] Tăng nhịp độ trình bày lên mức 110–160 WPM để tăng sức thuyết phục.")
 
-    if v.filler_count == 0 and v.word_count > 0:
-        strengths.append("[Độ trôi chảy] Phát biểu mạch lạc, không mắc từ đệm ngập ngừng (Fluency: 100/100).")
-    elif v.filler_count > 0:
-        filler_detail = ", ".join(f"'{k}' ({cnt} lần)" for k, cnt in v.filler_words_found.items())
-        weaknesses.append(f"[Độ trôi chảy] Xuất hiện {v.filler_count} từ đệm ngập ngừng ({filler_detail}).")
-        suggestions.append("[Độ trôi chảy] Thay vì phát âm từ đệm ('ờ', 'ừm', 'kiểu'), hãy dừng nghỉ 0.5 giây để lấy hơi.")
+        if v.filler_count == 0:
+            strengths.append("[Độ trôi chảy] Phát biểu mạch lạc, không mắc từ đệm ngập ngừng (Fluency: 100/100).")
+        elif v.filler_count > 0:
+            filler_detail = ", ".join(f"'{k}' ({cnt} lần)" for k, cnt in v.filler_words_found.items())
+            weaknesses.append(f"[Độ trôi chảy] Xuất hiện {v.filler_count} từ đệm ngập ngừng ({filler_detail}).")
+            suggestions.append("[Độ trôi chảy] Thay vì phát âm từ đệm ('ờ', 'ừm', 'kiểu'), hãy dừng nghỉ 0.5 giây để lấy hơi.")
 
     return strengths, weaknesses, suggestions
 
@@ -109,14 +113,21 @@ def evaluate_speech_endpoint(req: IntegratedDebateEvaluationRequest) -> Integrat
     """
     Pipeline tich hop:
     1. Phan tich Multimodal (DeepFace + Faster-Whisper) de trich xuat Transcript + Delivery Analytics
+       (Hoac giu nguyen existing_multimodal_result neu da phan tich xong o buoc /analyze-turn)
     2. Goi sang AI Evaluator Service (/evaluate) de cham diem noi dung lap luan (Logic, Evidence,
        Relevance, Structure, Persuasiveness) ket hop nhan xet phong thai.
     3. KHONG dung fallback gia lap: neu AI Evaluator loi thi tra ve evaluation_error ro rang.
     """
-    multimodal_res = analyze_multimodal_turn(req.turn_data)
-    arg_text = multimodal_res.voice.transcript_text.strip()
-    if not arg_text and req.turn_data.transcript_override:
+    if req.existing_multimodal_result is not None:
+        multimodal_res = req.existing_multimodal_result
+    else:
+        multimodal_res = analyze_multimodal_turn(req.turn_data)
+
+    arg_text = ""
+    if req.turn_data.transcript_override and req.turn_data.transcript_override.strip():
         arg_text = req.turn_data.transcript_override.strip()
+    elif multimodal_res.voice.transcript_text.strip():
+        arg_text = multimodal_res.voice.transcript_text.strip()
 
     if not arg_text:
         return IntegratedDebateEvaluationResult(
