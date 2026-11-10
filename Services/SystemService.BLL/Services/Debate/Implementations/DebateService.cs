@@ -1635,10 +1635,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
             }
 
             var motion = session.Topic?.Description ?? session.Topic?.Title ?? "Debate motion";
+            var evidenceTopic = MapEvidenceTopic(session.Topic?.Category);
             var sortedRounds = session.DebateRounds.OrderBy(r => r.RoundNumber).ToList();
 
-            var proRounds = new List<EvaluateRoundResponse>();
-            var conRounds = new List<EvaluateRoundResponse>();
+            // Goi tat ca round (moi round x moi phe) song song; task them theo thu tu round nen ket qua gom lai giu dung thu tu
+            var proRoundTasks = new List<Task<EvaluateRoundResponse?>>();
+            var conRoundTasks = new List<Task<EvaluateRoundResponse?>>();
 
             foreach (var round in sortedRounds)
             {
@@ -1661,12 +1663,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
                 if (proTurns.Any(t => t.Speaker == "learner"))
                 {
-                    var proRoundReq = new EvaluateRoundRequest(Motion: motion, Side: "pro", Stage: stageStr, Turns: proTurns);
-                    var proRoundRes = await _aiEvaluatorClient!.EvaluateRoundAsync(proRoundReq, cancellationToken);
-                    if (proRoundRes != null)
-                    {
-                        proRounds.Add(proRoundRes);
-                    }
+                    var proRoundReq = new EvaluateRoundRequest(
+                        Motion: motion, Side: "pro", Stage: stageStr, Turns: proTurns, Topic: evidenceTopic,
+                        CheckEvidence: !IsAiSide(roundArgs, isPro: true));
+                    proRoundTasks.Add(_aiEvaluatorClient!.EvaluateRoundAsync(proRoundReq, cancellationToken));
                 }
 
                 // Formulate turns for CON evaluation
@@ -1677,28 +1677,29 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
                 if (conTurns.Any(t => t.Speaker == "learner"))
                 {
-                    var conRoundReq = new EvaluateRoundRequest(Motion: motion, Side: "con", Stage: stageStr, Turns: conTurns);
-                    var conRoundRes = await _aiEvaluatorClient!.EvaluateRoundAsync(conRoundReq, cancellationToken);
-                    if (conRoundRes != null)
-                    {
-                        conRounds.Add(conRoundRes);
-                    }
+                    var conRoundReq = new EvaluateRoundRequest(
+                        Motion: motion, Side: "con", Stage: stageStr, Turns: conTurns, Topic: evidenceTopic,
+                        CheckEvidence: !IsAiSide(roundArgs, isPro: false));
+                    conRoundTasks.Add(_aiEvaluatorClient!.EvaluateRoundAsync(conRoundReq, cancellationToken));
                 }
             }
 
-            EvaluateSessionResponse? proSessionRes = null;
-            if (proRounds.Any())
-            {
-                var proSessionReq = new EvaluateSessionRequest(Motion: motion, Side: "pro", Rounds: proRounds);
-                proSessionRes = await _aiEvaluatorClient!.EvaluateSessionAsync(proSessionReq, cancellationToken);
-            }
+            // Nhu ban tuan tu: 1 round loi (exception) thi ca lan cham loi, khong luu judgement; response null bi bo qua
+            await Task.WhenAll(proRoundTasks.Concat(conRoundTasks));
+            var proRounds = proRoundTasks.Select(t => t.Result).OfType<EvaluateRoundResponse>().ToList();
+            var conRounds = conRoundTasks.Select(t => t.Result).OfType<EvaluateRoundResponse>().ToList();
+            LogUnavailableEvidenceChecks(sessionId, "pro", proRounds);
+            LogUnavailableEvidenceChecks(sessionId, "con", conRounds);
 
-            EvaluateSessionResponse? conSessionRes = null;
-            if (conRounds.Any())
-            {
-                var conSessionReq = new EvaluateSessionRequest(Motion: motion, Side: "con", Rounds: conRounds);
-                conSessionRes = await _aiEvaluatorClient!.EvaluateSessionAsync(conSessionReq, cancellationToken);
-            }
+            var proSessionTask = proRounds.Any()
+                ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "pro", Rounds: proRounds), cancellationToken)
+                : Task.FromResult<EvaluateSessionResponse?>(null);
+            var conSessionTask = conRounds.Any()
+                ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "con", Rounds: conRounds), cancellationToken)
+                : Task.FromResult<EvaluateSessionResponse?>(null);
+            await Task.WhenAll(proSessionTask, conSessionTask);
+            var proSessionRes = proSessionTask.Result;
+            var conSessionRes = conSessionTask.Result;
 
             decimal proScore = proSessionRes?.OverallScore ?? (proRounds.Any() ? proRounds.Average(r => r.RoundScore) : 0m);
             decimal conScore = conSessionRes?.OverallScore ?? (conRounds.Any() ? conRounds.Average(r => r.RoundScore) : 0m);
@@ -1791,17 +1792,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                                 Strengths = proSession.OverallStrengths ?? new(),
                                 Weaknesses = proSession.OverallWeaknesses ?? new(),
                                 Suggestions = proSession.OverallSuggestions ?? new(),
-                                RoundEvaluations = proRounds?.Select((r, idx) => new RoundEvaluationDetailDto
-                                {
-                                    RoundNumber = idx + 1,
-                                    Stage = r.Stage,
-                                    RoundScore = r.RoundScore,
-                                    ConsistencyNote = r.ConsistencyNote,
-                                    Criteria = r.Criteria ?? new(),
-                                    Strengths = r.Strengths ?? new(),
-                                    Weaknesses = r.Weaknesses ?? new(),
-                                    Suggestions = r.Suggestions ?? new()
-                                }).ToList() ?? new()
+                                RoundEvaluations = MapRoundDetails(proRounds)
                             };
                         }
                     }
@@ -1827,17 +1818,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                                 Strengths = conSession.OverallStrengths ?? new(),
                                 Weaknesses = conSession.OverallWeaknesses ?? new(),
                                 Suggestions = conSession.OverallSuggestions ?? new(),
-                                RoundEvaluations = conRounds?.Select((r, idx) => new RoundEvaluationDetailDto
-                                {
-                                    RoundNumber = idx + 1,
-                                    Stage = r.Stage,
-                                    RoundScore = r.RoundScore,
-                                    ConsistencyNote = r.ConsistencyNote,
-                                    Criteria = r.Criteria ?? new(),
-                                    Strengths = r.Strengths ?? new(),
-                                    Weaknesses = r.Weaknesses ?? new(),
-                                    Suggestions = r.Suggestions ?? new()
-                                }).ToList() ?? new()
+                                RoundEvaluations = MapRoundDetails(conRounds)
                             };
                         }
                     }
@@ -1866,6 +1847,94 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 EvaluatedAt = judgement.CreatedAt,
                 ProEvaluation = proEval,
                 ConEvaluation = conEval
+            };
+        }
+
+        private static readonly HashSet<string> EvidenceTopics = new() { "education", "environment", "technology", "society" };
+
+        // Topic.Category -> chu de kho fact cua AI Evaluator; khac 4 chu de thi null (evaluator khong kiem chung)
+        public static string? MapEvidenceTopic(string? category)
+        {
+            var normalized = category?.Trim().ToLowerInvariant();
+            return normalized != null && EvidenceTopics.Contains(normalized) ? normalized : null;
+        }
+
+        // Phe dang cham la AI (AI practice) thi khong kiem chung so lieu cua phe do
+        private static bool IsAiSide(IEnumerable<Argument> roundArgs, bool isPro)
+        {
+            var sideArgs = roundArgs.Where(a => isPro
+                ? a.Participant.Side == DebateSide.PRO || a.Participant.Side == DebateSide.Affirmative
+                : a.Participant.Side == DebateSide.CON || a.Participant.Side == DebateSide.Negative).ToList();
+            return sideArgs.Any() && sideArgs.All(a => a.Participant.ParticipantType == ParticipantType.AI);
+        }
+
+        // error cua evidence_check chi giu trong RawResponseJson va log, khong tra ve FE
+        private void LogUnavailableEvidenceChecks(int sessionId, string side, List<EvaluateRoundResponse> rounds)
+        {
+            foreach (var round in rounds)
+            {
+                foreach (var check in round.EvidenceChecks ?? new())
+                {
+                    if (check?.EvidenceCheck?.Error != null)
+                    {
+                        _logger?.LogWarning(
+                            "Evidence check unavailable for session {SessionId}, side {Side}, stage {Stage}, turn {TurnIndex}: {Error}",
+                            sessionId, side, round.Stage, check.TurnIndex, check.EvidenceCheck.Error);
+                    }
+                }
+            }
+        }
+
+        private static List<RoundEvaluationDetailDto> MapRoundDetails(List<EvaluateRoundResponse>? rounds)
+        {
+            return rounds?.Select((r, idx) => new RoundEvaluationDetailDto
+            {
+                RoundNumber = idx + 1,
+                Stage = r.Stage,
+                RoundScore = r.RoundScore,
+                ConsistencyNote = r.ConsistencyNote,
+                Criteria = r.Criteria ?? new(),
+                Strengths = r.Strengths ?? new(),
+                Weaknesses = r.Weaknesses ?? new(),
+                Suggestions = r.Suggestions ?? new(),
+                // Judgement cu khong co evidence_checks -> null; turn thieu evidence_check (JSON hong) bi bo qua
+                EvidenceChecks = r.EvidenceChecks?.Where(c => c?.EvidenceCheck != null).Select(MapTurnEvidenceCheck).ToList(),
+                EvidenceScoreBefore = r.EvidenceScoreBefore,
+                EvidenceScoreAfter = r.EvidenceScoreAfter,
+                EvidenceRuleApplied = r.EvidenceRuleApplied
+            }).ToList() ?? new();
+        }
+
+        // Bo field error (chi nam trong RawResponseJson va log)
+        private static TurnEvidenceCheckResponse MapTurnEvidenceCheck(TurnEvidenceCheckDto check)
+        {
+            var summary = check.EvidenceCheck;
+            return new TurnEvidenceCheckResponse
+            {
+                TurnIndex = check.TurnIndex,
+                Excerpt = check.Excerpt ?? string.Empty,
+                EvidenceCheck = new EvidenceCheckResponse
+                {
+                    Status = summary.Status ?? string.Empty,
+                    Claims = summary.Claims?.Where(c => c != null).Select(c => new EvidenceClaimResponse
+                    {
+                        Claim = c.Claim ?? string.Empty,
+                        Label = c.Label ?? string.Empty,
+                        Reason = c.Reason ?? string.Empty,
+                        Citations = c.Citations?.Where(f => f != null).Select(f => new EvidenceCitationResponse
+                        {
+                            FactId = f.FactId ?? string.Empty,
+                            Content = f.Content ?? string.Empty,
+                            Citation = f.Citation,
+                            Stance = f.Stance
+                        }).ToList() ?? new()
+                    }).ToList() ?? new(),
+                    Counts = summary.Counts ?? new(),
+                    EvidenceScoreBefore = summary.EvidenceScoreBefore,
+                    EvidenceScoreAfter = summary.EvidenceScoreAfter,
+                    RuleApplied = summary.RuleApplied ?? string.Empty,
+                    Version = summary.Version
+                }
             };
         }
 

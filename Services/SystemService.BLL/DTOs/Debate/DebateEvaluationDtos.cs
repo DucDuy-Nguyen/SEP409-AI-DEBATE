@@ -48,6 +48,47 @@ namespace SystemService.BLL.DTOs.Debate
         public List<string> Strengths { get; set; } = new();
         public List<string> Weaknesses { get; set; } = new();
         public List<string> Suggestions { get; set; } = new();
+
+        // Kiem chung so lieu (RAG). null: judgement cu chua co kiem chung; rong: round khong kiem chung (khong topic, phe AI...)
+        public List<TurnEvidenceCheckResponse>? EvidenceChecks { get; set; }
+        public int? EvidenceScoreBefore { get; set; }
+        public int? EvidenceScoreAfter { get; set; }
+        public string? EvidenceRuleApplied { get; set; }
+    }
+
+    // Ban tra ve FE cua TurnEvidenceCheckDto (camelCase, KHONG co field error — error chi nam trong RawResponseJson va log)
+    public class TurnEvidenceCheckResponse
+    {
+        public int TurnIndex { get; set; }
+        public string Excerpt { get; set; } = string.Empty;
+        public EvidenceCheckResponse EvidenceCheck { get; set; } = new();
+    }
+
+    public class EvidenceCheckResponse
+    {
+        public string Status { get; set; } = string.Empty;
+        public List<EvidenceClaimResponse> Claims { get; set; } = new();
+        public Dictionary<string, int> Counts { get; set; } = new();
+        public int? EvidenceScoreBefore { get; set; }
+        public int? EvidenceScoreAfter { get; set; }
+        public string RuleApplied { get; set; } = string.Empty;
+        public string? Version { get; set; }
+    }
+
+    public class EvidenceClaimResponse
+    {
+        public string Claim { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public string Reason { get; set; } = string.Empty;
+        public List<EvidenceCitationResponse> Citations { get; set; } = new();
+    }
+
+    public class EvidenceCitationResponse
+    {
+        public string FactId { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public string? Citation { get; set; }
+        public string? Stance { get; set; }
     }
 
     public class SingleArgumentEvaluationResponse

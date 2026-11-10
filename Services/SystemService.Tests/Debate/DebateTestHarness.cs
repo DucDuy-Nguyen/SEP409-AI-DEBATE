@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.Debate;
+using SystemService.BLL.Services.AI.Interfaces;
 using SystemService.BLL.Services.Debate.Implementations;
 using SystemService.DAL.Context;
 using SystemService.DAL.Entities.Debate;
@@ -47,11 +48,11 @@ namespace SystemService.Tests.Debate
             return new SystemDbContext(options);
         }
 
-        public DebateService NewService()
+        public DebateService NewService(IAiEvaluatorClient? aiEvaluatorClient = null)
         {
             var context = CreateContext();
             _contexts.Add(context);
-            return new DebateService(new DebateRepository(context), new UserRepository(context));
+            return new DebateService(new DebateRepository(context), new UserRepository(context), aiEvaluatorClient);
         }
 
         public async Task<int> StartAiSessionAsync(DebateSide userSide)
