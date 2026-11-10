@@ -11,8 +11,7 @@ from app.schemas import (
     SessionEvaluationResult,
 )
 from app.services.evaluator import EvaluationParseError
-from app.services.evidence_evaluator import evaluate_argument_with_evidence
-from app.services.round_evaluator import evaluate_round
+from app.services.evidence_evaluator import evaluate_argument_with_evidence, evaluate_round_with_evidence
 from app.services.session_evaluator import evaluate_session
 
 logger = logging.getLogger(__name__)
@@ -44,7 +43,7 @@ def evaluate_round_endpoint(req: RoundEvaluationRequest) -> RoundEvaluationResul
     Competition).
     """
     try:
-        return evaluate_round(req)
+        return evaluate_round_with_evidence(req)
     except EvaluationParseError as e:
         logger.error("Parse loi tu LLM (round): %s", e)
         raise HTTPException(status_code=502, detail="AI evaluator tra ve ket qua khong hop le, vui long thu lai.")

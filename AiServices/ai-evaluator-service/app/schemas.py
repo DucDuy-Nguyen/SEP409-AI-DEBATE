@@ -15,6 +15,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 SCORING_VERSION_LEGACY = "v1_5x20"  # 5 tieu chi x 20%: (tong 5 tieu chi / 25) * 10
 SCORING_VERSION_CURRENT = "v2_4x25"  # Logic/Evidence/Relevance/Structure x 25%, Persuasiveness 0%
 
+# Chu de kho fact cho kiem chung so lieu (RAG Evidence). "society" chua co fact approved nao -> status "no_fact_base".
+EvidenceTopic = Literal["education", "environment", "technology", "society"]
+
 
 class DebateSide(str, Enum):
     PRO = "pro"
@@ -38,7 +41,7 @@ class ArgumentEvaluationRequest(BaseModel):
         default=None,
         description="Lap luan cua doi phuong ngay truoc do (neu co) — giup danh gia tinh relevance/rebuttal",
     )
-    topic: Optional[Literal["education", "environment", "technology"]] = Field(
+    topic: Optional[EvidenceTopic] = Field(
         default=None,
         description=(
             "Chu de kho fact de kiem chung so lieu (RAG Evidence, docs/AI_DEVELOPMENT_LOG.md muc 3.21). "
@@ -93,7 +96,8 @@ class EvidenceClaimSummary(BaseModel):
 class EvidenceCheckSummary(BaseModel):
     """Ket qua kiem chung so lieu/su kien cua luot lap luan, tra kem ket qua cham (chi khi co `topic` va RAG bat)."""
 
-    status: Literal["checked", "no_claims", "unavailable"]
+    # no_fact_base: topic chua co fact approved nao trong kho (khong goi LLM tach claim / verify)
+    status: Literal["checked", "no_claims", "unavailable", "no_fact_base"]
     claims: list[EvidenceClaimSummary] = Field(default_factory=list)
     counts: dict[str, int] = Field(default_factory=dict)
     evidence_score_before: Optional[int] = Field(default=None, description="Diem Evidence LLM cho (luot cham khong co RAG)")
@@ -101,6 +105,14 @@ class EvidenceCheckSummary(BaseModel):
     rule_applied: str = Field(default="", description="Mo ta luat dieu chinh da ap")
     error: Optional[str] = Field(default=None, description="Ly do khi status = unavailable")
     version: str = EVIDENCE_CHECK_VERSION
+
+
+class TurnEvidenceCheck(BaseModel):
+    """Ket qua kiem chung 1 luot learner trong round (/evaluate/round)."""
+
+    turn_index: int = Field(..., description="Vi tri cua luot trong `turns` cua request")
+    excerpt: str = Field(..., description="Toi da 200 ky tu dau cua luot")
+    evidence_check: EvidenceCheckSummary
 
 
 class ArgumentEvaluationResult(BaseModel):
@@ -198,6 +210,13 @@ class RoundEvaluationRequest(BaseModel):
     reference_turns: list[ReferenceTurn] = Field(
         default_factory=list, description="Tuy chon: cac luot cua cac round truoc, chi la ngu canh, KHONG cham"
     )
+    topic: Optional[EvidenceTopic] = Field(
+        default=None,
+        description="Chu de kho fact de kiem chung so lieu tung luot learner (RAG). Bo trong hoac RAG tat thi cham y nhu cu",
+    )
+    check_evidence: bool = Field(
+        default=True, description="false: khong kiem chung round nay (vd phe AI trong AI practice)"
+    )
 
     @field_validator("turns")
     @classmethod
@@ -254,6 +273,12 @@ class RoundEvaluationResult(BaseModel):
         default=SCORING_VERSION_LEGACY,
         description="Phien ban cong thuc diem tong (v1_5x20 cu, v2_4x25 moi); Session ghim theo round dau tien",
     )
+    evidence_checks: list[TurnEvidenceCheck] = Field(
+        default_factory=list, description="Kiem chung tung luot learner; rong khi khong co topic / RAG tat / check_evidence=false"
+    )
+    evidence_score_before: Optional[int] = Field(default=None, description="Evidence LLM cho truoc khi code dieu chinh")
+    evidence_score_after: Optional[int] = Field(default=None, description="Evidence sau khi code dieu chinh")
+    evidence_rule_applied: str = Field(default="", description="Mo ta luat dieu chinh da ap (rong neu khong co claim nao duoc kiem)")
 
 
 # ============================================================================

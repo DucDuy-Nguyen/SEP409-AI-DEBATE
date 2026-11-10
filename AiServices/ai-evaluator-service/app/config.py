@@ -56,7 +56,7 @@ class Settings(BaseSettings):
 
     # ---- RAG Evidence (thu nghiem) ----
     # Tat thi service khong import torch/sentence-transformers va khong can DB.
-    # Chi dieu khien endpoint debug /rag/* (app/main.py); RAG chua noi vao /evaluate*.
+    # Bat kiem chung so lieu o /rag/*, /evaluate va /evaluate/round (chi khi request co `topic`).
     rag_enabled: bool = False
     # Port 5434: 5433 da duoc ai-opponent-service dung (xem docker-compose.yml)
     rag_database_url: str = "postgresql://adpp:adpp@localhost:5434/ai_evaluation"
@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     rag_evidence_bonus: bool = False
     # Kiem chung chay song song voi luot cham; qua thoi gian nay thi giu diem goc, status "unavailable"
     rag_check_timeout_seconds: float = 90.0
+    # /evaluate/round: thoi gian toi da cho kiem chung cac luot learner (chay song song voi luot cham)
+    rag_round_check_timeout_seconds: float = 20.0
 
     # ---- App ----
     app_name: str = "ADPP AI Evaluator Service"

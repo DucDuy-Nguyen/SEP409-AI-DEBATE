@@ -312,6 +312,27 @@ Response giống cấp Argument, nhưng dùng `round_score` thay cho `overall_sc
 `consistency_note` (nhận xét tính nhất quán xuyên suốt giai đoạn) thay cho
 `overall_reasoning`, và có thêm field `stage`.
 
+**Kiểm chứng số liệu từng lượt learner (RAG, thử nghiệm):** request có thể gửi
+thêm `topic` (`"education"`, `"environment"`, `"technology"`, `"society"`) và
+`check_evidence` (mặc định `true`; gửi `false` cho phe AI trong AI practice).
+Khi service bật `RAG_ENABLED=true`, request có `topic` và `check_evidence=true`,
+mỗi lượt `learner` được kiểm chứng song song với lượt chấm; lượt `opponent`
+không kiểm. Lượt chấm dùng đúng prompt cũ. Nhãn của mọi claim trong các lượt đã
+kiểm được gộp lại để điều chỉnh `Evidence` của round theo cùng luật với
+`/evaluate`, rồi `round_score` được tính lại. Response có thêm:
+
+- `evidence_checks`: mỗi phần tử gồm `turn_index` (vị trí trong `turns`),
+  `excerpt` (≤ 200 ký tự đầu lượt) và `evidence_check` (cùng cấu trúc với
+  `/evaluate`).
+- `evidence_score_before`, `evidence_score_after`, `evidence_rule_applied`:
+  để trống nếu không có claim nào được kiểm.
+
+`evidence_check.status` thêm `"no_fact_base"`: topic chưa có fact approved nào
+(ví dụ `society`), không gọi LLM tách claim/verify. Kiểm chứng lỗi hoặc quá
+`RAG_ROUND_CHECK_TIMEOUT_SECONDS` (mặc định 20 s) thì giữ điểm gốc,
+`status="unavailable"`. `/evaluate/session` không đổi: nhận `round_score` đã
+điều chỉnh.
+
 Tuỳ chọn `reference_turns`: các lượt của các round trước, mỗi lượt có `round`,
 `order`, `speaker`, `side`, `text`. Đây chỉ là ngữ cảnh để đối chiếu, **không được
 chấm**; không truyền thì hành vi như cũ. Sai phe, `order` trùng, hoặc `round` không

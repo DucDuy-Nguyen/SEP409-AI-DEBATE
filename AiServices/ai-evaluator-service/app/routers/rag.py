@@ -3,13 +3,13 @@ Endpoint debug cua RAG Evidence. Chi dang ky khi RAG_ENABLED=true (app/main.py).
 Chua noi vao diem Evidence cua /evaluate* (buoc 3).
 """
 import logging
-from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.rag.pipeline import check_evidence
 from app.rag.schemas import EvidenceCheckResult
+from app.schemas import EvidenceTopic
 from app.services.json_utils import EvaluationParseError
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/rag", tags=["rag"])
 class CheckEvidenceRequest(BaseModel):
     argument_text: str = Field(..., min_length=1)
     motion: str
-    topic: Literal["education", "environment", "technology"]
+    topic: EvidenceTopic
 
 
 @router.post("/check-evidence", response_model=EvidenceCheckResult)

@@ -290,3 +290,13 @@ def test_conflicting_feedback_lists_both_sides_with_sources():
     citations = result.evidence_check.claims[0].citations
     assert {c.stance for c in citations} == {"supports", "contradicts"}
     assert result.evidence_check.claims[0].label == "CONFLICTING"
+
+
+def test_argument_topic_without_approved_facts_is_no_fact_base():
+    checker = _checker(error=AssertionError("khong duoc goi LLM extract/verify"))
+    req = ArgumentEvaluationRequest(motion="m", side=DebateSide.PRO, argument_text=ARGUMENT, topic="society")
+    result = evaluate_argument_with_evidence(req, _rag(), CapturingLLM(5), checker, lambda topic, settings: 0)
+    summary = result.evidence_check
+    assert checker.calls == [] and summary.status == "no_fact_base"
+    assert summary.evidence_score_before == summary.evidence_score_after == 5 and _evidence(result) == 5
+    assert result.suggestions == ["Goi y cu."]

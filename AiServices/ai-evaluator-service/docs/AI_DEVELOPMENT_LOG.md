@@ -1429,6 +1429,36 @@ Ca 2 dat dieu kien (0 ban that bi tru, p < 0,01) nen trien khai bien the khong t
 - **tech-4 khong bi phat hien o ca 4 lan do** (D, 2 lan on dinh, ap lai luat): retrieval lay fact cua MOT VU LUA DAO KHAC co con so gan trung (fanpage ban xe: khoan 12-16 trieu, tong gan 3 ty), verify gan SUPPORTED cho ban bia ("tu vai trieu den 16 trieu, tong hon 119 trieu"). Day la loi retrieval/doi chieu su kien, luat dieu chinh Evidence khong sua duoc.
 - 2 lan lap, lap luan do Claude soan; ap lai luat chi dung output da luu, khong do bien dong cua lan chay moi voi luat nay.
 
+
+## 3.22. RAG Evidence buoc 4 (WF-01), phan A: kiem chung trong /evaluate/round (2026-11)
+
+Spec: `docs/RAG_REPORT_INTEGRATION_SPEC.md` (phan A). Muc tieu: Feedback Report cua phien (di qua `/evaluate/round` +
+`/evaluate/session`) co ket qua kiem chung; phan B (SystemService C#) va C (FE) chua lam.
+
+**Thiet ke:**
+- `evaluate_round_with_evidence` (`app/services/evidence_evaluator.py`), router `/evaluate/round` goi ham nay. Logic dat
+  o file moi (nguoi dung chot): `round_evaluator.py` va `round_prompt.py` giu nguyen tung byte, `config_fingerprint --check`
+  van khop `55eb1245...a850`.
+- Request: `topic` (them "society"), `check_evidence` (C# gui false cho phe AI). Moi luot learner kiem chung song song
+  (ThreadPoolExecutor, 1 thread / luot) voi luot cham; luot opponent khong kiem. Han chung `rag_round_check_timeout_seconds`
+  = 20 s tinh tu luc gui, qua han -> `unavailable`.
+- Gop nhan cua moi claim trong cac luot "checked" -> `adjust_evidence` cho Evidence cua round, tinh lai `round_score`,
+  them goi y cua `contradiction_suggestions` (ca CONTRADICTED va CONFLICTING, nguoi dung chot tai dung nguyen ham).
+  Tach helper `_adjust_evidence_criterion` dung chung voi `/evaluate`, khong copy logic.
+- `status="no_fact_base"`: `FactStore.count_approved(topic)` = 0 (cache 5 phut) -> khong goi LLM. Ap ca cho `/evaluate`.
+  Kiem tra kho chi chay voi checker mac dinh (pipeline that); checker truyen vao (test) la ban thay the tron goi.
+- Response: `evidence_checks` (turn_index, excerpt <= 200 ky tu, evidence_check), `evidence_score_before/after`,
+  `evidence_rule_applied`. `/evaluate/session` khong doi.
+
+**Lan goi that (diem dung 1):** topic education, 1 luot learner co 1 so dung ("hon 14.695 truong tieu hoc") va 1 so bia
+("40 lop tap huan", nguon ghi 115), 1 luot opponent. Ket qua: so dung SUPPORTED (dung fact, dung nguon); **so bia ra
+NOT_FOUND, khong phai CONTRADICTED**: LLM gan CONTRADICTED va trich dung fact 115 lop (stance contradicts) nhung go sai
+1 fact_id khac (e7279a4c thay vi e7279a4a), luat "co fact_id la -> ep NOT_FOUND" (3.20) ha ca claim. Evidence khong doi
+(3 -> 3). Do tre: co RAG 7,3 s, khong RAG 2,6 s (cung request, khong topic); load model bge-m3 lan dau 118 s (khong tinh).
+
+**Van de mo:** luat ep NOT_FOUND khi co fact_id la qua chat: 1 id go sai lam mat ca fact hop le da phan bac. Can quyet
+dinh co bo id la roi xet tiep (thay vi ep) hay khong. Load model lan dau 118 s: can khoi dong san (warm-up) khi deploy.
+
 ---
 
 ## 4. Viec con treo (chua lam / dang cho)
@@ -1502,3 +1532,4 @@ Ca 2 dat dieu kien (0 ban that bi tru, p < 0,01) nen trien khai bien the khong t
 - 2026-11: Doi sang phuong an D: luot cham khong chua khoi RAG, Evidence dieu chinh bang code, kiem chung chay song song. Chenh Evidence that/bia 1,27 (Wilcoxon exact p = 0,00085), 2/15 ban that bi tru do nguon trong kho tu mau thuan; do tre 9,3 s — xem 3.21.1.
 - 2026-11: Them nhan CONFLICTING (fact supports + fact contradicts -> khong tru). 2 lan lap kiem chung: 0 ban that bi tru, chenh Evidence 1,27 +/- 0,09; nhung CONFLICTING che 1 ban bia (fact khop chi tiet khac) — xem 3.21.2.
 - 2026-11: CONFLICTING / CONTRADICTED xet theo tung chi tiet: ap lai tren output da luu (0 token), 2 claim bia CONFLICTING -> CONTRADICTED, bia bi phat hien 13/15 o ca 2 lan, van 0 ban that bi tru; tech-4 van lot do retrieval lay nham su kien — xem 3.21.3.
+- 2026-11: Kiem chung trong /evaluate/round (buoc 4 phan A): tung luot learner song song voi luot cham, gop nhan de dieu chinh Evidence round; status no_fact_base; lan goi that: so bia ra NOT_FOUND vi 1 fact_id go sai bi ep — xem 3.22.
