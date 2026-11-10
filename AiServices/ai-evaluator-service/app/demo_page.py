@@ -43,7 +43,10 @@ DEMO_HTML = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-  <h1>🎤 ADPP — Demo AI Evaluator</h1>
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+    <h1>🎤 ADPP — Demo AI Evaluator</h1>
+    <a href="http://localhost:8003/demo" target="_blank" style="background:#0f172a; color:#38bdf8; text-decoration:none; padding:8px 14px; border-radius:6px; font-weight:600; font-size:13.5px;">🎭 Mở Multimodal Debate Coach (DeepFace + Whisper) ↗</a>
+  </div>
 
   <div class="card">
     <label>Motion (chủ đề tranh biện)</label>

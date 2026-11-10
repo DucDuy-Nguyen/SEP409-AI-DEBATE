@@ -25,6 +25,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
     public class DebateService : IDebateService
     {
         private static readonly ConcurrentDictionary<string, SideSwapRequestModel> _pendingSwapRequests = new();
+        private static readonly ConcurrentDictionary<int, DeliveryAnalyticsDto> _argumentDeliveryAnalytics = new();
 
         // User arguments have no length limit today; this caps AI speeches (~500 words) with generous headroom.
         private const int MaxAiArgumentLength = 10000;
@@ -327,7 +328,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     return ApiResponse<DebateSessionResponse>.FailureResponse("Argument content must not be empty.", new ApiErrorDetail(DebateErrorCodes.InvalidRequest));
                 }
 
-                var argument = await AddTurnArgumentAsync(session, participant, nextTurn, submittedCount, trimmedContent, isTimed: true, cancellationToken);
+                var argument = await AddTurnArgumentAsync(
+                    session, participant, nextTurn, submittedCount, trimmedContent, isTimed: true,
+                    cancellationToken, request.DurationSeconds, request.DeliveryAnalytics);
                 if (argument == null)
                 {
                     return ApiResponse<DebateSessionResponse>.FailureResponse($"Round {nextTurn.RoundNumber} is missing for this debate session.");
@@ -558,8 +561,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
             string trimmedContent = request.Content.Trim();
             int wordCount = trimmedContent.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
 
-            int durationSeconds = 30;
-            if (currentRound.StartTime.HasValue)
+            int durationSeconds = request.DurationSeconds is > 0 ? request.DurationSeconds.Value : 30;
+            if (!request.DurationSeconds.HasValue && currentRound.StartTime.HasValue)
             {
                 durationSeconds = (int)Math.Max(1, (DateTime.UtcNow - currentRound.StartTime.Value).TotalSeconds);
             }
@@ -575,6 +578,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
             };
 
             await _debateRepository.AddArgumentAsync(argument, cancellationToken);
+            if (request.DeliveryAnalytics != null && argument.ArgumentId > 0)
+            {
+                _argumentDeliveryAnalytics[argument.ArgumentId] = request.DeliveryAnalytics;
+            }
 
             if (currentRound.Arguments.Count + 1 >= maxArgsPerRound)
             {
@@ -797,6 +804,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
                         SpeakerName = a.Participant.ParticipantType == ParticipantType.AI ? "AI Opponent" : (a.Participant.User?.FullName ?? "Unknown User"),
                         IsAI = a.Participant.ParticipantType == ParticipantType.AI,
                         Content = a.Content,
+                        WordCount = a.WordCount,
+                        DurationSeconds = a.DurationSeconds,
+                        DeliveryAnalytics = _argumentDeliveryAnalytics.TryGetValue(a.ArgumentId, out var da) ? da : null,
                         SubmittedAt = a.SubmittedAt
                     }))
                     .OrderBy(a => a.TurnOrder)
@@ -911,7 +921,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
         /// </summary>
         private async Task<Argument?> AddTurnArgumentAsync(
             DebateSession session, DebateParticipant participant, DebateTurnSlot turn, int submittedCount,
-            string content, bool isTimed, CancellationToken cancellationToken)
+            string content, bool isTimed, CancellationToken cancellationToken,
+            int? explicitDurationSeconds = null, DeliveryAnalyticsDto? deliveryAnalytics = null)
         {
             var round = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == turn.RoundNumber);
             if (round == null)
@@ -921,8 +932,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             int wordCount = content.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
 
-            int? durationSeconds = null;
-            if (isTimed)
+            int? durationSeconds = explicitDurationSeconds is > 0 ? explicitDurationSeconds : null;
+            if (!durationSeconds.HasValue && isTimed)
             {
                 durationSeconds = 30;
                 if (round.StartTime.HasValue)
@@ -942,6 +953,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
             };
 
             await _debateRepository.AddArgumentAsync(argument, cancellationToken);
+            if (deliveryAnalytics != null && argument.ArgumentId > 0)
+            {
+                _argumentDeliveryAnalytics[argument.ArgumentId] = deliveryAnalytics;
+            }
 
             var followingTurn = DebateTurnOrder.GetNextTurn(submittedCount + 1);
             if (followingTurn != null && followingTurn.RoundNumber == turn.RoundNumber)
@@ -985,6 +1000,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 SpeakerName = participant.ParticipantType == ParticipantType.AI ? "AI Opponent" : (participant.User?.FullName ?? "Unknown User"),
                 IsAI = participant.ParticipantType == ParticipantType.AI,
                 Content = argument.Content,
+                WordCount = argument.WordCount,
+                DurationSeconds = argument.DurationSeconds,
+                DeliveryAnalytics = _argumentDeliveryAnalytics.TryGetValue(argument.ArgumentId, out var da) ? da : null,
                 SubmittedAt = argument.SubmittedAt
             };
         }
@@ -1585,12 +1603,15 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 _ => "rebuttal"
             };
 
+            var deliveryAnalytics = _argumentDeliveryAnalytics.TryGetValue(arg.ArgumentId, out var storedDa) ? storedDa : null;
+
             var req = new EvaluateArgumentRequest(
                 Motion: motion,
                 Side: sideStr,
                 Stage: stageStr,
                 ArgumentText: arg.Content,
-                OpponentArgumentText: previousArg?.Content
+                OpponentArgumentText: previousArg?.Content,
+                DeliveryAnalytics: deliveryAnalytics
             );
 
             try
@@ -1614,7 +1635,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     Criteria = evalResult.Criteria,
                     Strengths = evalResult.Strengths,
                     Weaknesses = evalResult.Weaknesses,
-                    Suggestions = evalResult.Suggestions
+                    Suggestions = evalResult.Suggestions,
+                    DeliveryAnalytics = evalResult.DeliveryAnalytics ?? deliveryAnalytics
                 };
 
                 return ApiResponse<SingleArgumentEvaluationResponse>.SuccessResponse(response, "Argument evaluated successfully.");
@@ -1656,7 +1678,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 // Formulate turns for PRO evaluation
                 var proTurns = roundArgs.Select(a => new RoundTurnDto(
                     Speaker: (a.Participant.Side == DebateSide.PRO || a.Participant.Side == DebateSide.Affirmative) ? "learner" : "opponent",
-                    Text: a.Content
+                    Text: a.Content,
+                    DeliveryAnalytics: _argumentDeliveryAnalytics.TryGetValue(a.ArgumentId, out var pDa) ? pDa : null
                 )).ToList();
 
                 if (proTurns.Any(t => t.Speaker == "learner"))
@@ -1672,7 +1695,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 // Formulate turns for CON evaluation
                 var conTurns = roundArgs.Select(a => new RoundTurnDto(
                     Speaker: (a.Participant.Side == DebateSide.CON || a.Participant.Side == DebateSide.Negative) ? "learner" : "opponent",
-                    Text: a.Content
+                    Text: a.Content,
+                    DeliveryAnalytics: _argumentDeliveryAnalytics.TryGetValue(a.ArgumentId, out var cDa) ? cDa : null
                 )).ToList();
 
                 if (conTurns.Any(t => t.Speaker == "learner"))

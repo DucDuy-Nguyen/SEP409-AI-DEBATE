@@ -3,12 +3,27 @@ using System.Text.Json.Serialization;
 
 namespace SystemService.BLL.DTOs.AI
 {
+    public record DeliveryAnalyticsDto(
+        [property: JsonPropertyName("dominant_emotion")] string DominantEmotion = "neutral",
+        [property: JsonPropertyName("eye_contact_rate")] decimal? EyeContactRate = null,
+        [property: JsonPropertyName("composure_score")] decimal? ComposureScore = null,
+        [property: JsonPropertyName("confidence_score")] decimal? ConfidenceScore = null,
+        [property: JsonPropertyName("wpm")] decimal? Wpm = null,
+        [property: JsonPropertyName("pace_evaluation")] string? PaceEvaluation = null,
+        [property: JsonPropertyName("pace_score")] decimal? PaceScore = null,
+        [property: JsonPropertyName("filler_count")] int? FillerCount = null,
+        [property: JsonPropertyName("fluency_score")] decimal? FluencyScore = null,
+        [property: JsonPropertyName("overall_demeanor_score")] decimal? OverallDemeanorScore = null,
+        [property: JsonPropertyName("emotion_breakdown")] Dictionary<string, decimal>? EmotionBreakdown = null
+    );
+
     public record EvaluateArgumentRequest(
         [property: JsonPropertyName("motion")] string Motion,
         [property: JsonPropertyName("side")] string Side,
         [property: JsonPropertyName("stage")] string Stage,
         [property: JsonPropertyName("argument_text")] string ArgumentText,
-        [property: JsonPropertyName("opponent_argument_text")] string? OpponentArgumentText = null
+        [property: JsonPropertyName("opponent_argument_text")] string? OpponentArgumentText = null,
+        [property: JsonPropertyName("delivery_analytics")] DeliveryAnalyticsDto? DeliveryAnalytics = null
     );
 
     public record CriterionScoreDto(
@@ -24,12 +39,14 @@ namespace SystemService.BLL.DTOs.AI
         [property: JsonPropertyName("strengths")] List<string> Strengths,
         [property: JsonPropertyName("weaknesses")] List<string> Weaknesses,
         [property: JsonPropertyName("suggestions")] List<string> Suggestions,
-        [property: JsonPropertyName("raw_model_output")] string? RawModelOutput
+        [property: JsonPropertyName("raw_model_output")] string? RawModelOutput,
+        [property: JsonPropertyName("delivery_analytics")] DeliveryAnalyticsDto? DeliveryAnalytics = null
     );
 
     public record RoundTurnDto(
         [property: JsonPropertyName("speaker")] string Speaker,
-        [property: JsonPropertyName("text")] string Text
+        [property: JsonPropertyName("text")] string Text,
+        [property: JsonPropertyName("delivery_analytics")] DeliveryAnalyticsDto? DeliveryAnalytics = null
     );
 
     public record EvaluateRoundRequest(

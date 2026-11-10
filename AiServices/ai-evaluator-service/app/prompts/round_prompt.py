@@ -191,6 +191,31 @@ def build_round_user_prompt(req: RoundEvaluationRequest) -> str:
         ]
         parts.append("[NGU CANH CAC ROUND TRUOC - KHONG CHAM]\n" + "\n\n".join(reference_text))
     parts.append("[TOAN BO CAC LUOT NOI TRONG ROUND, THEO THU TU]\n" + "\n\n".join(turns_text))
+
+    learner_delivery = [
+        (i, t.delivery_analytics)
+        for i, t in enumerate(req.turns, start=1)
+        if t.speaker == TurnSpeaker.LEARNER and t.delivery_analytics is not None
+    ]
+    if learner_delivery:
+        da_summary = []
+        for idx, da in learner_delivery:
+            assert da is not None
+            items = [f"cam xuc={da.dominant_emotion}"]
+            if da.composure_score is not None:
+                items.append(f"diem tinh={da.composure_score:.1f}%")
+            if da.wpm is not None:
+                items.append(f"toc do={da.wpm:.1f} WPM")
+            if da.filler_count is not None:
+                items.append(f"tu dem={da.filler_count}")
+            if da.overall_demeanor_score is not None:
+                items.append(f"phong thai={da.overall_demeanor_score:.1f}/100")
+            da_summary.append(f"- Luot {idx}: " + ", ".join(items))
+        parts.append(
+            "[CHI SO PHONG THAI & GIONG NOI CUA LEARNER (bo sung nhan xet phong thai vao strengths/weaknesses/suggestions, KHONG thay doi thang cham 4 tieu chi Logic/Evidence/Relevance/Structure)]\n"
+            + "\n".join(da_summary)
+        )
+
     return "\n\n".join(parts)
 
 

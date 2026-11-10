@@ -64,5 +64,6 @@ namespace SystemService.BLL.DTOs.Debate
         public List<string> Strengths { get; set; } = new();
         public List<string> Weaknesses { get; set; } = new();
         public List<string> Suggestions { get; set; } = new();
+        public DeliveryAnalyticsDto? DeliveryAnalytics { get; set; }
     }
 }
