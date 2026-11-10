@@ -311,8 +311,8 @@ DEMO_HTML = """<!DOCTYPE html>
           </div>
         </div>
 
-        <label>Lập luận đối phương vừa nêu (Tùy chọn)</label>
-        <textarea id="opponentText">Mạng xã hội giúp kết nối hàng tỷ người ở xa nhau và mở rộng cơ hội học tập.</textarea>
+        <label>Lập luận đối phương vừa nêu (Tùy chọn — để trống nếu phát biểu độc lập)</label>
+        <textarea id="opponentText" placeholder="Chỉ nhập nếu bạn đang phản biện lại một luận điểm cụ thể của đối phương..."></textarea>
 
         <label>Văn bản nhận diện từ giọng nói (Faster-Whisper STT — có thể chỉnh sửa trước khi chấm)</label>
         <textarea id="transcriptInput" placeholder="Khi bạn nói xong hoặc chạy File Mẫu, văn bản Faster-Whisper sẽ tự động điền vào đây...">Kính thưa ban giám khảo, tôi xin trình bày luận điểm tranh biện: Mạng xã hội mặc dù mang lại khả năng kết nối nhanh chóng nhưng lại làm suy giảm nghiêm trọng thời gian tương tác trực tiếp và gây ảnh hưởng tiêu cực đến sức khỏe tinh thần của giới trẻ.</textarea>
@@ -716,8 +716,13 @@ DEMO_HTML = """<!DOCTYPE html>
           `;
           setStatus('✅ Đã hoàn tất chấm điểm Toàn diện (Phong thái DeepFace + Nội dung AI Evaluator)!');
         } else {
-          bodyEl.innerHTML = `<div style="color:var(--warning);">⚠️ Đã chấm xong Phong thái (${data.multimodal.overall_demeanor_score}/100). Lưu ý từ AI Evaluator: ${data.evaluation_error || 'Không có phản hồi'}</div>`;
-          setStatus('⚠️ Đã chấm xong Phong thái DeepFace, nhưng AI Evaluator báo: ' + (data.evaluation_error || ''));
+          bodyEl.innerHTML = `
+            <div style="background:rgba(239,68,68,0.12);border:1px solid var(--danger);padding:14px;border-radius:8px;color:#fca5a5;">
+              <div style="font-weight:700;color:var(--danger);margin-bottom:4px;">❌ Không thể chấm điểm Nội dung Lập luận (AI Evaluator lỗi)</div>
+              <div>${data.evaluation_error || 'AI Evaluator không phản hồi'}</div>
+            </div>
+          `;
+          setStatus('❌ Lỗi từ AI Evaluator: ' + (data.evaluation_error || ''));
         }
       } catch (err) {
         setStatus('❌ Lỗi khi gọi /multimodal/evaluate-speech: ' + err.message);

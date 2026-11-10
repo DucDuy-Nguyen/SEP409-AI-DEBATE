@@ -10,8 +10,7 @@ class Settings(BaseSettings):
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
     prewarm_models: bool = True
-    evaluator_service_url: str = "http://localhost:8000"
-    remote_evaluator_service_url: str = (
+    evaluator_service_url: str = (
         "https://adpp-ai-evaluator.greenstone-4d67d46a.indonesiacentral.azurecontainerapps.io"
     )
     system_service_url: str = "http://localhost:5001"

@@ -69,7 +69,43 @@ def test_analyze_frame_and_turn_endpoints():
     assert turn_data["report_chart_base64"].startswith("data:image/png;base64,")
 
 
-def test_evaluate_speech_and_demo_sample_endpoints():
+def test_evaluate_speech_and_demo_sample_endpoints(monkeypatch):
+    import httpx
+    from app.routers import multimodal as mm_router
+
+    class FakeResp:
+        status_code = 200
+
+        def json(self):
+            return {
+                "overall_score": 8.0,
+                "overall_reasoning": "Lập luận chặt chẽ.",
+                "criteria": [
+                    {"name": "Logic", "score": 4, "reasoning": "Tốt"},
+                    {"name": "Evidence", "score": 4, "reasoning": "Tốt"},
+                    {"name": "Relevance", "score": 4, "reasoning": "Tốt"},
+                    {"name": "Structure", "score": 4, "reasoning": "Tốt"},
+                    {"name": "Persuasiveness", "score": 4, "reasoning": "Tốt"},
+                ],
+                "strengths": ["Rõ ràng"],
+                "weaknesses": [],
+                "suggestions": [],
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def post(self, url, json=None):
+            return FakeResp()
+
+    monkeypatch.setattr(mm_router.httpx, "Client", FakeClient)
     client = TestClient(app)
 
     sample_resp = client.post("/multimodal/demo-sample-audio")
@@ -84,7 +120,7 @@ def test_evaluate_speech_and_demo_sample_endpoints():
             "motion": "THBT mạng xã hội gây hại nhiều hơn lợi",
             "side": "pro",
             "stage": "rebuttal",
-            "opponent_argument_text": "Mạng xã hội giúp kết nối mọi người.",
+            "opponent_argument_text": None,
             "turn_data": {
                 "emotion_timeline": [
                     {"time": 1.0, "dominant": "neutral", "scores": {"neutral": 85.0}, "face_detected": True}
@@ -98,7 +134,8 @@ def test_evaluate_speech_and_demo_sample_endpoints():
     )
     assert eval_resp.status_code == 200
     eval_data = eval_resp.json()
+    assert eval_data["evaluation_error"] is None
     assert eval_data["content_evaluation"] is not None
     assert len(eval_data["content_evaluation"]["criteria"]) == 5
-    assert eval_data["content_evaluation"]["overall_score"] > 0
+    assert eval_data["content_evaluation"]["overall_score"] == 8.0
     assert eval_data["content_evaluation"]["delivery_analytics"]["composure_score"] == 100.0

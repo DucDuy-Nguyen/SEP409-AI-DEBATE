@@ -104,76 +104,6 @@ def _build_delivery_feedback_items(multimodal_res: MultimodalTurnResult) -> tupl
     return strengths, weaknesses, suggestions
 
 
-def _build_local_fallback_evaluation(
-    req: IntegratedDebateEvaluationRequest,
-    arg_text: str,
-    multimodal_res: MultimodalTurnResult,
-) -> dict:
-    """
-    Fallback cham diem tai cho khi AI Evaluator chua cau hinh LLM API Key hoac khong ket noi duoc mang,
-    dam bao he thong luon hoat dong tron ven khi demo/test.
-    """
-    word_count = len(arg_text.split())
-    has_connector = any(
-        kw in arg_text.lower()
-        for kw in ["vì", "bởi vì", "do đó", "tuy nhiên", "mặc dù", "nhưng", "dẫn đến", "hệ quả", "thứ nhất", "ngoài ra"]
-    )
-    logic_score = 4 if (word_count >= 18 and has_connector) else 3
-    evidence_score = 4 if any(c.isdigit() for c in arg_text) or "nghiên cứu" in arg_text.lower() or "thực tế" in arg_text.lower() else 3
-    relevance_score = 4
-    structure_score = 4 if word_count >= 20 else 3
-    persuasiveness_score = 4 if multimodal_res.overall_demeanor_score >= 75 else 3
-
-    overall_score = round(
-        2.0 * (0.25 * logic_score + 0.25 * evidence_score + 0.25 * relevance_score + 0.25 * structure_score),
-        2,
-    )
-    d_str, d_weak, d_sug = _build_delivery_feedback_items(multimodal_res)
-
-    return {
-        "overall_score": overall_score,
-        "overall_reasoning": (
-            f"Lập luận bám sát chủ đề '{req.motion}' ở phe {req.side.upper()} (giai đoạn {req.stage}), "
-            f"kết hợp điểm phong thái đa phương thức đạt {multimodal_res.overall_demeanor_score:.1f}/100."
-        ),
-        "criteria": [
-            {
-                "name": "Logic",
-                "score": logic_score,
-                "reasoning": "Luận điểm có mối liên hệ nhân quả rõ ràng và lập luận mạch lạc.",
-            },
-            {
-                "name": "Evidence",
-                "score": evidence_score,
-                "reasoning": "Có nêu hiện tượng thực tế nhưng có thể bổ sung thêm số liệu định lượng cụ thể hơn.",
-            },
-            {
-                "name": "Relevance",
-                "score": relevance_score,
-                "reasoning": "Trực tiếp giải quyết vấn đề trọng tâm của kiến nghị và phản hồi đúng hướng.",
-            },
-            {
-                "name": "Structure",
-                "score": structure_score,
-                "reasoning": "Cấu trúc trình bày rõ luận điểm chính và phần giải thích hệ quả.",
-            },
-            {
-                "name": "Persuasiveness",
-                "score": persuasiveness_score,
-                "reasoning": (
-                    f"Thần thái biểu đạt đạt {multimodal_res.overall_demeanor_score:.1f}/100 "
-                    f"(Điềm tĩnh: {multimodal_res.facial.composure_score:.1f}%, Tốc độ nói: {multimodal_res.voice.wpm:.1f} WPM)."
-                ),
-            },
-        ],
-        "strengths": ["Lập luận đi thẳng vào trọng tâm chủ đề tranh biện."] + d_str,
-        "weaknesses": ["Cần bổ thêm dẫn chứng số liệu hoặc nghiên cứu cụ thể để tăng sức nặng."] + d_weak,
-        "suggestions": ["Áp dụng mô hình Claim - Warrant - Impact (Luận điểm - Lý lẽ - Tác động) kèm số liệu thực tế."] + d_sug,
-        "scoring_version": "v2_4x25",
-        "delivery_analytics": multimodal_res.delivery_analytics.model_dump(),
-    }
-
-
 @router.post("/evaluate-speech", response_model=IntegratedDebateEvaluationResult)
 def evaluate_speech_endpoint(req: IntegratedDebateEvaluationRequest) -> IntegratedDebateEvaluationResult:
     """
@@ -181,6 +111,7 @@ def evaluate_speech_endpoint(req: IntegratedDebateEvaluationRequest) -> Integrat
     1. Phan tich Multimodal (DeepFace + Faster-Whisper) de trich xuat Transcript + Delivery Analytics
     2. Goi sang AI Evaluator Service (/evaluate) de cham diem noi dung lap luan (Logic, Evidence,
        Relevance, Structure, Persuasiveness) ket hop nhan xet phong thai.
+    3. KHONG dung fallback gia lap: neu AI Evaluator loi thi tra ve evaluation_error ro rang.
     """
     multimodal_res = analyze_multimodal_turn(req.turn_data)
     arg_text = multimodal_res.voice.transcript_text.strip()
@@ -192,7 +123,7 @@ def evaluate_speech_endpoint(req: IntegratedDebateEvaluationRequest) -> Integrat
             multimodal=multimodal_res,
             argument_text_used="",
             content_evaluation=None,
-            evaluation_error="Khong phat hien duoc van ban giong noi de cham diem noi dung lap luan.",
+            evaluation_error="Không phát hiện được văn bản giọng nói để chấm điểm nội dung lập luận.",
         )
 
     settings = get_settings()
@@ -209,27 +140,26 @@ def evaluate_speech_endpoint(req: IntegratedDebateEvaluationRequest) -> Integrat
     eval_error = None
     base_url = settings.evaluator_service_url.rstrip("/")
 
-    if base_url:
-        try:
-            with httpx.Client(timeout=8.0) as client:
-                resp = client.post(f"{base_url}/evaluate", json=eval_payload)
-                if resp.status_code == 200:
-                    content_eval = resp.json()
-                else:
-                    eval_error = f"HTTP {resp.status_code} tu {base_url}"
-        except Exception as exc:
-            eval_error = f"{base_url}: {exc}"
+    try:
+        with httpx.Client(timeout=45.0) as client:
+            resp = client.post(f"{base_url}/evaluate", json=eval_payload)
+            if resp.status_code == 200:
+                content_eval = resp.json()
+            else:
+                try:
+                    err_detail = resp.json().get("detail", resp.text)
+                except Exception:
+                    err_detail = resp.text
+                eval_error = f"AI Evaluator ({base_url}) trả về lỗi HTTP {resp.status_code}: {err_detail}"
+    except Exception as exc:
+        eval_error = f"Không kết nối được tới AI Evaluator ({base_url}): {exc}"
 
     if content_eval is not None:
-        # Bo sung nhan xet phong thai truc quan vao ket qua LLM neu chua co
         d_str, d_weak, d_sug = _build_delivery_feedback_items(multimodal_res)
         content_eval["strengths"] = list(content_eval.get("strengths") or []) + d_str
         content_eval["weaknesses"] = list(content_eval.get("weaknesses") or []) + d_weak
         content_eval["suggestions"] = list(content_eval.get("suggestions") or []) + d_sug
         content_eval["delivery_analytics"] = multimodal_res.delivery_analytics.model_dump()
-        eval_error = None
-    else:
-        content_eval = _build_local_fallback_evaluation(req, arg_text, multimodal_res)
 
     return IntegratedDebateEvaluationResult(
         multimodal=multimodal_res,
