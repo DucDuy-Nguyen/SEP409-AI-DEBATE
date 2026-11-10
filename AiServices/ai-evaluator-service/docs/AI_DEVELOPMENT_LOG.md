@@ -1456,8 +1456,47 @@ NOT_FOUND, khong phai CONTRADICTED**: LLM gan CONTRADICTED va trich dung fact 11
 1 fact_id khac (e7279a4c thay vi e7279a4a), luat "co fact_id la -> ep NOT_FOUND" (3.20) ha ca claim. Evidence khong doi
 (3 -> 3). Do tre: co RAG 7,3 s, khong RAG 2,6 s (cung request, khong topic); load model bge-m3 lan dau 118 s (khong tinh).
 
-**Van de mo:** luat ep NOT_FOUND khi co fact_id la qua chat: 1 id go sai lam mat ca fact hop le da phan bac. Can quyet
-dinh co bo id la roi xet tiep (thay vi ep) hay khong. Load model lan dau 118 s: can khoi dong san (warm-up) khi deploy.
+**Van de mo (da xu ly o duoi):** luat ep NOT_FOUND khi co fact_id la qua chat: 1 id go sai lam mat ca fact hop le da
+phan bac. Load model lan dau 118 s: can khoi dong san (warm-up) khi deploy.
+
+### 3.22.1. Noi luat fact_id la + warm-up (quyet dinh nguoi dung, 2026-11)
+
+**Luat moi (`app/rag/verifier.py`, thay luat 3.20 "co 1 id la -> ep ca claim"):**
+- fact_id khong co trong fact da dua vao cua CHINH claim do bi bo, ghi vao `ClaimVerification.dropped_fact_ids`. KHONG sua
+  gan dung (khong fuzzy match).
+- SUPPORTED chi giu khi con >= 1 fact hop le co stance "supports"; CONTRADICTED chi giu khi con >= 1 fact hop le co stance
+  "contradicts". Khong thoa -> ep NOT_FOUND nhu cu (`coerced=True`).
+- Output cu chi co `fact_ids` (khong stance) thi khong biet stance: con id hop le la coi la khop (nhu luat truoc).
+  Stance rong chi den tu output cu: format `cited_facts` bat buoc moi fact co stance hop le, nen khong co truong hop lan fact co
+  va khong co stance trong cung 1 output.
+- Test: id la + fact hop le dung stance (giu nhan), id la + fact hop le sai stance (NOT_FOUND), toan id la (NOT_FOUND),
+  khong fuzzy match, output cu khong stance.
+
+**Ap lai tren ket qua da luu truoc khi goi that** (`scripts/rag/reapply_all_results.py`, 0 token; ghep tung lo voi raw
+output trong audit log, so luat hien tai TRUOC va SAU khi doi luat):
+
+| File | Claim ap duoc | Doi nhan | CONTRADICTED ban that | CONTRADICTED ban bia | False contradiction (gold S/N) | True contradiction (gold C) |
+|---|---|---|---|---|---|---|
+| verify_retrieve_20261108_115856 | 0 (output chi co fact_ids, khong parse duoc) | - | - | - | - | - |
+| verify_retrieve_20261108_144957 | 200 | 0 | - | - | 3 -> 3 | 29 -> 29 |
+| evidence_pairs_rag_on_20261108_165841 (lan D) | 81 | 2 | 2 -> 2 | 21 -> 21 | - | - |
+| evidence_stability_20261108_172832 (2 lan) | 148 | 0 | 0 -> 0 | 37 -> 37 | - | - |
+
+Tru oan khong tang. 2 claim doi nhan deu o ban THAT, NOT_FOUND -> SUPPORTED (edu-1, tech-5 lan D: LLM trich them 1 id
+khong co trong fact cua claim do).
+Chi do CONTRADICTED (tru oan); 2 claim moi SUPPORTED nam o ban that (so trong cau dung theo nguon) nhung CHUA doi chieu
+bang nhan chuan, nen chua chung minh luat moi khong tang SUPPORTED sai.
+
+**Goi that lai 1 lan** (request cu, co RAG): HTTP 200, 8,8 s. So dung "hon 14.695 truong" SUPPORTED. **So bia "40 lop tap
+huan" van ra NOT_FOUND**, lan nay KHONG phai do id la: retrieval co dua fact "115 lop tap huan" (2af92cb1) vao prompt, nhung
+LLM verify tu xep "40 lop tap huan" vao `unsupported_details` va chi trich 1 fact khong lien quan (e7279a4a, supports);
+reason van ghi "fact chi de cap toi 115 lop". Evidence 4 -> 4, round_score 7,5. Day la gioi han chat luong verify (LLM coi
+so khac la "chi tiet thieu" thay vi "chi tiet sai"), luat code khong sua duoc; khong goi lai de chon ket qua.
+
+**Warm-up:** `RAG_ENABLED=true` thi lifespan chay 1 thread load bge-m3 (`get_default_embedder`) + encode 1 cau ngan; trong
+luc do `/health/ready` tra 503 (`/health` giu nguyen 200), xong tra 200 kem `rag_warmup_seconds`; warm-up loi van ready
+(cham van chay, kiem chung ra "unavailable") va tra `rag_warmup_error`. RAG tat thi khong load model, khong import torch
+(co test). Do that (uvicorn, model da co trong cache): **14,7-15,0 s**; lan load lanh truoc do 118 s (cache dia lanh).
 
 ---
 
@@ -1533,3 +1572,4 @@ dinh co bo id la roi xet tiep (thay vi ep) hay khong. Load model lan dau 118 s: 
 - 2026-11: Them nhan CONFLICTING (fact supports + fact contradicts -> khong tru). 2 lan lap kiem chung: 0 ban that bi tru, chenh Evidence 1,27 +/- 0,09; nhung CONFLICTING che 1 ban bia (fact khop chi tiet khac) — xem 3.21.2.
 - 2026-11: CONFLICTING / CONTRADICTED xet theo tung chi tiet: ap lai tren output da luu (0 token), 2 claim bia CONFLICTING -> CONTRADICTED, bia bi phat hien 13/15 o ca 2 lan, van 0 ban that bi tru; tech-4 van lot do retrieval lay nham su kien — xem 3.21.3.
 - 2026-11: Kiem chung trong /evaluate/round (buoc 4 phan A): tung luot learner song song voi luot cham, gop nhan de dieu chinh Evidence round; status no_fact_base; lan goi that: so bia ra NOT_FOUND vi 1 fact_id go sai bi ep — xem 3.22.
+- 2026-11: fact_id la bi bo (dropped_fact_ids) thay vi ep ca claim, giu nhan khi con fact hop le dung stance; ap lai tren ket qua da luu: tru oan khong tang. Warm-up bge-m3 luc khoi dong + /health/ready (14,7 s). Goi that lai: so bia van NOT_FOUND do LLM verify — xem 3.22.1.

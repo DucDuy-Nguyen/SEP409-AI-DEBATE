@@ -187,6 +187,9 @@ Service chạy ở `http://localhost:8000` (cổng mặc định của uvicorn; 
 - `http://localhost:8000/docs` — **Swagger UI**, gửi thử request cho tất cả endpoint.
 - `http://localhost:8000/demo` — trang HTML đơn giản để thử `/evaluate` bằng giao diện.
 - `http://localhost:8000/health` — kiểm tra service sống và đang dùng provider nào.
+- `http://localhost:8000/health/ready` — `503` trong lúc warm-up model RAG (khi
+  `RAG_ENABLED=true`, khoảng 15 s nếu model đã có trong cache), `200` khi xong,
+  kèm `rag_warmup_seconds` và `rag_warmup_error`. RAG tắt thì `200` ngay.
 
 Giá trị hợp lệ: `side` là `"pro"` hoặc `"con"`; `stage` là `"opening"`,
 `"rebuttal"` hoặc `"closing"`; `speaker` là `"learner"` hoặc `"opponent"`.

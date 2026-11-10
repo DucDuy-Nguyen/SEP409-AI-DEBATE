@@ -1,8 +1,9 @@
 """
 Verify claim bang LLM, chi dua tren fact retrieve duoc (hoac fact truyen san, vd gold evidence o che do oracle).
 
-Rang buoc cung bang code: SUPPORTED/CONTRADICTED ma fact_ids rong hoac co id khong nam trong fact da dua vao
-cua CHINH claim do -> ep ve NOT_FOUND, coerced=True. SUPPORTED ma con chi tiet khong co trong fact (unsupported_details
+Rang buoc cung bang code: fact_id khong nam trong fact da dua vao cua CHINH claim do bi bo (ghi vao dropped_fact_ids,
+khong sua gan dung); SUPPORTED/CONTRADICTED chi giu khi con >= 1 fact hop le co stance khop ("supports"/"contradicts"),
+khong thi ep ve NOT_FOUND, coerced=True (muc 3.22; truoc do co 1 id la la ep ca claim). SUPPORTED ma con chi tiet khong co trong fact (unsupported_details
 khac rong) -> ha xuong NOT_FOUND, downgraded=True. Xet theo tung chi tiet (sau khi bo fact_id la), bat ke nhan LLM:
 co chi tiet chi bi fact "contradicts" -> CONTRADICTED (uu tien cao nhat); khong co chi tiet sai nhung co chi tiet vua
 "supports" vua "contradicts" -> CONFLICTING. Claim khong co fact nao thi tra NOT_FOUND luon, khong goi LLM.
@@ -61,6 +62,9 @@ def _build_batch_results(
         # fact_id la bi loai TRUOC khi xet CONFLICTING, de id bia khong tao mau thuan gia
         stances = _single_stances(cited, allowed)
         valid_ids = [fact_id for fact_id in fact_ids if fact_id in allowed]
+        # fact_id khong co trong prompt (vd LLM go sai 1 ky tu): bo, ghi lai, KHONG sua gan dung (muc 3.22)
+        dropped = list(dict.fromkeys(fact_id for fact_id in fact_ids if fact_id not in allowed))
+        valid_cited = [(fact_id, stance) for fact_id, stance in cited if fact_id in allowed]
         details, unsupported = _parse_details(item, allowed, index)
 
         coerced = downgraded = False
@@ -74,7 +78,8 @@ def _build_batch_results(
         elif label == VerdictLabel.CONFLICTING:
             # CONFLICTING chi do code gan; LLM tu gan ma stance khong mau thuan thi coi nhu khong du de ket luan
             label, coerced, reason = VerdictLabel.NOT_FOUND, True, COERCED_PREFIX + reason
-        elif label != VerdictLabel.NOT_FOUND and (not fact_ids or len(valid_ids) != len(fact_ids)):
+        elif label != VerdictLabel.NOT_FOUND and not _has_backing_fact(label, valid_cited):
+            # SUPPORTED / CONTRADICTED chi giu khi con >= 1 fact HOP LE co dung stance; id la da bi bo o tren
             label, coerced, reason = VerdictLabel.NOT_FOUND, True, COERCED_PREFIX + reason
         elif label == VerdictLabel.SUPPORTED and unsupported:
             label, downgraded, reason = VerdictLabel.NOT_FOUND, True, DOWNGRADED_PREFIX + reason
@@ -89,6 +94,7 @@ def _build_batch_results(
                 unsupported_details=unsupported,
                 downgraded=downgraded,
                 fact_stances=stances,
+                dropped_fact_ids=dropped,
                 retrieved=list(facts),
             )
         )
@@ -102,6 +108,15 @@ def _verify_settings(settings: Optional[Settings]) -> Settings:
 
 
 STANCES = ("supports", "contradicts")
+
+
+def _has_backing_fact(label: VerdictLabel, valid_cited: list[tuple[str, str]]) -> bool:
+    """
+    Con >= 1 fact hop le co stance khop nhan: SUPPORTED can "supports", CONTRADICTED can "contradicts".
+    Output cu chi co "fact_ids" (stance rong) thi khong biet stance: coi la khop, nhu luat truoc muc 3.22.
+    """
+    needed = "supports" if label == VerdictLabel.SUPPORTED else "contradicts"
+    return any(stance in (needed, "") for _, stance in valid_cited)
 
 
 def _single_stances(cited: list[tuple[str, str]], allowed: set[str]) -> dict[str, str]:
