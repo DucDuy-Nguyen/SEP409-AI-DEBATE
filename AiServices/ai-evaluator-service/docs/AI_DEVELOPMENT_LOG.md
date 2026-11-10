@@ -1484,14 +1484,27 @@ output trong audit log, so luat hien tai TRUOC va SAU khi doi luat):
 
 Tru oan khong tang. 2 claim doi nhan deu o ban THAT, NOT_FOUND -> SUPPORTED (edu-1, tech-5 lan D: LLM trich them 1 id
 khong co trong fact cua claim do).
-Chi do CONTRADICTED (tru oan); 2 claim moi SUPPORTED nam o ban that (so trong cau dung theo nguon) nhung CHUA doi chieu
-bang nhan chuan, nen chua chung minh luat moi khong tang SUPPORTED sai.
+**Doi chieu 2 claim doi nhan voi nhan chuan** (`docs/rag_eval/evidence_pairs.jsonl`, 0 token): ca 2 DUNG.
+- edu-1 ban that, "Trong so cac giai, co 25 giai nhi": 25 la so goc cua cap (`changes.old`), co trong fact 4933f45a
+  (`used_fact_ids`). Id bi bo chinh la 4933f45a: LLM trich fact dung nhung fact nay khong nam trong danh sach fact cua
+  claim nay (thuoc claim khac cung lo).
+- tech-5 ban that, "Khoang 300 sinh vien da tham gia tao ra robot Iris": 300 la so goc, co trong fact ff42b202. Id bi bo
+  ec19ee1a cung la fact that cua bai Iris, ghi "khoang 300 sinh vien", nhung khong nam trong fact cua claim nay.
+=> SUPPORTED dung voi nhan chuan o ca 2. Chi la 2 claim, chua du de ket luan ve ty le SUPPORTED sai noi chung.
 
 **Goi that lai 1 lan** (request cu, co RAG): HTTP 200, 8,8 s. So dung "hon 14.695 truong" SUPPORTED. **So bia "40 lop tap
 huan" van ra NOT_FOUND**, lan nay KHONG phai do id la: retrieval co dua fact "115 lop tap huan" (2af92cb1) vao prompt, nhung
 LLM verify tu xep "40 lop tap huan" vao `unsupported_details` va chi trich 1 fact khong lien quan (e7279a4a, supports);
 reason van ghi "fact chi de cap toi 115 lop". Evidence 4 -> 4, round_score 7,5. Day la gioi han chat luong verify (LLM coi
 so khac la "chi tiet thieu" thay vi "chi tiet sai"), luat code khong sua duoc; khong goi lai de chon ket qua.
+
+**Gioi han: "so khac bi coi la chi tiet thieu" (CHUA sua, nguoi dung chot de buoc rieng):** LLM verify gap 1 so trong claim
+khac voi so trong fact cung chu the thuong ghi chi tiet do vao `unsupported_details` (khong gan fact) thay vi gan fact
+voi stance "contradicts", nen claim ra NOT_FOUND va khong bi tru. Vi du lan goi that: claim "da to chuc 40 lop tap huan",
+fact 2af92cb1 ghi "115 lop tap huan" co trong prompt, reason cua LLM ghi "fact chi de cap toi 115 lop", nhung nhan van
+NOT_FOUND. Ly do chua sua prompt: them luat "so khac -> contradicts" co nguy co TRU OAN khi 2 so noi ve pham vi hoac thoi
+diem khac nhau (vd so lop cua 1 tinh voi ca du an, so nam 2022 voi 2023), dung loi da gap o 3.21.1. Se lam thanh buoc
+rieng, do lai tren evidence_pairs truoc khi bat.
 
 **Warm-up:** `RAG_ENABLED=true` thi lifespan chay 1 thread load bge-m3 (`get_default_embedder`) + encode 1 cau ngan; trong
 luc do `/health/ready` tra 503 (`/health` giu nguyen 200), xong tra 200 kem `rag_warmup_seconds`; warm-up loi van ready
