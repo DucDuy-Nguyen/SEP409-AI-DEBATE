@@ -144,8 +144,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
-            var topic = await _debateRepository.GetOrCreateTopicAsync(
-                request.Title.Trim(), request.Topic.Trim(), "Medium", userId, cancellationToken);
+            var (topic, topicError) = await ResolveTopicAsync(request.TopicId, request.Title, request.Topic, userId, cancellationToken);
+            if (topic == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse(topicError!);
+            }
 
             var isAi = request.IsAI;
             var formatName = isAi ? "User vs AI" : "1 vs 1";
@@ -347,16 +350,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 bool isSessionCompleted = session.Status == SessionStatus.Completed;
                 await transaction.CommitAsync(cancellationToken);
 
+                // The debate is over: it is graded in the background (own DI scope), the response does not wait for it.
+                // GET /evaluation awaits that same evaluation, or starts a new one if it failed.
                 if (isSessionCompleted && _aiEvaluatorClient != null)
                 {
-                    try
-                    {
-                        await GetOrEvaluateSessionAsync(sessionId, cancellationToken);
-                    }
-                    catch (Exception evalEx)
-                    {
-                        _logger?.LogWarning(evalEx, "Auto-evaluation for completed debate session {SessionId} failed. Evaluation can be triggered on demand.", sessionId);
-                    }
+                    StartBackgroundEvaluation(sessionId);
                 }
 
                 var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
@@ -466,16 +464,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 bool isSessionCompleted = session.Status == SessionStatus.Completed;
                 await transaction.CommitAsync(cancellationToken);
 
+                // The debate is over: it is graded in the background (own DI scope), the response does not wait for it.
+                // GET /evaluation awaits that same evaluation, or starts a new one if it failed.
                 if (isSessionCompleted && _aiEvaluatorClient != null)
                 {
-                    try
-                    {
-                        await GetOrEvaluateSessionAsync(sessionId, cancellationToken);
-                    }
-                    catch (Exception evalEx)
-                    {
-                        _logger?.LogWarning(evalEx, "Auto-evaluation for completed debate session {SessionId} failed. Evaluation can be triggered on demand.", sessionId);
-                    }
+                    StartBackgroundEvaluation(sessionId);
                 }
 
                 var round = session.DebateRounds.First(r => r.RoundNumber == turn.RoundNumber);
@@ -615,16 +608,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
             bool isSessionCompleted = session.Status == SessionStatus.Completed;
             await transaction.CommitAsync(cancellationToken);
 
+            // The debate is over: it is graded in the background (own DI scope), the response does not wait for it.
+            // GET /evaluation awaits that same evaluation, or starts a new one if it failed.
             if (isSessionCompleted && _aiEvaluatorClient != null)
             {
-                try
-                {
-                    await GetOrEvaluateSessionAsync(sessionId, cancellationToken);
-                }
-                catch (Exception evalEx)
-                {
-                    _logger?.LogWarning(evalEx, "Auto-evaluation for completed debate session {SessionId} failed. Evaluation can be triggered on demand.", sessionId);
-                }
+                StartBackgroundEvaluation(sessionId);
             }
 
             var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
@@ -640,8 +628,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
-            var topic = await _debateRepository.GetOrCreateTopicAsync(
-                request.Title.Trim(), request.Topic.Trim(), "Medium", userId, cancellationToken);
+            var (topic, topicError) = await ResolveTopicAsync(request.TopicId, request.Title, request.Topic, userId, cancellationToken);
+            if (topic == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse(topicError!);
+            }
 
             var formatName = "2 vs 2";
             var format = await _debateRepository.GetOrCreateFormatAsync(
@@ -1667,6 +1658,31 @@ namespace SystemService.BLL.Services.Debate.Implementations
         {
             return _evaluationCoordinator.RunOnceAsync(
                 sessionId, this, service => service.GetStoredOrEvaluateAsync(sessionId), cancellationToken);
+        }
+
+        /// <summary>Auto-evaluation of a debate that just ended: fire and forget, failures are logged.</summary>
+        private void StartBackgroundEvaluation(int sessionId)
+        {
+            _evaluationCoordinator.StartInBackground(
+                sessionId, this, service => service.GetStoredOrEvaluateAsync(sessionId), _logger);
+        }
+
+        /// <summary>
+        /// The topic of a new P2P / 2v2 session: the one picked by id (unknown or inactive → error), otherwise found
+        /// or created by its text (no category, so no evidence check).
+        /// </summary>
+        private async Task<(Topic? Topic, string? Error)> ResolveTopicAsync(
+            int? topicId, string title, string description, int userId, CancellationToken cancellationToken)
+        {
+            if (topicId.HasValue)
+            {
+                var picked = await _debateRepository.GetTopicByIdAsync(topicId.Value, cancellationToken);
+                return picked == null || !picked.IsActive
+                    ? (null, "Debate topic not found or no longer active.")
+                    : (picked, null);
+            }
+            var topic = await _debateRepository.GetOrCreateTopicAsync(title.Trim(), description.Trim(), "Medium", userId, cancellationToken);
+            return (topic, null);
         }
 
         /// <summary>Runs inside the coordinator, on the service of the evaluation's own scope.</summary>

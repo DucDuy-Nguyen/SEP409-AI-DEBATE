@@ -28,16 +28,13 @@ namespace SystemService.Tests.Debate
             }
             Assert.Equal("Ongoing", MatchStatus(matchId));
 
-            var client = new FakeEvaluatorClient(_ => 300);
+            var client = new FakeEvaluatorClient(_ => 2000);
             _harness.AiEvaluator = client;
 
-            var lastTurn = _harness.UserSubmitsAsync(UserA, sessionId);
-            // The other debater opens the result while the auto-evaluation is still running
-            await WaitUntilAsync(() => _harness.Coordinator.IsRunning(sessionId));
-            var concurrentGet = _harness.NewService().GetSessionEvaluationAsync(UserB, sessionId);
-
-            var submitted = ApiResponseAssert.Succeeds(await lastTurn);
-            var seenByB = ApiResponseAssert.Succeeds(await concurrentGet);
+            var submitted = ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId));
+            // The auto-evaluation runs in the background: the other debater opens the result while it is running
+            Assert.True(_harness.Coordinator.IsRunning(sessionId));
+            var seenByB = ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionEvaluationAsync(UserB, sessionId));
             var seenByA = ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionEvaluationAsync(UserA, sessionId));
 
             Assert.Equal(SessionStatus.Completed, submitted.Status);
@@ -62,6 +59,7 @@ namespace SystemService.Tests.Debate
             _harness.AiEvaluator = new FakeEvaluatorClient { FailStage = "opening" };
 
             var submitted = ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId));
+            await WaitUntilAsync(() => !_harness.Coordinator.IsRunning(sessionId)); // the background evaluation failed
 
             Assert.Equal(SessionStatus.Completed, submitted.Status);
             Assert.Equal("Evaluating", MatchStatus(matchId));
@@ -72,6 +70,53 @@ namespace SystemService.Tests.Debate
             ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionEvaluationAsync(UserB, sessionId));
             Assert.Equal(1, JudgementCount(sessionId));
             Assert.Equal("Evaluating", MatchStatus(matchId));
+        }
+
+        [Fact]
+        public async Task LastTurn_ReturnsBeforeTheEvaluationIsDone()
+        {
+            int sessionId = await _harness.StartP2pSessionAsync(DebateSide.PRO);
+            int matchId = SeedOngoingMatch(sessionId);
+            foreach (var user in new[] { UserA, UserB, UserA, UserB, UserB })
+            {
+                ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(user, sessionId));
+            }
+            var client = new FakeEvaluatorClient(_ => 2000); // each evaluator call takes > 2 s
+            _harness.AiEvaluator = client;
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var submitted = ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId));
+            var submitTook = stopwatch.Elapsed;
+
+            Assert.Equal(SessionStatus.Completed, submitted.Status);
+            Assert.True(submitTook < TimeSpan.FromSeconds(1.5), $"The last turn waited {submitTook.TotalSeconds:F1} s for the evaluation");
+            Assert.True(_harness.Coordinator.IsRunning(sessionId));
+            Assert.Equal(0, JudgementCount(sessionId));
+            Assert.Equal("Evaluating", MatchStatus(matchId)); // WF-03 transition is done before the response
+
+            // GET /evaluation waits for that same evaluation: no second one
+            ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionEvaluationAsync(UserA, sessionId));
+            Assert.Equal(1, JudgementCount(sessionId));
+            Assert.Equal(6, client.RoundRequests.Count);
+        }
+
+        [Fact]
+        public async Task AiPractice_LastAiTurn_AlsoStartsTheEvaluationInTheBackground()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.CON); // the AI (PRO) speaks last
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 0));
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId));
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 2));
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId));
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId));
+            _harness.AiEvaluator = new FakeEvaluatorClient(_ => 2000); // still running when the response is back
+
+            var final = ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 5));
+
+            Assert.Equal(SessionStatus.Completed, final.Session.Status);
+            Assert.True(_harness.Coordinator.IsRunning(sessionId));
+            ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionEvaluationAsync(UserA, sessionId));
+            Assert.Equal(1, JudgementCount(sessionId));
         }
 
         private int SeedOngoingMatch(int sessionId)

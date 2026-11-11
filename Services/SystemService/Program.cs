@@ -1,3 +1,4 @@
+using SystemService.HostedServices;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -125,6 +126,14 @@ builder.Services.AddHttpClient<IAiOpponentClient, AiOpponentClient>(client =>
     client.BaseAddress = new Uri(opponentUrl.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(aiTimeoutSeconds);
 });
+
+// Warm-up after startup (background, never blocks it): EF query of the evaluation + AI Evaluator /health/ready
+builder.Services.AddHttpClient(StartupWarmupService.EvaluatorHttpClientName, client =>
+{
+    client.BaseAddress = new Uri(evaluatorUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddHostedService<StartupWarmupService>();
 
 // 6. Authentication & JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "development-secret-key-super-secret-1234567890";

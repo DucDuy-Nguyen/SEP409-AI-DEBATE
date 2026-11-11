@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.AI.Interfaces;
 using SystemService.BLL.Services.Debate.Implementations;
+using SystemService.BLL.Services.Debate.Interfaces;
 using SystemService.DAL.Context;
 using SystemService.DAL.Entities.Debate;
 using SystemService.DAL.Entities.Debate.Enums;
@@ -48,18 +50,55 @@ namespace SystemService.Tests.Debate
             return new SystemDbContext(options);
         }
 
-        /// <summary>One per harness, like the API's singleton: every service built here shares it.</summary>
-        public DebateEvaluationCoordinator Coordinator { get; } = new();
+        private ServiceProvider? _provider;
+        private DebateEvaluationCoordinator? _coordinator;
+        private IAiEvaluatorClient? _lastEvaluator;
+
+        /// <summary>
+        /// One per harness, like the API's singleton, WITH a scope factory like the API: an evaluation runs on a service
+        /// (and DbContext) of its own scope, never on the caller's context, which the caller keeps using.
+        /// </summary>
+        public DebateEvaluationCoordinator Coordinator
+        {
+            get
+            {
+                lock (_contexts)
+                {
+                    if (_coordinator == null)
+                    {
+                        var services = new ServiceCollection();
+                        // The evaluator of the evaluation's scope = the one of the last service that had one (like DI)
+                        services.AddScoped<IDebateService>(_ => Build(_lastEvaluator));
+                        _provider = services.BuildServiceProvider();
+                        _coordinator = new DebateEvaluationCoordinator(_provider.GetRequiredService<IServiceScopeFactory>());
+                    }
+                    return _coordinator;
+                }
+            }
+        }
 
         /// <summary>Evaluator used by every service built here when none is passed (null = AI evaluation off).</summary>
         public IAiEvaluatorClient? AiEvaluator { get; set; }
 
         public DebateService NewService(IAiEvaluatorClient? aiEvaluatorClient = null)
         {
+            var evaluator = aiEvaluatorClient ?? AiEvaluator;
+            if (evaluator != null)
+            {
+                _lastEvaluator = evaluator;
+            }
+            return Build(evaluator);
+        }
+
+        private DebateService Build(IAiEvaluatorClient? evaluator)
+        {
             var context = CreateContext();
-            _contexts.Add(context);
+            lock (_contexts)
+            {
+                _contexts.Add(context);
+            }
             return new DebateService(new DebateRepository(context), new UserRepository(context),
-                aiEvaluatorClient ?? AiEvaluator, logger: null, evaluationCoordinator: Coordinator);
+                evaluator, logger: null, evaluationCoordinator: Coordinator);
         }
 
         public async Task<int> StartAiSessionAsync(DebateSide userSide)
@@ -126,9 +165,18 @@ namespace SystemService.Tests.Debate
 
         public void Dispose()
         {
-            foreach (var context in _contexts)
+            // A background evaluation may still run (last turn submitted, nobody awaited it): let it end first
+            for (int i = 0; i < 500 && _coordinator?.HasRunningEvaluations == true; i++)
             {
-                context.Dispose();
+                Thread.Sleep(20);
+            }
+            _provider?.Dispose();
+            lock (_contexts)
+            {
+                foreach (var context in _contexts)
+                {
+                    context.Dispose();
+                }
             }
         }
     }

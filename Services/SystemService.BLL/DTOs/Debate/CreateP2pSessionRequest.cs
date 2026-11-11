@@ -5,6 +5,10 @@ namespace SystemService.BLL.DTOs.Debate
 {
     public class CreateP2pSessionRequest
     {
+        // An existing topic (its Category enables the evidence check). Takes priority over Title and Topic: they are
+        // still required but then ignored. Without it the topic is found or created by its text, without a category.
+        public int? TopicId { get; set; }
+
         [Required]
         [MaxLength(200)]
         public string Title { get; set; } = null!;
