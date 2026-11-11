@@ -336,6 +336,15 @@ kiểm được gộp lại để điều chỉnh `Evidence` của round theo c�
 `status="unavailable"`. `/evaluate/session` không đổi: nhận `round_score` đã
 điều chỉnh.
 
+**Ai gọi (từ 2026-11):** chỉ SystemService gọi `/evaluate/round` và
+`/evaluate/session` khi chấm một phiên (cả 2 phe, các round song song, phe AI gửi
+`check_evidence=false`, `topic` lấy từ `Topic.Category`). FE không gọi trực tiếp nữa,
+mà đọc kết quả chính thức qua `GET /api/debate/{id}/evaluation`; field `error`
+của `evidence_check` không được trả ra FE (chỉ có trong `RawResponseJson` và log).
+Giới hạn đã biết: nhãn có thể đúng nhưng fact được trích không chứa chi tiết bị
+phản bác (xem `docs/AI_DEVELOPMENT_LOG.md` mục 3.23). Kết quả demo:
+`docs/RAG_REPORT_DEMO_RESULTS.md`.
+
 Tuỳ chọn `reference_turns`: các lượt của các round trước, mỗi lượt có `round`,
 `order`, `speaker`, `side`, `text`. Đây chỉ là ngữ cảnh để đối chiếu, **không được
 chấm**; không truyền thì hành vi như cũ. Sai phe, `order` trùng, hoặc `round` không

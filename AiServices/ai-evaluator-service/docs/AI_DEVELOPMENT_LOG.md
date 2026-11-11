@@ -1511,11 +1511,73 @@ luc do `/health/ready` tra 503 (`/health` giu nguyen 200), xong tra 200 kem `rag
 (cham van chay, kiem chung ra "unavailable") va tra `rag_warmup_error`. RAG tat thi khong load model, khong import torch
 (co test). Do that (uvicorn, model da co trong cache): **14,7-15,0 s**; lan load lanh truoc do 118 s (cache dia lanh).
 
+## 3.23. RAG Evidence buoc 4 (WF-01), phan B-C-D: ket qua chinh thuc tu SystemService + demo D1-D6 (2026-11)
+
+**Luong moi (quyet dinh nguoi dung):** ket qua chinh thuc cua 1 phien la `AIJudgement` do SystemService luu, doc qua
+`GET /api/debate/{id}/evaluation`. FE khong con tu goi `/evaluate/round` + `/evaluate/session` (truoc do FE cham rieng phe
+cua minh, KHONG luu, va SystemService cung tu cham lan nua qua Azure -> 2 lan cham, diem DB khac diem user thay).
+
+1. Nop luot cuoi (`SubmitArgument*` / `SubmitTeamArgument*` / luot AI cuoi): commit DB (match WF-03 sang `Evaluating` nhu
+   cu), kich hoat cham NEN, tra response ngay (0,6-1,2 s do that).
+2. Cham: 6 round (3 round x 2 phe) `Task.WhenAll`, giu thu tu round; phe AI `check_evidence=false`; `topic` = `Topic.Category`
+   neu thuoc 4 chu de; roi 2 session song song, co `skipped_stages` (giai doan khong phat bieu = 0 diem, giong FE cu).
+3. `DebateEvaluationCoordinator` (singleton): moi phien chi 1 lan cham trong process; request khac (GET, POST /evaluate,
+   tu cham) await dung Task do; chay trong DI scope rieng (khong dung DbContext cua request khoi tao); Task loi -> lan GET
+   sau cham lai; da co judgement -> tra luon. **In-memory: SystemService phai chay 1 replica** (hoac chuyen khoa xuong DB khi
+   scale); log 1 dong luc khoi dong. Repo KHONG co cau hinh Azure Container Apps cua SystemService (khong biet min/max
+   replicas hien tai), can kiem tra tren portal.
+4. FE: phien ket thuc trong luc dang o phong (luot cua minh, luot AI, hoac luot doi phuong qua polling) -> sang `/result`
+   ngay; trang ket qua hien overlay "Dang tong hop ket qua" trong luc GET cho; F5 / tab moi / History deu doc lai GET.
+   Panel kiem chung doc `evidenceChecks` camelCase, khong co field `error` (BE da xoa; FE van loc).
+5. Phong P2P 1v1 / 2v2 nhan `topicId` (giong AI practice): co topicId thi co Category -> kiem chung; tao theo tieu de van
+   duoc nhung khong kiem chung.
+6. Warm-up SystemService (`StartupWarmupService`, chay nen, loi chi log): 1 query EF cung hinh query cua luot cham + GET
+   `{EvaluatorUrl}/health/ready`. Do that: DB 5,4 s, evaluator 2,4 s.
+
+**Timeout 3 tang** (p95 do o D4 = 20,2 s, cold start 23,3 s):
+
+| Tang | Gia tri |
+|---|---|
+| Evaluator: kiem chung 1 round (`rag_round_check_timeout_seconds`) | 20 s (qua han -> `unavailable`, van cham) |
+| SystemService -> evaluator (HttpClient) | 120 s moi lan goi |
+| Gateway YARP `system-cluster` | 180 s (truoc la mac dinh 100 s) |
+| FE axios `getEvaluation` | 200 s (truoc khong dat) |
+
+**Demo local** (DB demo `DebatePracticePlatformDB_RagDemo` dung tu model EF, evaluator local RAG bat, Groq
+`openai/gpt-oss-120b`; anh: `docs/rag_demo/`, chi tiet `docs/RAG_REPORT_DEMO_RESULTS.md`):
+
+| | Ket qua |
+|---|---|
+| D1 Education | so dung "hon 14.695 truong" SUPPORTED, so bia "tong cong 40 lop tap huan" CONTRADICTED, Evidence 3 -> 1 (2 lan chay: truoc va sau khi doi luong) |
+| D2 Society | 3 round `no_fact_base` |
+| D3 tat Postgres | report van ra, 3 round `unavailable` (loi "Timeout: qua 20.0 giay" chi o RawResponseJson + log) |
+| D4 5 phien | sau doi luong: 15,0 / 15,7 / 16,7 / 19,3 / 20,5 s -> p50 16,7 s, p95 20,2 s (truoc: p50 21,1, p95 26,4 s, cham trong request nop luot cuoi); do qua trinh duyet 1 phien: 24,5 s (gom mo Chrome + dang nhap) |
+| Cold start | lan cham dau sau khoi dong: 34 s (khong warm-up) -> 23,3 s (co warm-up) |
+| D5 | F5 va mo tu History deu hien du diem + panel |
+| D6 P2P topicId Education | 1 AIJudgement; B goi GET luc 1,5 s, nhan ket qua luc 14,5 s (lan 1) / 29,9 s (lan cuoi, ban code sau verifier) - cho dung Task dang chay; ca 2 ben co panel (lan cuoi A 4 claim, B 3 claim) |
+
+**Gioi han: trich dan sai fact (CHUA sua, de buoc sua prompt verify):** nhan dung nhung fact trich dan khong chua bang
+chung. D1: claim "Du an co tong cong 40 lop tap huan" ra CONTRADICTED (dung), reason ghi "fact neu du an co 115 lop", nhung
+fact duoc trich la **e7279a4a** (noi ve bo tai lieu HTQC, khong co so 115); fact co "115 lop tap huan" la **2af92cb1** (co
+trong prompt). Nguoi doc bam "Xem nguon" se khong thay so 115. Luat code hien chi kiem fact_id co trong danh sach dua vao
+va stance khop nhan, KHONG kiem noi dung fact co chua chi tiet bi phan bac.
+
+**De xuat chi so cho buoc sua prompt verify: "citation accuracy"** = so claim SUPPORTED/CONTRADICTED co it nhat 1 fact
+trich dan chua dung chi tiet duoc xac nhan / phan bac (vd so lieu, ten, nam), chia cho tong so claim SUPPORTED/CONTRADICTED.
+Cham tren evidence_pairs (gold da biet fact dung cho tung cap) + kiem tay 20 claim ngau nhien. Bao kem: ty le claim co it nhat
+1 trich dan khong lien quan. Muc tieu de xuat: >= 0,9 truoc khi bat cho nguoi dung that.
+
+**Gioi han khac:** demo 1 lan moi dieu kien, lap luan do Claude soan; 1 lan SQL Server local cham > 30 s trong ~1 phut ngay
+sau khi khoi dong lai (chua ro nguyen nhan, khong lap lai 2 lan sau): lan cham nen phien 19 loi, log ghi lai, GET ke tiep cham lai
+dung thiet ke; tho thoi gian phu thuoc Groq (cung 6 request song song moi round cham cham hon chay rieng 2-3 lan).
+
 ---
 
 ## 4. Viec con treo (chua lam / dang cho)
 
 - [x] Fix C (xac minh quote): da revert (muc 3.17).
+- [ ] **Sua prompt verify (buoc rieng):** "so khac = chi tiet thieu" (3.22.1) + trich sai fact (3.23); do "citation accuracy" truoc/sau.
+- [ ] **Khoa cham theo phien o DB** neu SystemService chay > 1 replica (coordinator hien in-memory, 3.23); kiem tra min/max replicas tren Azure.
 - [ ] **Fix B: `reference_turns`** (muc 3.17). Evaluator da co, FE chua gui (`docs/FE_SPEC_REFERENCE_TURNS.md`). Truoc khi bat: xu ly viec model cham lan ngu canh (10/10 closing) va cham phien yeu (phien 12) de kiem tra do phan biet.
 - [ ] **Mo lai Evidence khi du 30-50 bai that** (muc 3.14.2): them bang chung 15/16 ly do tru diem vi thieu so lieu du co hiep uoc/su kien co ten (muc 3.16).
 - [ ] Kiem chung luong P2P o FE: luc dieu tra nghi moi nguoi choi deu bi gan `learner` (muc 3.16); FE da doi sang `getEvaluatorSpeaker` (`DebateRoom.tsx`), doc code thay da phan biet, chua chay thu.
@@ -1585,4 +1647,5 @@ luc do `/health/ready` tra 503 (`/health` giu nguyen 200), xong tra 200 kem `rag
 - 2026-11: Them nhan CONFLICTING (fact supports + fact contradicts -> khong tru). 2 lan lap kiem chung: 0 ban that bi tru, chenh Evidence 1,27 +/- 0,09; nhung CONFLICTING che 1 ban bia (fact khop chi tiet khac) — xem 3.21.2.
 - 2026-11: CONFLICTING / CONTRADICTED xet theo tung chi tiet: ap lai tren output da luu (0 token), 2 claim bia CONFLICTING -> CONTRADICTED, bia bi phat hien 13/15 o ca 2 lan, van 0 ban that bi tru; tech-4 van lot do retrieval lay nham su kien — xem 3.21.3.
 - 2026-11: Kiem chung trong /evaluate/round (buoc 4 phan A): tung luot learner song song voi luot cham, gop nhan de dieu chinh Evidence round; status no_fact_base; lan goi that: so bia ra NOT_FOUND vi 1 fact_id go sai bi ep — xem 3.22.
+- 2026-11: Ket qua chinh thuc = AIJudgement cua SystemService (GET /evaluation); tu cham nen khi nop luot cuoi, coordinator 1 lan cham/phien (in-memory, 1 replica), skipped_stages, P2P topicId, warm-up; timeout Gateway 180 s / axios 200 s. Demo D1-D6 dat, p95 20,2 s; gioi han trich sai fact + chi so citation accuracy — xem 3.23.
 - 2026-11: fact_id la bi bo (dropped_fact_ids) thay vi ep ca claim, giu nhan khi con fact hop le dung stance; ap lai tren ket qua da luu: tru oan khong tang. Warm-up bge-m3 luc khoi dong + /health/ready (14,7 s). Goi that lai: so bia van NOT_FOUND do LLM verify — xem 3.22.1.
