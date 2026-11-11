@@ -68,10 +68,13 @@ def evaluate_argument(
 
     system_prompt, user_prompt = build_evaluation_prompt(req)
 
-    return call_llm_with_retry(
+    result = call_llm_with_retry(
         generate_fn=lambda up: client.generate(system_prompt, up),
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         build_result_fn=_build_result,
         audit_label="argument",
     )
+    if req.delivery_analytics is not None:
+        result.delivery_analytics = req.delivery_analytics
+    return result

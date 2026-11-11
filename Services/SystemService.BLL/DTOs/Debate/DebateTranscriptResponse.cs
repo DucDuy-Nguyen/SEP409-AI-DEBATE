@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SystemService.BLL.DTOs.AI;
 using SystemService.DAL.Entities.Debate.Enums;
 
 namespace SystemService.BLL.DTOs.Debate
@@ -23,6 +24,9 @@ namespace SystemService.BLL.DTOs.Debate
         public string SpeakerName { get; set; } = null!;
         public bool IsAI { get; set; }
         public string Content { get; set; } = null!;
+        public int? WordCount { get; set; }
+        public int? DurationSeconds { get; set; }
+        public DeliveryAnalyticsDto? DeliveryAnalytics { get; set; }
         public DateTime SubmittedAt { get; set; }
     }
 }

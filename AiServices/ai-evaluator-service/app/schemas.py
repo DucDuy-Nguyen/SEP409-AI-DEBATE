@@ -30,6 +30,27 @@ class DebateStage(str, Enum):
     CLOSING = "closing"
 
 
+class DeliveryAnalytics(BaseModel):
+    """
+    Chi so phong thai khuon mat (DeepFace) & giong noi (Faster-Whisper) cua luot phat bieu.
+    Tuy chon (Optional): khi co mat, AI Evaluator se ket hop nhan xet phong thai vao
+    strengths/weaknesses/suggestions va Coaching ma khong lam thay doi cong thuc diem
+    hoc thuat v2_4x25 (Logic, Evidence, Relevance, Structure).
+    """
+
+    dominant_emotion: str = Field(default="neutral", description="Cam xuc khuon mat chu dao (neutral, happy, surprise, sad, angry, fear, disgust)")
+    eye_contact_rate: Optional[float] = Field(default=None, ge=0, le=100, description="Ti le % khung hinh giu eye contact voi camera")
+    composure_score: Optional[float] = Field(default=None, ge=0, le=100, description="Chi so diem tinh khuon mat (Neutral + Happy %)")
+    confidence_score: Optional[float] = Field(default=None, ge=0, le=100, description="Chi so tu tin tong hop (%)")
+    wpm: Optional[float] = Field(default=None, ge=0, description="Toc do noi (tu/phut)")
+    pace_evaluation: Optional[str] = Field(default=None, description="Danh gia toc do noi (vi du: Chuan tranh bien 110-170 WPM)")
+    pace_score: Optional[float] = Field(default=None, ge=0, le=100, description="Diem toc do noi (/100)")
+    filler_count: Optional[int] = Field(default=None, ge=0, description="So lan lap tu dem ngap ngung (ờ, ừm, kiểu...)")
+    fluency_score: Optional[float] = Field(default=None, ge=0, le=100, description="Diem do troi chay (/100)")
+    overall_demeanor_score: Optional[float] = Field(default=None, ge=0, le=100, description="Diem phong thai tong the (/100)")
+    emotion_breakdown: dict[str, float] = Field(default_factory=dict, description="Phan bo % hoac so khung hinh cua 7 cam xuc")
+
+
 class ArgumentEvaluationRequest(BaseModel):
     """Input: 1 luot lap luan cua learner can duoc cham diem."""
 
@@ -40,6 +61,10 @@ class ArgumentEvaluationRequest(BaseModel):
     opponent_argument_text: Optional[str] = Field(
         default=None,
         description="Lap luan cua doi phuong ngay truoc do (neu co) — giup danh gia tinh relevance/rebuttal",
+    )
+    delivery_analytics: Optional[DeliveryAnalytics] = Field(
+        default=None,
+        description="Tuy chon: Chi so phong thai khuon mat (DeepFace) & giong noi (Whisper) cua luot noi",
     )
     topic: Optional[EvidenceTopic] = Field(
         default=None,
@@ -155,6 +180,10 @@ class ArgumentEvaluationResult(BaseModel):
         default=SCORING_VERSION_LEGACY,
         description="Phien ban cong thuc diem tong (v1_5x20 cu, v2_4x25 moi); khong tron hai thang khi tinh Session",
     )
+    delivery_analytics: Optional[DeliveryAnalytics] = Field(
+        default=None,
+        description="Chi so phong thai khuon mat & giong noi (neu request co gui kem)",
+    )
     evidence_check: Optional[EvidenceCheckSummary] = Field(
         default=None, description="Ket qua kiem chung so lieu (RAG); None khi request khong co topic hoac RAG tat"
     )
@@ -178,6 +207,10 @@ class ArgumentTurn(BaseModel):
 
     speaker: TurnSpeaker
     text: str = Field(..., min_length=1)
+    delivery_analytics: Optional[DeliveryAnalytics] = Field(
+        default=None,
+        description="Tuy chon: Chi so phong thai (DeepFace + Whisper) cua luot noi nay",
+    )
 
 
 class ReferenceTurn(BaseModel):

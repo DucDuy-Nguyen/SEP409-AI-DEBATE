@@ -51,3 +51,27 @@ def test_evaluate_invalid_side_value_returns_422():
     }
     response = client.post("/evaluate", json=payload)
     assert response.status_code == 422
+
+
+def test_delivery_analytics_included_in_user_prompt():
+    from app.prompts.evaluator_prompt import build_user_prompt
+    from app.schemas import ArgumentEvaluationRequest, DebateSide, DeliveryAnalytics
+
+    req = ArgumentEvaluationRequest(
+        motion="THBT mạng xã hội gây hại nhiều hơn lợi",
+        side=DebateSide.PRO,
+        argument_text="Mạng xã hội làm giảm tương tác trực tiếp.",
+        delivery_analytics=DeliveryAnalytics(
+            dominant_emotion="neutral",
+            composure_score=88.5,
+            eye_contact_rate=92.0,
+            wpm=135.0,
+            pace_evaluation="Chuẩn tranh biện (110-170 WPM)",
+            filler_count=1,
+            overall_demeanor_score=89.0,
+        ),
+    )
+    prompt = build_user_prompt(req)
+    assert "MULTIMODAL DELIVERY ANALYTICS" in prompt
+    assert "88.5/100" in prompt
+    assert "135.0 WPM" in prompt

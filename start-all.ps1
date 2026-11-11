@@ -1,4 +1,4 @@
-﻿# Kich ban khoi chay dong thoi cac service trong he thong ADPP (AI Debate Practice Platform)
+# Kich ban khoi chay dong thoi cac service trong he thong ADPP (AI Debate Practice Platform)
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "     ADPP - Khoi dong he thong Microservices              " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -18,11 +18,15 @@ Write-Host "`n[2/4] Khoi dong AI Opponent Service (Port 8002)..." -ForegroundCol
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\AiServices\ai-opponent-service'; if (Test-Path 'venv\Scripts\activate.ps1') { .\venv\Scripts\activate }; python -m uvicorn app.main:app --port 8002 --reload"
 
 # 3. Khoi dong AI Evaluator Service (Port 8000)
-Write-Host "`n[3/4] Khoi dong AI Evaluator Service (Port 8000)..." -ForegroundColor Yellow
+Write-Host "`n[3/5] Khoi dong AI Evaluator Service (Port 8000)..." -ForegroundColor Yellow
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\AiServices\ai-evaluator-service'; if (Test-Path 'venv\Scripts\activate.ps1') { .\venv\Scripts\activate }; python -m uvicorn app.main:app --port 8000 --reload"
 
-# 4. Khoi dong YARP API Gateway (Port 5000)
-Write-Host "`n[4/4] Khoi dong YARP API Gateway (.NET 8, Port 5000)..." -ForegroundColor Yellow
+# 4. Khoi dong AI Multimodal Service - DeepFace & Faster-Whisper (Port 8003)
+Write-Host "`n[4/5] Khoi dong AI Multimodal Service - DeepFace & Whisper (Port 8003)..." -ForegroundColor Yellow
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\AiServices\ai-multimodal-service'; if (Test-Path 'venv\Scripts\activate.ps1') { .\venv\Scripts\activate }; python -m uvicorn app.main:app --port 8003 --reload"
+
+# 5. Khoi dong YARP API Gateway (Port 5000)
+Write-Host "`n[5/5] Khoi dong YARP API Gateway (.NET 8, Port 5000)..." -ForegroundColor Yellow
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\Gateway'; dotnet run"
 
 Write-Host "`n==========================================================" -ForegroundColor Green
@@ -30,4 +34,5 @@ Write-Host "Da khoi dong cac tien trinh thanh cong!" -ForegroundColor Green
 Write-Host "Gateway:       http://localhost:5000" -ForegroundColor White
 Write-Host "AI Opponent:   http://localhost:8002 (Gateway route: /api/opponent/*)" -ForegroundColor White
 Write-Host "AI Evaluator:  http://localhost:8000 (Gateway route: /api/evaluate/*)" -ForegroundColor White
+Write-Host "AI Multimodal: http://localhost:8003 (Gateway route: /api/multimodal/* | Web Demo: http://localhost:8003/demo)" -ForegroundColor White
 Write-Host "==========================================================" -ForegroundColor Green

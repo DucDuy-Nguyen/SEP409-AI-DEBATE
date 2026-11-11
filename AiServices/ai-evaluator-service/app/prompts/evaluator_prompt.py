@@ -296,6 +296,25 @@ def build_user_prompt(req: ArgumentEvaluationRequest) -> str:
 
     parts.append(f"[LAP LUAN CAN CHAM]\n{req.argument_text}")
 
+    if req.delivery_analytics is not None:
+        da = req.delivery_analytics
+        da_lines = [f"- Cam xuc khuon mat chu dao (DeepFace): {da.dominant_emotion}"]
+        if da.composure_score is not None:
+            da_lines.append(f"- Do diem tinh khuon mat (Composure): {da.composure_score:.1f}/100")
+        if da.eye_contact_rate is not None:
+            da_lines.append(f"- Ti le Eye Contact: {da.eye_contact_rate:.1f}%")
+        if da.wpm is not None:
+            pace_note = f" ({da.pace_evaluation})" if da.pace_evaluation else ""
+            da_lines.append(f"- Toc do noi (Faster-Whisper): {da.wpm:.1f} WPM{pace_note}")
+        if da.filler_count is not None:
+            da_lines.append(f"- So tu dem ngap ngung (ờ, ừm, kiểu...): {da.filler_count} lan")
+        if da.overall_demeanor_score is not None:
+            da_lines.append(f"- Diem phong thai tong the (Demeanor Score): {da.overall_demeanor_score:.1f}/100")
+        parts.append(
+            "[CHI SO PHONG THAI & GIONG NOI (MULTIMODAL DELIVERY ANALYTICS — dung de bo sung nhan xet ve phong thai bieu dat trong strengths/weaknesses/suggestions va Persuasiveness, KHONG lam thay doi diem 4 tieu chi Logic/Evidence/Relevance/Structure)]\n"
+            + "\n".join(da_lines)
+        )
+
     return "\n\n".join(parts)
 
 
