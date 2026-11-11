@@ -31,6 +31,8 @@ namespace SystemService.BLL.DTOs.Debate
         public string SpeakerName { get; set; } = null!;
         public decimal OverallScore { get; set; }
         public Dictionary<string, decimal> StageBreakdown { get; set; } = new();
+        // Stages this side did not speak in: counted 0 in OverallScore, absent from StageBreakdown
+        public List<string> SkippedStages { get; set; } = new();
         public string ProgressTrend { get; set; } = string.Empty;
         public List<string> Strengths { get; set; } = new();
         public List<string> Weaknesses { get; set; } = new();

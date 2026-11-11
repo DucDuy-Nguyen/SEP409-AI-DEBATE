@@ -34,17 +34,25 @@ namespace SystemService.BLL.Services.Debate.Implementations
         private readonly IUserRepository _userRepository;
         private readonly IAiEvaluatorClient? _aiEvaluatorClient;
         private readonly ILogger<DebateService>? _logger;
+        private readonly DebateEvaluationCoordinator _evaluationCoordinator;
 
         public DebateService(
             IDebateRepository debateRepository,
             IUserRepository userRepository,
             IAiEvaluatorClient? aiEvaluatorClient = null,
-            ILogger<DebateService>? logger = null)
+            ILogger<DebateService>? logger = null,
+            DebateEvaluationCoordinator? evaluationCoordinator = null)
         {
             _debateRepository = debateRepository;
             _userRepository = userRepository;
             _aiEvaluatorClient = aiEvaluatorClient;
             _logger = logger;
+            // The API registers one singleton; without it the per-session lock only covers this service's own calls
+            if (evaluationCoordinator == null && aiEvaluatorClient != null)
+            {
+                _logger?.LogWarning("DebateEvaluationCoordinator is not registered: concurrent requests may evaluate the same debate twice.");
+            }
+            _evaluationCoordinator = evaluationCoordinator ?? new DebateEvaluationCoordinator();
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> CreateAiPracticeSessionAsync(
@@ -343,7 +351,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 {
                     try
                     {
-                        await EvaluateAndStoreSessionInternalAsync(sessionId, cancellationToken);
+                        await GetOrEvaluateSessionAsync(sessionId, cancellationToken);
                     }
                     catch (Exception evalEx)
                     {
@@ -462,7 +470,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 {
                     try
                     {
-                        await EvaluateAndStoreSessionInternalAsync(sessionId, cancellationToken);
+                        await GetOrEvaluateSessionAsync(sessionId, cancellationToken);
                     }
                     catch (Exception evalEx)
                     {
@@ -611,7 +619,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             {
                 try
                 {
-                    await EvaluateAndStoreSessionInternalAsync(sessionId, cancellationToken);
+                    await GetOrEvaluateSessionAsync(sessionId, cancellationToken);
                 }
                 catch (Exception evalEx)
                 {
@@ -1510,7 +1518,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             try
             {
-                var evaluation = await EvaluateAndStoreSessionInternalAsync(sessionId, cancellationToken);
+                var evaluation = await GetOrEvaluateSessionAsync(sessionId, cancellationToken);
                 return ApiResponse<DebateEvaluationResponse>.SuccessResponse(evaluation, "Debate session evaluated and analyzed successfully.");
             }
             catch (Exception ex)
@@ -1649,6 +1657,50 @@ namespace SystemService.BLL.Services.Debate.Implementations
             }
         }
 
+        /// <summary>
+        /// The ONLY entry point to evaluate a session: returns the stored judgement when there is one, otherwise
+        /// evaluates once. Concurrent callers (auto-evaluation of the last turn, GET /evaluation, POST /evaluate) share
+        /// the running evaluation, which runs in its own DI scope (see DebateEvaluationCoordinator) and is not cancelled:
+        /// <paramref name="cancellationToken"/> only stops this caller from waiting for it.
+        /// </summary>
+        private Task<DebateEvaluationResponse> GetOrEvaluateSessionAsync(int sessionId, CancellationToken cancellationToken)
+        {
+            return _evaluationCoordinator.RunOnceAsync(
+                sessionId, this, service => service.GetStoredOrEvaluateAsync(sessionId), cancellationToken);
+        }
+
+        /// <summary>Runs inside the coordinator, on the service of the evaluation's own scope.</summary>
+        private async Task<DebateEvaluationResponse> GetStoredOrEvaluateAsync(int sessionId)
+        {
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, CancellationToken.None)
+                ?? throw new InvalidOperationException("Debate session not found.");
+            var existing = session.AIJudgements.OrderByDescending(j => j.CreatedAt).FirstOrDefault();
+            if (existing != null)
+            {
+                return MapJudgementToResponse(existing, session);
+            }
+            return await EvaluateAndStoreSessionInternalAsync(sessionId, CancellationToken.None);
+        }
+
+        private static readonly string[] EvaluatedStages = { "opening", "rebuttal", "closing" };
+
+        /// <summary>1-based number of a stage (opening 1, rebuttal 2, closing 3), case-insensitive; 0 if unknown.</summary>
+        private static int StageNumber(string? stage)
+        {
+            return Array.FindIndex(EvaluatedStages, s => string.Equals(s, stage, StringComparison.OrdinalIgnoreCase)) + 1;
+        }
+
+        private static List<string> SkippedStages(List<EvaluateRoundResponse> rounds)
+        {
+            return EvaluatedStages.Where(stage => rounds.All(r => StageNumber(r.Stage) != StageNumber(stage))).ToList();
+        }
+
+        private static decimal AverageWithSkipped(List<EvaluateRoundResponse> rounds, List<string> skipped)
+        {
+            int count = rounds.Count + skipped.Count;
+            return rounds.Any() && count > 0 ? rounds.Sum(r => r.RoundScore) / count : 0m;
+        }
+
         private async Task<DebateEvaluationResponse> EvaluateAndStoreSessionInternalAsync(int sessionId, CancellationToken cancellationToken)
         {
             var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
@@ -1716,18 +1768,22 @@ namespace SystemService.BLL.Services.Debate.Implementations
             LogUnavailableEvidenceChecks(sessionId, "pro", proRounds);
             LogUnavailableEvidenceChecks(sessionId, "con", conRounds);
 
+            // Stages a side did not speak in count 0 in its overall score (same rule as the FE grading had)
+            var proSkipped = SkippedStages(proRounds);
+            var conSkipped = SkippedStages(conRounds);
+
             var proSessionTask = proRounds.Any()
-                ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "pro", Rounds: proRounds), cancellationToken)
+                ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "pro", Rounds: proRounds, SkippedStages: proSkipped), cancellationToken)
                 : Task.FromResult<EvaluateSessionResponse?>(null);
             var conSessionTask = conRounds.Any()
-                ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "con", Rounds: conRounds), cancellationToken)
+                ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "con", Rounds: conRounds, SkippedStages: conSkipped), cancellationToken)
                 : Task.FromResult<EvaluateSessionResponse?>(null);
             await Task.WhenAll(proSessionTask, conSessionTask);
             var proSessionRes = proSessionTask.Result;
             var conSessionRes = conSessionTask.Result;
 
-            decimal proScore = proSessionRes?.OverallScore ?? (proRounds.Any() ? proRounds.Average(r => r.RoundScore) : 0m);
-            decimal conScore = conSessionRes?.OverallScore ?? (conRounds.Any() ? conRounds.Average(r => r.RoundScore) : 0m);
+            decimal proScore = proSessionRes?.OverallScore ?? AverageWithSkipped(proRounds, proSkipped);
+            decimal conScore = conSessionRes?.OverallScore ?? AverageWithSkipped(conRounds, conSkipped);
 
             string suggestedWinner;
             if (proScore > conScore) suggestedWinner = "PRO";
@@ -1813,6 +1869,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                                 SpeakerName = proParticipant?.ParticipantType == ParticipantType.AI ? "AI Opponent" : (proParticipant?.User?.FullName ?? "User PRO"),
                                 OverallScore = proSession.OverallScore,
                                 StageBreakdown = proSession.StageBreakdown ?? new(),
+                                SkippedStages = proSession.SkippedStages ?? new(),
                                 ProgressTrend = proSession.ProgressTrend ?? string.Empty,
                                 Strengths = proSession.OverallStrengths ?? new(),
                                 Weaknesses = proSession.OverallWeaknesses ?? new(),
@@ -1839,6 +1896,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                                 SpeakerName = conParticipant?.ParticipantType == ParticipantType.AI ? "AI Opponent" : (conParticipant?.User?.FullName ?? "User CON"),
                                 OverallScore = conSession.OverallScore,
                                 StageBreakdown = conSession.StageBreakdown ?? new(),
+                                SkippedStages = conSession.SkippedStages ?? new(),
                                 ProgressTrend = conSession.ProgressTrend ?? string.Empty,
                                 Strengths = conSession.OverallStrengths ?? new(),
                                 Weaknesses = conSession.OverallWeaknesses ?? new(),
@@ -1914,7 +1972,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
         {
             return rounds?.Select((r, idx) => new RoundEvaluationDetailDto
             {
-                RoundNumber = idx + 1,
+                // By stage, not by position: a side that skipped a stage keeps the other rounds' numbers
+                RoundNumber = StageNumber(r.Stage) is var stageNumber && stageNumber > 0 ? stageNumber : idx + 1,
                 Stage = r.Stage,
                 RoundScore = r.RoundScore,
                 ConsistencyNote = r.ConsistencyNote,

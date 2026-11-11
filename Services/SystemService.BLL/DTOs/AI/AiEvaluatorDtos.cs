@@ -114,7 +114,9 @@ namespace SystemService.BLL.DTOs.AI
     public record EvaluateSessionRequest(
         [property: JsonPropertyName("motion")] string Motion,
         [property: JsonPropertyName("side")] string Side,
-        [property: JsonPropertyName("rounds")] List<EvaluateRoundResponse> Rounds
+        [property: JsonPropertyName("rounds")] List<EvaluateRoundResponse> Rounds,
+        // Stages the side did not speak in: each counts 0 in overall_score (never also in Rounds)
+        [property: JsonPropertyName("skipped_stages"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<string>? SkippedStages = null
     );
 
     public record EvaluateSessionResponse(
@@ -124,7 +126,9 @@ namespace SystemService.BLL.DTOs.AI
         [property: JsonPropertyName("overall_strengths")] List<string> OverallStrengths,
         [property: JsonPropertyName("overall_weaknesses")] List<string> OverallWeaknesses,
         [property: JsonPropertyName("overall_suggestions")] List<string> OverallSuggestions,
-        [property: JsonPropertyName("raw_model_output")] string? RawModelOutput = null
+        [property: JsonPropertyName("raw_model_output")] string? RawModelOutput = null,
+        // Stages counted 0 in overall_score; judgements stored before this field have none
+        [property: JsonPropertyName("skipped_stages"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] List<string>? SkippedStages = null
     );
 
     public record CriterionCoachingDto(

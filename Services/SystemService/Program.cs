@@ -101,6 +101,8 @@ builder.Services.AddScoped<ICreditPackageService, CreditPackageService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IRewardService, RewardService>();
 
+// Singleton: one evaluation per debate session at a time, shared by every request (DebateService is scoped)
+builder.Services.AddSingleton<DebateEvaluationCoordinator>();
 builder.Services.AddScoped<IDebateService, DebateService>();
 builder.Services.AddScoped<IDebateChallengeService, DebateChallengeService>();
 builder.Services.AddScoped<ITopicService, TopicService>();

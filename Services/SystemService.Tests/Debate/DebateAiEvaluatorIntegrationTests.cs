@@ -1,10 +1,14 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using SystemService.BLL.DTOs.AI;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.AI.Interfaces;
 using SystemService.BLL.Services.Debate.Implementations;
+using SystemService.BLL.Services.Debate.Interfaces;
+using SystemService.DAL.Repositories.Debate.Implementations;
+using SystemService.DAL.Repositories.Identity.Implementations;
 using SystemService.DAL.Entities.Debate;
 using SystemService.DAL.Entities.Debate.Enums;
 using static SystemService.Tests.Debate.DebateTestHarness;
@@ -263,11 +267,160 @@ namespace SystemService.Tests.Debate
             Assert.Equal(expected, DebateService.MapEvidenceTopic(category));
         }
 
-        private async Task<int> SeedAiSessionAsync(string? category, DebateSide userSide = DebateSide.PRO)
+        private async Task<int> SeedAiSessionAsync(string? category, DebateSide userSide = DebateSide.PRO,
+            RoundType? conSkips = null, bool completed = false)
         {
             int sessionId = await _harness.StartAiSessionAsync(userSide);
-            SeedRoundsAndTopic(sessionId, category);
+            SeedRoundsAndTopic(sessionId, category, conSkips, completed);
             return sessionId;
+        }
+
+        [Fact]
+        public async Task ConcurrentRequests_OnOneSession_EvaluateOnce_OneJudgement()
+        {
+            int sessionId = await SeedAiSessionAsync("Education", completed: true);
+            var client = new FakeEvaluatorClient(_ => 300);
+
+            // 2 x GET /evaluation + 1 x POST /evaluate at the same time, each on its own service (= request scope)
+            var results = await Task.WhenAll(
+                _harness.NewService(client).GetSessionEvaluationAsync(UserA, sessionId),
+                _harness.NewService(client).EvaluateSessionAsync(UserA, sessionId),
+                _harness.NewService(client).GetSessionEvaluationAsync(UserA, sessionId));
+
+            Assert.All(results, r => Assert.True(r.Success, r.Message));
+            Assert.Equal(6, client.RoundRequests.Count);  // 1 evaluation = 3 rounds x 2 sides
+            Assert.Equal(2, client.SessionRequests.Count);
+            Assert.Equal(1, JudgementCount(sessionId));
+            Assert.Single(results.Select(r => r.Data!.JudgementId).Distinct());
+            Assert.False(_harness.Coordinator.IsRunning(sessionId));
+        }
+
+        [Fact]
+        public async Task ExistingJudgement_IsReturned_WithoutCallingTheEvaluator()
+        {
+            int sessionId = await SeedAiSessionAsync("Education", completed: true);
+            var first = ApiResponseAssert.Succeeds(await _harness.NewService(new FakeEvaluatorClient()).EvaluateSessionAsync(UserA, sessionId));
+            var client = new FakeEvaluatorClient();
+
+            var again = ApiResponseAssert.Succeeds(await _harness.NewService(client).EvaluateSessionAsync(UserA, sessionId));
+
+            Assert.Empty(client.RoundRequests);
+            Assert.Equal(first.JudgementId, again.JudgementId);
+            Assert.Equal(1, JudgementCount(sessionId));
+        }
+
+        [Fact]
+        public async Task FailedEvaluation_FreesTheSession_ForTheNextRequest()
+        {
+            int sessionId = await SeedAiSessionAsync("Education", completed: true);
+
+            Assert.False((await _harness.NewService(new FakeEvaluatorClient { FailStage = "closing" }).EvaluateSessionAsync(UserA, sessionId)).Success);
+            Assert.False(_harness.Coordinator.IsRunning(sessionId));
+
+            ApiResponseAssert.Succeeds(await _harness.NewService(new FakeEvaluatorClient()).GetSessionEvaluationAsync(UserA, sessionId));
+            Assert.Equal(1, JudgementCount(sessionId));
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)] // /evaluate/session returned nothing: the fallback average follows the same rule
+        public async Task SkippedStage_CountsZero_AndRoundNumbersFollowTheStage(bool sessionReturnsNull)
+        {
+            int sessionId = await SeedAiSessionAsync("Education", conSkips: RoundType.REBUTTAL);
+            var client = new FakeEvaluatorClient { SessionReturnsNull = sessionReturnsNull };
+
+            var result = ApiResponseAssert.Succeeds(await _harness.NewService(client).EvaluateSessionAsync(UserA, sessionId));
+
+            if (!sessionReturnsNull)
+            {
+                var conRequest = client.SessionRequests.Single(s => s.Side == "con");
+                Assert.Equal(new[] { "rebuttal" }, conRequest.SkippedStages);
+                Assert.Equal(new[] { "opening", "closing" }, conRequest.Rounds.Select(r => r.Stage));
+                Assert.Empty(client.SessionRequests.Single(s => s.Side == "pro").SkippedStages!);
+                Assert.Contains("\"skipped_stages\":[\"rebuttal\"]", JsonSerializer.Serialize(conRequest));
+                Assert.Equal(new[] { "rebuttal" }, result.ConEvaluation!.SkippedStages);
+                Assert.Equal(new[] { 1, 3 }, result.ConEvaluation.RoundEvaluations.Select(r => r.RoundNumber));
+            }
+            // Every round scores FakeEvaluatorClient.RoundScore (7): (7 + 0 + 7) / 3, like the FE: a stage without a
+            // speech is a 0, not left out of the average
+            Assert.Equal(7.0m, FakeEvaluatorClient.RoundScore);
+            Assert.Equal(Math.Round(2 * FakeEvaluatorClient.RoundScore / 3, 2), Math.Round(result.OverallScoreCon!.Value, 2));
+            Assert.Equal(4.67m, Math.Round(result.OverallScoreCon!.Value, 2));
+            Assert.Equal(FakeEvaluatorClient.RoundScore, result.OverallScorePro);
+            if (!sessionReturnsNull)
+            {
+                Assert.All(result.ConEvaluation!.RoundEvaluations, r => Assert.Equal(FakeEvaluatorClient.RoundScore, r.RoundScore));
+            }
+        }
+
+        [Fact]
+        public async Task CancelledWaiter_DoesNotCancelTheSharedEvaluation()
+        {
+            int sessionId = await SeedAiSessionAsync("Education", completed: true);
+            var client = new FakeEvaluatorClient(_ => 300);
+            using var gaveUp = new CancellationTokenSource();
+
+            var cancelled = _harness.NewService(client).GetSessionEvaluationAsync(UserA, sessionId, gaveUp.Token);
+            var patient = _harness.NewService(client).GetSessionEvaluationAsync(UserA, sessionId);
+            gaveUp.Cancel();
+
+            Assert.False((await cancelled).Success);  // this caller stopped waiting
+            ApiResponseAssert.Succeeds(await patient); // the evaluation went on for the other one
+            Assert.Equal(6, client.RoundRequests.Count);
+            Assert.Equal(1, JudgementCount(sessionId));
+        }
+
+        [Fact]
+        public async Task WithAScopeFactory_TheEvaluationRunsInItsOwnScope_AndSurvivesTheStarterGoingAway()
+        {
+            int sessionId = await SeedAiSessionAsync("Education", completed: true);
+            var client = new FakeEvaluatorClient(_ => 300);
+            int scopesCreated = 0;
+            DebateEvaluationCoordinator coordinator = null!;
+            var services = new ServiceCollection();
+            services.AddScoped<IDebateService>(_ =>
+            {
+                Interlocked.Increment(ref scopesCreated);
+                var context = _harness.CreateContext(); // disposed with the evaluation's scope
+                return new DebateService(new DebateRepository(context), new UserRepository(context), client, null, coordinator);
+            });
+            await using var provider = services.BuildServiceProvider();
+            coordinator = new DebateEvaluationCoordinator(provider.GetRequiredService<IServiceScopeFactory>());
+
+            // The starting request: its DbContext goes away (request ended, client gone) right after it started
+            var starterContext = _harness.CreateContext();
+            using var gone = new CancellationTokenSource();
+            var starter = new DebateService(new DebateRepository(starterContext), new UserRepository(starterContext), client, null, coordinator)
+                .GetSessionEvaluationAsync(UserA, sessionId, gone.Token);
+            await WaitUntilAsync(() => coordinator.IsRunning(sessionId));
+            gone.Cancel();
+            await starter;
+            await starterContext.DisposeAsync();
+
+            var otherContext = _harness.CreateContext();
+            var result = await new DebateService(new DebateRepository(otherContext), new UserRepository(otherContext), client, null, coordinator)
+                .GetSessionEvaluationAsync(UserA, sessionId);
+
+            ApiResponseAssert.Succeeds(result);
+            Assert.Equal(1, scopesCreated);
+            Assert.Equal(6, client.RoundRequests.Count);
+            Assert.Equal(1, JudgementCount(sessionId));
+            await otherContext.DisposeAsync();
+        }
+
+        private static async Task WaitUntilAsync(Func<bool> condition)
+        {
+            for (int i = 0; i < 200 && !condition(); i++)
+            {
+                await Task.Delay(10);
+            }
+            Assert.True(condition(), "Timed out waiting for the evaluation to start");
+        }
+
+        private int JudgementCount(int sessionId)
+        {
+            using var context = _harness.CreateContext();
+            return context.AIJudgements.Count(j => j.DebateSessionId == sessionId);
         }
 
         private async Task<int> SeedP2pSessionAsync(string? category)
@@ -277,8 +430,8 @@ namespace SystemService.Tests.Debate
             return sessionId;
         }
 
-        // 3 round, moi round 1 luot moi phe (thay the luot da co de so luot co dinh)
-        private void SeedRoundsAndTopic(int sessionId, string? category)
+        // 3 round, moi round 1 luot moi phe (thay the luot da co de so luot co dinh); conSkips: round CON khong noi
+        private void SeedRoundsAndTopic(int sessionId, string? category, RoundType? conSkips = null, bool completed = false)
         {
             using var context = _harness.CreateContext();
             var session = context.DebateSessions
@@ -287,6 +440,7 @@ namespace SystemService.Tests.Debate
                 .Include(s => s.DebateRounds).ThenInclude(r => r.Arguments)
                 .Single(s => s.DebateSessionId == sessionId);
             session.Topic!.Category = category;
+            if (completed) session.Status = SessionStatus.Completed;
 
             context.Arguments.RemoveRange(session.DebateRounds.SelectMany(r => r.Arguments));
             var pro = session.Participants.Single(p => p.Side == DebateSide.PRO);
@@ -303,7 +457,8 @@ namespace SystemService.Tests.Debate
                 }
                 round.RoundType = types[i];
                 round.Arguments.Add(new Argument { ParticipantId = pro.ParticipantId, Content = $"pro {i}", SubmittedAt = start.AddMinutes(i * 2) });
-                round.Arguments.Add(new Argument { ParticipantId = con.ParticipantId, Content = $"con {i}", SubmittedAt = start.AddMinutes(i * 2 + 1) });
+                if (types[i] != conSkips)
+                    round.Arguments.Add(new Argument { ParticipantId = con.ParticipantId, Content = $"con {i}", SubmittedAt = start.AddMinutes(i * 2 + 1) });
             }
             context.SaveChanges();
         }
@@ -314,7 +469,7 @@ namespace SystemService.Tests.Debate
             return context.AIJudgements.Where(j => j.DebateSessionId == sessionId).OrderByDescending(j => j.CreatedAt).First().RawResponseJson!;
         }
 
-        private sealed class FakeEvaluatorClient : IAiEvaluatorClient
+        internal sealed class FakeEvaluatorClient : IAiEvaluatorClient
         {
             private readonly Func<string, int> _delayMsByStage;
             private int _activeRounds, _activeSessions;
@@ -358,7 +513,7 @@ namespace SystemService.Tests.Debate
                             Error: "TimeoutError: verify qua 20 s", Version: "v4_detail_conflict"))
                     };
                 }
-                return new EvaluateRoundResponse(req.Stage, 7.0m, new() { new CriterionScoreDto("Evidence", 3, "r") }, "note",
+                return new EvaluateRoundResponse(req.Stage, RoundScore, new() { new CriterionScoreDto("Evidence", 3, "r") }, "note",
                     new(), new(), new(),
                     EvidenceChecks: checks,
                     EvidenceScoreBefore: WithEvidence ? 4 : null,
@@ -372,8 +527,18 @@ namespace SystemService.Tests.Debate
                 Track(ref _activeSessions, +1, isRound: false);
                 await Task.Delay(100, ct);
                 Track(ref _activeSessions, -1, isRound: false);
-                return new EvaluateSessionResponse(req.Rounds.Average(r => r.RoundScore), new(), "trend", new(), new(), new());
+                if (SessionReturnsNull) return null;
+                // Same formula as the Python service: every skipped stage counts 0
+                var skipped = req.SkippedStages ?? new();
+                var overall = Math.Round(req.Rounds.Sum(r => r.RoundScore) / (req.Rounds.Count + skipped.Count), 2);
+                return new EvaluateSessionResponse(overall, req.Rounds.ToDictionary(r => r.Stage, r => r.RoundScore), "trend",
+                    new(), new(), new(), SkippedStages: skipped);
             }
+
+            public bool SessionReturnsNull { get; init; }
+
+            /// <summary>round_score of every round this fake returns.</summary>
+            public const decimal RoundScore = 7.0m;
 
             private void Track(ref int counter, int delta, bool isRound)
             {

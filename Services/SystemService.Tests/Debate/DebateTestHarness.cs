@@ -48,11 +48,18 @@ namespace SystemService.Tests.Debate
             return new SystemDbContext(options);
         }
 
+        /// <summary>One per harness, like the API's singleton: every service built here shares it.</summary>
+        public DebateEvaluationCoordinator Coordinator { get; } = new();
+
+        /// <summary>Evaluator used by every service built here when none is passed (null = AI evaluation off).</summary>
+        public IAiEvaluatorClient? AiEvaluator { get; set; }
+
         public DebateService NewService(IAiEvaluatorClient? aiEvaluatorClient = null)
         {
             var context = CreateContext();
             _contexts.Add(context);
-            return new DebateService(new DebateRepository(context), new UserRepository(context), aiEvaluatorClient);
+            return new DebateService(new DebateRepository(context), new UserRepository(context),
+                aiEvaluatorClient ?? AiEvaluator, logger: null, evaluationCoordinator: Coordinator);
         }
 
         public async Task<int> StartAiSessionAsync(DebateSide userSide)
