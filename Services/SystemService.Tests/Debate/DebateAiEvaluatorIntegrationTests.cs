@@ -244,6 +244,18 @@ namespace SystemService.Tests.Debate
 
         [Theory]
         [InlineData("Education", "education")]
+        [InlineData("Chính trị", null)]
+        public async Task SessionDetails_ExposeEvidenceTopic(string category, string? expected)
+        {
+            int sessionId = await SeedAiSessionAsync(category);
+
+            var session = ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionDetailsAsync(UserA, sessionId));
+
+            Assert.Equal(expected, session.EvidenceTopic);
+        }
+
+        [Theory]
+        [InlineData("Education", "education")]
         [InlineData("Lịch sử", null)]
         [InlineData("", null)]
         public void MapEvidenceTopic_OnlyKnownTopics(string category, string? expected)

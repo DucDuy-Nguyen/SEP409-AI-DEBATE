@@ -1060,6 +1060,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 SessionId = session.DebateSessionId,
                 Title = session.Topic?.Title ?? "Debate Session",
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
+                EvidenceTopic = MapEvidenceTopic(session.Topic?.Category),
                 DebateType = InferDebateType(session),
                 Difficulty = session.Difficulty ?? session.Topic?.Difficulty,
                 CurrentStage = currentRound != null ? MapRoundTypeToStage(currentRound.RoundType) : DebateStage.Closing,

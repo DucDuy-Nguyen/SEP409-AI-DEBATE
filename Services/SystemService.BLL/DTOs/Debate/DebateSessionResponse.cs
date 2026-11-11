@@ -9,6 +9,8 @@ namespace SystemService.BLL.DTOs.Debate
         public int SessionId { get; set; }
         public string Title { get; set; } = null!;
         public string Topic { get; set; } = null!;
+        // Chu de kho fact de FE gui `topic` cho AI Evaluator (education|environment|technology|society), null neu Category khac
+        public string? EvidenceTopic { get; set; }
         public DebateType DebateType { get; set; }
         public string? Difficulty { get; set; }
         public DebateStage CurrentStage { get; set; }
