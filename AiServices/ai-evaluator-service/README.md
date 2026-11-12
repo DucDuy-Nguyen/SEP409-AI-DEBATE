@@ -187,6 +187,9 @@ Service chạy ở `http://localhost:8000` (cổng mặc định của uvicorn; 
 - `http://localhost:8000/docs` — **Swagger UI**, gửi thử request cho tất cả endpoint.
 - `http://localhost:8000/demo` — trang HTML đơn giản để thử `/evaluate` bằng giao diện.
 - `http://localhost:8000/health` — kiểm tra service sống và đang dùng provider nào.
+- `http://localhost:8000/health/ready` — `503` trong lúc warm-up model RAG (khi
+  `RAG_ENABLED=true`, khoảng 15 s nếu model đã có trong cache), `200` khi xong,
+  kèm `rag_warmup_seconds` và `rag_warmup_error`. RAG tắt thì `200` ngay.
 
 Giá trị hợp lệ: `side` là `"pro"` hoặc `"con"`; `stage` là `"opening"`,
 `"rebuttal"` hoặc `"closing"`; `speaker` là `"learner"` hoặc `"opponent"`.
@@ -311,6 +314,36 @@ nhất 1 lượt của `learner`.
 Response giống cấp Argument, nhưng dùng `round_score` thay cho `overall_score`,
 `consistency_note` (nhận xét tính nhất quán xuyên suốt giai đoạn) thay cho
 `overall_reasoning`, và có thêm field `stage`.
+
+**Kiểm chứng số liệu từng lượt learner (RAG, thử nghiệm):** request có thể gửi
+thêm `topic` (`"education"`, `"environment"`, `"technology"`, `"society"`) và
+`check_evidence` (mặc định `true`; gửi `false` cho phe AI trong AI practice).
+Khi service bật `RAG_ENABLED=true`, request có `topic` và `check_evidence=true`,
+mỗi lượt `learner` được kiểm chứng song song với lượt chấm; lượt `opponent`
+không kiểm. Lượt chấm dùng đúng prompt cũ. Nhãn của mọi claim trong các lượt đã
+kiểm được gộp lại để điều chỉnh `Evidence` của round theo cùng luật với
+`/evaluate`, rồi `round_score` được tính lại. Response có thêm:
+
+- `evidence_checks`: mỗi phần tử gồm `turn_index` (vị trí trong `turns`),
+  `excerpt` (≤ 200 ký tự đầu lượt) và `evidence_check` (cùng cấu trúc với
+  `/evaluate`).
+- `evidence_score_before`, `evidence_score_after`, `evidence_rule_applied`:
+  để trống nếu không có claim nào được kiểm.
+
+`evidence_check.status` thêm `"no_fact_base"`: topic chưa có fact approved nào
+(ví dụ `society`), không gọi LLM tách claim/verify. Kiểm chứng lỗi hoặc quá
+`RAG_ROUND_CHECK_TIMEOUT_SECONDS` (mặc định 20 s) thì giữ điểm gốc,
+`status="unavailable"`. `/evaluate/session` không đổi: nhận `round_score` đã
+điều chỉnh.
+
+**Ai gọi (từ 2026-11):** chỉ SystemService gọi `/evaluate/round` và
+`/evaluate/session` khi chấm một phiên (cả 2 phe, các round song song, phe AI gửi
+`check_evidence=false`, `topic` lấy từ `Topic.Category`). FE không gọi trực tiếp nữa,
+mà đọc kết quả chính thức qua `GET /api/debate/{id}/evaluation`; field `error`
+của `evidence_check` không được trả ra FE (chỉ có trong `RawResponseJson` và log).
+Giới hạn đã biết: nhãn có thể đúng nhưng fact được trích không chứa chi tiết bị
+phản bác (xem `docs/AI_DEVELOPMENT_LOG.md` mục 3.23). Kết quả demo:
+`docs/RAG_REPORT_DEMO_RESULTS.md`.
 
 Tuỳ chọn `reference_turns`: các lượt của các round trước, mỗi lượt có `round`,
 `order`, `speaker`, `side`, `text`. Đây chỉ là ngữ cảnh để đối chiếu, **không được

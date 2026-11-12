@@ -81,6 +81,8 @@ class ClaimVerification(BaseModel):
     downgraded: bool = False
     # Lap truong cua tung fact da trich (chi fact_id hop le): "supports" | "contradicts"
     fact_stances: dict[str, str] = Field(default_factory=dict)
+    # fact_id LLM trich nhung khong co trong fact da dua vao (bi bo, khong sua gan dung)
+    dropped_fact_ids: list[str] = Field(default_factory=list)
     retrieved: list[RetrievedFact] = Field(default_factory=list)
 
 

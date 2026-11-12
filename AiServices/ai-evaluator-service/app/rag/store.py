@@ -55,6 +55,13 @@ class FactStore:
         ).fetchall()
         return {row[0] for row in rows}
 
+    def count_approved(self, topic: str) -> int:
+        """So fact approved cua topic: 0 thi khong co kho du kien de kiem chung (status no_fact_base)."""
+        row = self._conn.execute(
+            "SELECT count(*) FROM fact_card WHERE topic = %s AND status = 'approved'", (topic,)
+        ).fetchone()
+        return int(row[0])
+
     def count_facts_by_topic(self) -> dict[str, int]:
         rows = self._conn.execute("SELECT topic, count(*) FROM fact_card GROUP BY topic ORDER BY topic").fetchall()
         return {row[0]: row[1] for row in rows}

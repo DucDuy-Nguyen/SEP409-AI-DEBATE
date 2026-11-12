@@ -18,6 +18,8 @@ Tach khoi app/services/evaluator.py va app/prompts/evaluator_prompt.py de 2 file
 scripts/config_fingerprint.py) giu nguyen tung byte.
 """
 import logging
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from typing import Callable, Optional
@@ -29,9 +31,14 @@ from app.schemas import (
     EvidenceCheckSummary,
     EvidenceCitation,
     EvidenceClaimSummary,
+    RoundEvaluationRequest,
+    RoundEvaluationResult,
+    TurnEvidenceCheck,
+    TurnSpeaker,
 )
 from app.services.evaluator import evaluate_argument
 from app.services.llm_client import LLMClient
+from app.services.round_evaluator import evaluate_round
 from app.services.scoring import compute_weighted_score
 
 logger = logging.getLogger(__name__)
@@ -42,8 +49,32 @@ CONTRADICTED_CAP = 4  # Co CONTRADICTED thi tinh tu toi da 4 truoc khi tru
 CITATION_MAX_CHARS = 300
 SUGGESTION_SNIPPET_CHARS = 160  # Noi dung rut gon cua fact trong goi y CONFLICTING
 
+EXCERPT_MAX_CHARS = 200  # Doan dau cua luot learner tra kem ket qua kiem chung o /evaluate/round
+FACT_BASE_CACHE_SECONDS = 300
+
 # (argument_text, motion, topic, settings) -> EvidenceCheckResult cua app/rag (kieu de lazy, tranh import RAG khi tat)
 EvidenceChecker = Callable[[str, str, str, Settings], object]
+# (topic, settings) -> so fact approved cua topic trong kho
+FactCounter = Callable[[str, Settings], int]
+
+_fact_base_cache: dict[str, tuple[float, int]] = {}
+_fact_base_lock = threading.Lock()
+
+
+def _default_fact_counter(topic: str, settings: Settings) -> int:
+    """So fact approved cua topic, cache FACT_BASE_CACHE_SECONDS (1 query count, khong load model)."""
+    now = time.monotonic()
+    with _fact_base_lock:
+        cached = _fact_base_cache.get(topic)
+        if cached and now - cached[0] < FACT_BASE_CACHE_SECONDS:
+            return cached[1]
+    from app.rag.store import FactStore
+
+    with FactStore(settings.rag_database_url) as store:
+        count = store.count_approved(topic)
+    with _fact_base_lock:
+        _fact_base_cache[topic] = (now, count)
+    return count
 
 
 def _default_checker(argument_text: str, motion: str, topic: str, settings: Settings):
@@ -124,31 +155,65 @@ def contradiction_suggestions(summary: EvidenceCheckSummary) -> list[str]:
     return suggestions
 
 
-def apply_adjustment(result: ArgumentEvaluationResult, summary: EvidenceCheckSummary, bonus: bool) -> None:
-    evidence = next(c for c in result.criteria if c.name == EVIDENCE_CRITERION)
-    base = evidence.score
-    summary.evidence_score_before = base
-    if summary.status == "unavailable":
-        summary.evidence_score_after = base
-        summary.rule_applied = "Kiểm chứng không chạy được: giữ nguyên điểm Evidence."
-        return
+UNAVAILABLE_RULE = "Kiểm chứng không chạy được: giữ nguyên điểm Evidence."
+NO_FACT_BASE_RULE = "Chủ đề chưa có kho dữ kiện đã duyệt: giữ nguyên điểm Evidence."
 
-    after, rule = adjust_evidence(base, [claim.label for claim in summary.claims], bonus)
-    summary.evidence_score_after = after
-    summary.rule_applied = rule
+
+def _adjust_evidence_criterion(criteria, labels: list[str], bonus: bool) -> tuple[int, int, str]:
+    """Dieu chinh tieu chi Evidence tai cho (dung chung /evaluate va /evaluate/round). Tra (goc, sau, luat)."""
+    evidence = next(c for c in criteria if c.name == EVIDENCE_CRITERION)
+    base = evidence.score
+    after, rule = adjust_evidence(base, labels, bonus)
     if after != base:
         evidence.score = after
         evidence.reasoning = f"{evidence.reasoning.rstrip()} [Điều chỉnh theo kiểm chứng số liệu: {base} -> {after}. {rule}]"
+    return base, after, rule
+
+
+def apply_adjustment(result: ArgumentEvaluationResult, summary: EvidenceCheckSummary, bonus: bool) -> None:
+    if summary.status in ("unavailable", "no_fact_base"):
+        base = next(c.score for c in result.criteria if c.name == EVIDENCE_CRITERION)
+        summary.evidence_score_before = summary.evidence_score_after = base
+        summary.rule_applied = UNAVAILABLE_RULE if summary.status == "unavailable" else NO_FACT_BASE_RULE
+        return
+
+    base, after, rule = _adjust_evidence_criterion(result.criteria, [claim.label for claim in summary.claims], bonus)
+    summary.evidence_score_before, summary.evidence_score_after, summary.rule_applied = base, after, rule
+    if after != base:
         result.overall_score = compute_weighted_score(result.criteria)
     result.suggestions = list(result.suggestions) + contradiction_suggestions(summary)
 
 
-def _check(checker: EvidenceChecker, req: ArgumentEvaluationRequest, settings: Settings) -> EvidenceCheckSummary:
+def _resolve_fact_counter(evidence_checker: Optional[EvidenceChecker], fact_counter: Optional[FactCounter]):
+    """
+    Kiem tra "topic co fact approved khong" la 1 phan cua pipeline that: dung bo dem mac dinh (query DB) khi dung checker
+    mac dinh. Checker truyen vao (test, script) la ban thay the tron goi, chi kiem tra kho khi truyen kem fact_counter.
+    """
+    if fact_counter is not None:
+        return fact_counter
+    return _default_fact_counter if evidence_checker is None else None
+
+
+def _check_text(
+    checker: EvidenceChecker, fact_counter: Optional[FactCounter], text: str, motion: str, topic: str, settings: Settings
+) -> EvidenceCheckSummary:
+    """Kiem chung 1 doan van; khong bao gio nem loi (RAG loi -> unavailable, kho trong -> no_fact_base)."""
     try:
-        return summarize(checker(req.argument_text, req.motion, req.topic, settings))
+        if fact_counter is not None and fact_counter(topic, settings) == 0:
+            return EvidenceCheckSummary(status="no_fact_base")  # Khong goi LLM tach claim / verify
+        return summarize(checker(text, motion, topic, settings))
     except Exception as exc:  # RAG loi thi van cham diem
         logger.warning("Kiem chung RAG that bai, giu diem goc: %s: %s", type(exc).__name__, exc)
         return EvidenceCheckSummary(status="unavailable", error=f"{type(exc).__name__}: {exc}")
+
+
+def _check(
+    checker: EvidenceChecker,
+    req: ArgumentEvaluationRequest,
+    settings: Settings,
+    fact_counter: Optional[FactCounter] = None,
+) -> EvidenceCheckSummary:
+    return _check_text(checker, fact_counter, req.argument_text, req.motion, req.topic, settings)
 
 
 def evaluate_argument_with_evidence(
@@ -156,6 +221,7 @@ def evaluate_argument_with_evidence(
     settings: Optional[Settings] = None,
     llm_client: Optional[LLMClient] = None,
     evidence_checker: Optional[EvidenceChecker] = None,
+    fact_counter: Optional[FactCounter] = None,
 ) -> ArgumentEvaluationResult:
     settings = settings or get_settings()
     if not (settings.rag_enabled and req.topic):
@@ -164,7 +230,7 @@ def evaluate_argument_with_evidence(
     checker = evidence_checker or _default_checker
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rag-check")
     try:
-        future = pool.submit(_check, checker, req, settings)
+        future = pool.submit(_check, checker, req, settings, _resolve_fact_counter(evidence_checker, fact_counter))
         # Luot cham chay o thread hien tai, cung luc voi kiem chung; prompt y het luong khong co RAG
         result = evaluate_argument(req, settings, llm_client)
         try:
@@ -180,4 +246,64 @@ def evaluate_argument_with_evidence(
 
     apply_adjustment(result, summary, settings.rag_evidence_bonus)
     result.evidence_check = summary
+    return result
+
+
+def evaluate_round_with_evidence(
+    req: RoundEvaluationRequest,
+    settings: Optional[Settings] = None,
+    llm_client: Optional[LLMClient] = None,
+    evidence_checker: Optional[EvidenceChecker] = None,
+    fact_counter: Optional[FactCounter] = None,
+) -> RoundEvaluationResult:
+    """
+    /evaluate/round co kiem chung (docs/RAG_REPORT_INTEGRATION_SPEC.md muc A2). Luot cham goi evaluate_round cu nguyen
+    ven (prompt khong doi); moi luot learner duoc kiem chung song song voi luot cham, luot opponent khong kiem. Nhan cua
+    moi claim trong cac luot "checked" duoc gop lai de dieu chinh Evidence cua round bang adjust_evidence.
+    """
+    settings = settings or get_settings()
+    if not (settings.rag_enabled and req.topic and req.check_evidence):
+        return evaluate_round(req, settings, llm_client)
+
+    checker = evidence_checker or _default_checker
+    counter = _resolve_fact_counter(evidence_checker, fact_counter)
+    learner_turns = [(index, turn) for index, turn in enumerate(req.turns) if turn.speaker == TurnSpeaker.LEARNER]
+    if not learner_turns:
+        # Validator cua RoundEvaluationRequest da chan; giu de ThreadPoolExecutor khong bao gio nhan max_workers=0
+        return evaluate_round(req, settings, llm_client)
+    pool = ThreadPoolExecutor(max_workers=len(learner_turns), thread_name_prefix="rag-round-check")
+    try:
+        started = time.monotonic()
+        futures = [
+            (index, turn, pool.submit(_check_text, checker, counter, turn.text, req.motion, req.topic, settings))
+            for index, turn in learner_turns
+        ]
+        # Luot cham chay o thread hien tai, cung luc voi kiem chung; prompt y het luong khong co RAG
+        result = evaluate_round(req, settings, llm_client)
+        deadline = started + settings.rag_round_check_timeout_seconds
+        checks = []
+        for index, turn, future in futures:
+            try:
+                summary = future.result(timeout=max(deadline - time.monotonic(), 0))
+            except FutureTimeout:
+                logger.warning("Kiem chung luot %s qua %ss, giu diem goc", index, settings.rag_round_check_timeout_seconds)
+                summary = EvidenceCheckSummary(
+                    status="unavailable", error=f"Timeout: quá {settings.rag_round_check_timeout_seconds} giây"
+                )
+            checks.append(TurnEvidenceCheck(turn_index=index, excerpt=turn.text[:EXCERPT_MAX_CHARS], evidence_check=summary))
+    finally:
+        # Khong cho thread kiem chung con chay (vd khi timeout hoac luot cham loi)
+        pool.shutdown(wait=False, cancel_futures=True)
+
+    checked = [c.evidence_check for c in checks if c.evidence_check.status == "checked"]
+    labels = [claim.label for summary in checked for claim in summary.claims]
+    if labels:
+        before, after, rule = _adjust_evidence_criterion(result.criteria, labels, settings.rag_evidence_bonus)
+        result.evidence_score_before, result.evidence_score_after, result.evidence_rule_applied = before, after, rule
+        if after != before:
+            result.round_score = compute_weighted_score(result.criteria)
+        result.suggestions = list(result.suggestions) + [
+            suggestion for summary in checked for suggestion in contradiction_suggestions(summary)
+        ]
+    result.evidence_checks = checks
     return result

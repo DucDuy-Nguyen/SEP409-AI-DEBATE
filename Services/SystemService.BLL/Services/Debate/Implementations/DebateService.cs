@@ -34,17 +34,25 @@ namespace SystemService.BLL.Services.Debate.Implementations
         private readonly IUserRepository _userRepository;
         private readonly IAiEvaluatorClient? _aiEvaluatorClient;
         private readonly ILogger<DebateService>? _logger;
+        private readonly DebateEvaluationCoordinator _evaluationCoordinator;
 
         public DebateService(
             IDebateRepository debateRepository,
             IUserRepository userRepository,
             IAiEvaluatorClient? aiEvaluatorClient = null,
-            ILogger<DebateService>? logger = null)
+            ILogger<DebateService>? logger = null,
+            DebateEvaluationCoordinator? evaluationCoordinator = null)
         {
             _debateRepository = debateRepository;
             _userRepository = userRepository;
             _aiEvaluatorClient = aiEvaluatorClient;
             _logger = logger;
+            // The API registers one singleton; without it the per-session lock only covers this service's own calls
+            if (evaluationCoordinator == null && aiEvaluatorClient != null)
+            {
+                _logger?.LogWarning("DebateEvaluationCoordinator is not registered: concurrent requests may evaluate the same debate twice.");
+            }
+            _evaluationCoordinator = evaluationCoordinator ?? new DebateEvaluationCoordinator();
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> CreateAiPracticeSessionAsync(
@@ -136,8 +144,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
-            var topic = await _debateRepository.GetOrCreateTopicAsync(
-                request.Title.Trim(), request.Topic.Trim(), "Medium", userId, cancellationToken);
+            var (topic, topicError) = await ResolveTopicAsync(request.TopicId, request.Title, request.Topic, userId, cancellationToken);
+            if (topic == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse(topicError!);
+            }
 
             var isAi = request.IsAI;
             var formatName = isAi ? "User vs AI" : "1 vs 1";
@@ -339,16 +350,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 bool isSessionCompleted = session.Status == SessionStatus.Completed;
                 await transaction.CommitAsync(cancellationToken);
 
+                // The debate is over: it is graded in the background (own DI scope), the response does not wait for it.
+                // GET /evaluation awaits that same evaluation, or starts a new one if it failed.
                 if (isSessionCompleted && _aiEvaluatorClient != null)
                 {
-                    try
-                    {
-                        await EvaluateAndStoreSessionInternalAsync(sessionId, cancellationToken);
-                    }
-                    catch (Exception evalEx)
-                    {
-                        _logger?.LogWarning(evalEx, "Auto-evaluation for completed debate session {SessionId} failed. Evaluation can be triggered on demand.", sessionId);
-                    }
+                    StartBackgroundEvaluation(sessionId);
                 }
 
                 var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
@@ -458,16 +464,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 bool isSessionCompleted = session.Status == SessionStatus.Completed;
                 await transaction.CommitAsync(cancellationToken);
 
+                // The debate is over: it is graded in the background (own DI scope), the response does not wait for it.
+                // GET /evaluation awaits that same evaluation, or starts a new one if it failed.
                 if (isSessionCompleted && _aiEvaluatorClient != null)
                 {
-                    try
-                    {
-                        await EvaluateAndStoreSessionInternalAsync(sessionId, cancellationToken);
-                    }
-                    catch (Exception evalEx)
-                    {
-                        _logger?.LogWarning(evalEx, "Auto-evaluation for completed debate session {SessionId} failed. Evaluation can be triggered on demand.", sessionId);
-                    }
+                    StartBackgroundEvaluation(sessionId);
                 }
 
                 var round = session.DebateRounds.First(r => r.RoundNumber == turn.RoundNumber);
@@ -607,16 +608,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
             bool isSessionCompleted = session.Status == SessionStatus.Completed;
             await transaction.CommitAsync(cancellationToken);
 
+            // The debate is over: it is graded in the background (own DI scope), the response does not wait for it.
+            // GET /evaluation awaits that same evaluation, or starts a new one if it failed.
             if (isSessionCompleted && _aiEvaluatorClient != null)
             {
-                try
-                {
-                    await EvaluateAndStoreSessionInternalAsync(sessionId, cancellationToken);
-                }
-                catch (Exception evalEx)
-                {
-                    _logger?.LogWarning(evalEx, "Auto-evaluation for completed debate session {SessionId} failed. Evaluation can be triggered on demand.", sessionId);
-                }
+                StartBackgroundEvaluation(sessionId);
             }
 
             var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
@@ -632,8 +628,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
-            var topic = await _debateRepository.GetOrCreateTopicAsync(
-                request.Title.Trim(), request.Topic.Trim(), "Medium", userId, cancellationToken);
+            var (topic, topicError) = await ResolveTopicAsync(request.TopicId, request.Title, request.Topic, userId, cancellationToken);
+            if (topic == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse(topicError!);
+            }
 
             var formatName = "2 vs 2";
             var format = await _debateRepository.GetOrCreateFormatAsync(
@@ -1060,6 +1059,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 SessionId = session.DebateSessionId,
                 Title = session.Topic?.Title ?? "Debate Session",
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
+                EvidenceTopic = MapEvidenceTopic(session.Topic?.Category),
                 DebateType = InferDebateType(session),
                 Difficulty = session.Difficulty ?? session.Topic?.Difficulty,
                 CurrentStage = currentRound != null ? MapRoundTypeToStage(currentRound.RoundType) : DebateStage.Closing,
@@ -1509,7 +1509,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             try
             {
-                var evaluation = await EvaluateAndStoreSessionInternalAsync(sessionId, cancellationToken);
+                var evaluation = await GetOrEvaluateSessionAsync(sessionId, cancellationToken);
                 return ApiResponse<DebateEvaluationResponse>.SuccessResponse(evaluation, "Debate session evaluated and analyzed successfully.");
             }
             catch (Exception ex)
@@ -1648,6 +1648,75 @@ namespace SystemService.BLL.Services.Debate.Implementations
             }
         }
 
+        /// <summary>
+        /// The ONLY entry point to evaluate a session: returns the stored judgement when there is one, otherwise
+        /// evaluates once. Concurrent callers (auto-evaluation of the last turn, GET /evaluation, POST /evaluate) share
+        /// the running evaluation, which runs in its own DI scope (see DebateEvaluationCoordinator) and is not cancelled:
+        /// <paramref name="cancellationToken"/> only stops this caller from waiting for it.
+        /// </summary>
+        private Task<DebateEvaluationResponse> GetOrEvaluateSessionAsync(int sessionId, CancellationToken cancellationToken)
+        {
+            return _evaluationCoordinator.RunOnceAsync(
+                sessionId, this, service => service.GetStoredOrEvaluateAsync(sessionId), cancellationToken);
+        }
+
+        /// <summary>Auto-evaluation of a debate that just ended: fire and forget, failures are logged.</summary>
+        private void StartBackgroundEvaluation(int sessionId)
+        {
+            _evaluationCoordinator.StartInBackground(
+                sessionId, this, service => service.GetStoredOrEvaluateAsync(sessionId), _logger);
+        }
+
+        /// <summary>
+        /// The topic of a new P2P / 2v2 session: the one picked by id (unknown or inactive → error), otherwise found
+        /// or created by its text (no category, so no evidence check).
+        /// </summary>
+        private async Task<(Topic? Topic, string? Error)> ResolveTopicAsync(
+            int? topicId, string title, string description, int userId, CancellationToken cancellationToken)
+        {
+            if (topicId.HasValue)
+            {
+                var picked = await _debateRepository.GetTopicByIdAsync(topicId.Value, cancellationToken);
+                return picked == null || !picked.IsActive
+                    ? (null, "Debate topic not found or no longer active.")
+                    : (picked, null);
+            }
+            var topic = await _debateRepository.GetOrCreateTopicAsync(title.Trim(), description.Trim(), "Medium", userId, cancellationToken);
+            return (topic, null);
+        }
+
+        /// <summary>Runs inside the coordinator, on the service of the evaluation's own scope.</summary>
+        private async Task<DebateEvaluationResponse> GetStoredOrEvaluateAsync(int sessionId)
+        {
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, CancellationToken.None)
+                ?? throw new InvalidOperationException("Debate session not found.");
+            var existing = session.AIJudgements.OrderByDescending(j => j.CreatedAt).FirstOrDefault();
+            if (existing != null)
+            {
+                return MapJudgementToResponse(existing, session);
+            }
+            return await EvaluateAndStoreSessionInternalAsync(sessionId, CancellationToken.None);
+        }
+
+        private static readonly string[] EvaluatedStages = { "opening", "rebuttal", "closing" };
+
+        /// <summary>1-based number of a stage (opening 1, rebuttal 2, closing 3), case-insensitive; 0 if unknown.</summary>
+        private static int StageNumber(string? stage)
+        {
+            return Array.FindIndex(EvaluatedStages, s => string.Equals(s, stage, StringComparison.OrdinalIgnoreCase)) + 1;
+        }
+
+        private static List<string> SkippedStages(List<EvaluateRoundResponse> rounds)
+        {
+            return EvaluatedStages.Where(stage => rounds.All(r => StageNumber(r.Stage) != StageNumber(stage))).ToList();
+        }
+
+        private static decimal AverageWithSkipped(List<EvaluateRoundResponse> rounds, List<string> skipped)
+        {
+            int count = rounds.Count + skipped.Count;
+            return rounds.Any() && count > 0 ? rounds.Sum(r => r.RoundScore) / count : 0m;
+        }
+
         private async Task<DebateEvaluationResponse> EvaluateAndStoreSessionInternalAsync(int sessionId, CancellationToken cancellationToken)
         {
             var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
@@ -1657,10 +1726,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
             }
 
             var motion = session.Topic?.Description ?? session.Topic?.Title ?? "Debate motion";
+            var evidenceTopic = MapEvidenceTopic(session.Topic?.Category);
             var sortedRounds = session.DebateRounds.OrderBy(r => r.RoundNumber).ToList();
 
-            var proRounds = new List<EvaluateRoundResponse>();
-            var conRounds = new List<EvaluateRoundResponse>();
+            // Goi tat ca round (moi round x moi phe) song song; task them theo thu tu round nen ket qua gom lai giu dung thu tu
+            var proRoundTasks = new List<Task<EvaluateRoundResponse?>>();
+            var conRoundTasks = new List<Task<EvaluateRoundResponse?>>();
 
             foreach (var round in sortedRounds)
             {
@@ -1684,12 +1755,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
                 if (proTurns.Any(t => t.Speaker == "learner"))
                 {
-                    var proRoundReq = new EvaluateRoundRequest(Motion: motion, Side: "pro", Stage: stageStr, Turns: proTurns);
-                    var proRoundRes = await _aiEvaluatorClient!.EvaluateRoundAsync(proRoundReq, cancellationToken);
-                    if (proRoundRes != null)
-                    {
-                        proRounds.Add(proRoundRes);
-                    }
+                    var proRoundReq = new EvaluateRoundRequest(
+                        Motion: motion, Side: "pro", Stage: stageStr, Turns: proTurns, Topic: evidenceTopic,
+                        CheckEvidence: !IsAiSide(roundArgs, isPro: true));
+                    proRoundTasks.Add(_aiEvaluatorClient!.EvaluateRoundAsync(proRoundReq, cancellationToken));
                 }
 
                 // Formulate turns for CON evaluation
@@ -1701,31 +1770,36 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
                 if (conTurns.Any(t => t.Speaker == "learner"))
                 {
-                    var conRoundReq = new EvaluateRoundRequest(Motion: motion, Side: "con", Stage: stageStr, Turns: conTurns);
-                    var conRoundRes = await _aiEvaluatorClient!.EvaluateRoundAsync(conRoundReq, cancellationToken);
-                    if (conRoundRes != null)
-                    {
-                        conRounds.Add(conRoundRes);
-                    }
+                    var conRoundReq = new EvaluateRoundRequest(
+                        Motion: motion, Side: "con", Stage: stageStr, Turns: conTurns, Topic: evidenceTopic,
+                        CheckEvidence: !IsAiSide(roundArgs, isPro: false));
+                    conRoundTasks.Add(_aiEvaluatorClient!.EvaluateRoundAsync(conRoundReq, cancellationToken));
                 }
             }
 
-            EvaluateSessionResponse? proSessionRes = null;
-            if (proRounds.Any())
-            {
-                var proSessionReq = new EvaluateSessionRequest(Motion: motion, Side: "pro", Rounds: proRounds);
-                proSessionRes = await _aiEvaluatorClient!.EvaluateSessionAsync(proSessionReq, cancellationToken);
-            }
+            // Nhu ban tuan tu: 1 round loi (exception) thi ca lan cham loi, khong luu judgement; response null bi bo qua
+            await Task.WhenAll(proRoundTasks.Concat(conRoundTasks));
+            var proRounds = proRoundTasks.Select(t => t.Result).OfType<EvaluateRoundResponse>().ToList();
+            var conRounds = conRoundTasks.Select(t => t.Result).OfType<EvaluateRoundResponse>().ToList();
+            LogUnavailableEvidenceChecks(sessionId, "pro", proRounds);
+            LogUnavailableEvidenceChecks(sessionId, "con", conRounds);
 
-            EvaluateSessionResponse? conSessionRes = null;
-            if (conRounds.Any())
-            {
-                var conSessionReq = new EvaluateSessionRequest(Motion: motion, Side: "con", Rounds: conRounds);
-                conSessionRes = await _aiEvaluatorClient!.EvaluateSessionAsync(conSessionReq, cancellationToken);
-            }
+            // Stages a side did not speak in count 0 in its overall score (same rule as the FE grading had)
+            var proSkipped = SkippedStages(proRounds);
+            var conSkipped = SkippedStages(conRounds);
 
-            decimal proScore = proSessionRes?.OverallScore ?? (proRounds.Any() ? proRounds.Average(r => r.RoundScore) : 0m);
-            decimal conScore = conSessionRes?.OverallScore ?? (conRounds.Any() ? conRounds.Average(r => r.RoundScore) : 0m);
+            var proSessionTask = proRounds.Any()
+                ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "pro", Rounds: proRounds, SkippedStages: proSkipped), cancellationToken)
+                : Task.FromResult<EvaluateSessionResponse?>(null);
+            var conSessionTask = conRounds.Any()
+                ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "con", Rounds: conRounds, SkippedStages: conSkipped), cancellationToken)
+                : Task.FromResult<EvaluateSessionResponse?>(null);
+            await Task.WhenAll(proSessionTask, conSessionTask);
+            var proSessionRes = proSessionTask.Result;
+            var conSessionRes = conSessionTask.Result;
+
+            decimal proScore = proSessionRes?.OverallScore ?? AverageWithSkipped(proRounds, proSkipped);
+            decimal conScore = conSessionRes?.OverallScore ?? AverageWithSkipped(conRounds, conSkipped);
 
             string suggestedWinner;
             if (proScore > conScore) suggestedWinner = "PRO";
@@ -1811,21 +1885,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
                                 SpeakerName = proParticipant?.ParticipantType == ParticipantType.AI ? "AI Opponent" : (proParticipant?.User?.FullName ?? "User PRO"),
                                 OverallScore = proSession.OverallScore,
                                 StageBreakdown = proSession.StageBreakdown ?? new(),
+                                SkippedStages = proSession.SkippedStages ?? new(),
                                 ProgressTrend = proSession.ProgressTrend ?? string.Empty,
                                 Strengths = proSession.OverallStrengths ?? new(),
                                 Weaknesses = proSession.OverallWeaknesses ?? new(),
                                 Suggestions = proSession.OverallSuggestions ?? new(),
-                                RoundEvaluations = proRounds?.Select((r, idx) => new RoundEvaluationDetailDto
-                                {
-                                    RoundNumber = idx + 1,
-                                    Stage = r.Stage,
-                                    RoundScore = r.RoundScore,
-                                    ConsistencyNote = r.ConsistencyNote,
-                                    Criteria = r.Criteria ?? new(),
-                                    Strengths = r.Strengths ?? new(),
-                                    Weaknesses = r.Weaknesses ?? new(),
-                                    Suggestions = r.Suggestions ?? new()
-                                }).ToList() ?? new()
+                                RoundEvaluations = MapRoundDetails(proRounds)
                             };
                         }
                     }
@@ -1847,21 +1912,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
                                 SpeakerName = conParticipant?.ParticipantType == ParticipantType.AI ? "AI Opponent" : (conParticipant?.User?.FullName ?? "User CON"),
                                 OverallScore = conSession.OverallScore,
                                 StageBreakdown = conSession.StageBreakdown ?? new(),
+                                SkippedStages = conSession.SkippedStages ?? new(),
                                 ProgressTrend = conSession.ProgressTrend ?? string.Empty,
                                 Strengths = conSession.OverallStrengths ?? new(),
                                 Weaknesses = conSession.OverallWeaknesses ?? new(),
                                 Suggestions = conSession.OverallSuggestions ?? new(),
-                                RoundEvaluations = conRounds?.Select((r, idx) => new RoundEvaluationDetailDto
-                                {
-                                    RoundNumber = idx + 1,
-                                    Stage = r.Stage,
-                                    RoundScore = r.RoundScore,
-                                    ConsistencyNote = r.ConsistencyNote,
-                                    Criteria = r.Criteria ?? new(),
-                                    Strengths = r.Strengths ?? new(),
-                                    Weaknesses = r.Weaknesses ?? new(),
-                                    Suggestions = r.Suggestions ?? new()
-                                }).ToList() ?? new()
+                                RoundEvaluations = MapRoundDetails(conRounds)
                             };
                         }
                     }
@@ -1890,6 +1946,95 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 EvaluatedAt = judgement.CreatedAt,
                 ProEvaluation = proEval,
                 ConEvaluation = conEval
+            };
+        }
+
+        private static readonly HashSet<string> EvidenceTopics = new() { "education", "technology", "society" };
+
+        // Topic.Category -> chu de kho fact cua AI Evaluator; khac 3 chu de thi null (evaluator khong kiem chung)
+        public static string? MapEvidenceTopic(string? category)
+        {
+            var normalized = category?.Trim().ToLowerInvariant();
+            return normalized != null && EvidenceTopics.Contains(normalized) ? normalized : null;
+        }
+
+        // Phe dang cham la AI (AI practice) thi khong kiem chung so lieu cua phe do
+        private static bool IsAiSide(IEnumerable<Argument> roundArgs, bool isPro)
+        {
+            var sideArgs = roundArgs.Where(a => isPro
+                ? a.Participant.Side == DebateSide.PRO || a.Participant.Side == DebateSide.Affirmative
+                : a.Participant.Side == DebateSide.CON || a.Participant.Side == DebateSide.Negative).ToList();
+            return sideArgs.Any() && sideArgs.All(a => a.Participant.ParticipantType == ParticipantType.AI);
+        }
+
+        // error cua evidence_check chi giu trong RawResponseJson va log, khong tra ve FE
+        private void LogUnavailableEvidenceChecks(int sessionId, string side, List<EvaluateRoundResponse> rounds)
+        {
+            foreach (var round in rounds)
+            {
+                foreach (var check in round.EvidenceChecks ?? new())
+                {
+                    if (check?.EvidenceCheck?.Error != null)
+                    {
+                        _logger?.LogWarning(
+                            "Evidence check unavailable for session {SessionId}, side {Side}, stage {Stage}, turn {TurnIndex}: {Error}",
+                            sessionId, side, round.Stage, check.TurnIndex, check.EvidenceCheck.Error);
+                    }
+                }
+            }
+        }
+
+        private static List<RoundEvaluationDetailDto> MapRoundDetails(List<EvaluateRoundResponse>? rounds)
+        {
+            return rounds?.Select((r, idx) => new RoundEvaluationDetailDto
+            {
+                // By stage, not by position: a side that skipped a stage keeps the other rounds' numbers
+                RoundNumber = StageNumber(r.Stage) is var stageNumber && stageNumber > 0 ? stageNumber : idx + 1,
+                Stage = r.Stage,
+                RoundScore = r.RoundScore,
+                ConsistencyNote = r.ConsistencyNote,
+                Criteria = r.Criteria ?? new(),
+                Strengths = r.Strengths ?? new(),
+                Weaknesses = r.Weaknesses ?? new(),
+                Suggestions = r.Suggestions ?? new(),
+                // Judgement cu khong co evidence_checks -> null; turn thieu evidence_check (JSON hong) bi bo qua
+                EvidenceChecks = r.EvidenceChecks?.Where(c => c?.EvidenceCheck != null).Select(MapTurnEvidenceCheck).ToList(),
+                EvidenceScoreBefore = r.EvidenceScoreBefore,
+                EvidenceScoreAfter = r.EvidenceScoreAfter,
+                EvidenceRuleApplied = r.EvidenceRuleApplied
+            }).ToList() ?? new();
+        }
+
+        // Bo field error (chi nam trong RawResponseJson va log)
+        private static TurnEvidenceCheckResponse MapTurnEvidenceCheck(TurnEvidenceCheckDto check)
+        {
+            var summary = check.EvidenceCheck;
+            return new TurnEvidenceCheckResponse
+            {
+                TurnIndex = check.TurnIndex,
+                Excerpt = check.Excerpt ?? string.Empty,
+                EvidenceCheck = new EvidenceCheckResponse
+                {
+                    Status = summary.Status ?? string.Empty,
+                    Claims = summary.Claims?.Where(c => c != null).Select(c => new EvidenceClaimResponse
+                    {
+                        Claim = c.Claim ?? string.Empty,
+                        Label = c.Label ?? string.Empty,
+                        Reason = c.Reason ?? string.Empty,
+                        Citations = c.Citations?.Where(f => f != null).Select(f => new EvidenceCitationResponse
+                        {
+                            FactId = f.FactId ?? string.Empty,
+                            Content = f.Content ?? string.Empty,
+                            Citation = f.Citation,
+                            Stance = f.Stance
+                        }).ToList() ?? new()
+                    }).ToList() ?? new(),
+                    Counts = summary.Counts ?? new(),
+                    EvidenceScoreBefore = summary.EvidenceScoreBefore,
+                    EvidenceScoreAfter = summary.EvidenceScoreAfter,
+                    RuleApplied = summary.RuleApplied ?? string.Empty,
+                    Version = summary.Version
+                }
             };
         }
 

@@ -26,11 +26,50 @@ def test_verdict_without_fact_ids_is_coerced_to_not_found(label):
     assert stats.coerced == 1
 
 
-def test_supported_with_unknown_fact_id_is_coerced_and_unknown_id_dropped():
-    result, _ = _verify_one("SUPPORTED", [fid(1), fid(99)])
-    assert result.label == VerdictLabel.NOT_FOUND
-    assert result.coerced is True
-    assert result.fact_ids == [fid(1)]
+# --------------------------------------------------------------------------- fact_id la (muc 3.22)
+
+
+@pytest.mark.parametrize("label,stance", [("SUPPORTED", "supports"), ("CONTRADICTED", "contradicts")])
+def test_unknown_id_plus_valid_fact_with_matching_stance_keeps_label(label, stance):
+    # Lan goi that: LLM go sai 1 id (e7279a4c thay vi e7279a4a) nhung van trich dung fact hop le
+    item = verdict(1, label, [fid(1), fid(99)], stances={fid(1): stance, fid(99): stance},
+                   details=[])
+    result, stats = _verify_item(item)
+    assert (result.label, result.coerced) == (VerdictLabel(label), False)
+    assert result.fact_ids == [fid(1)] and result.dropped_fact_ids == [fid(99)]
+    assert stats.coerced == 0
+
+
+@pytest.mark.parametrize("label,stance", [("SUPPORTED", "contradicts"), ("CONTRADICTED", "supports")])
+def test_unknown_id_plus_valid_fact_with_wrong_stance_is_not_found(label, stance):
+    item = verdict(1, label, [fid(1), fid(99)], stances={fid(1): stance, fid(99): "supports" if label == "SUPPORTED" else "contradicts"},
+                   details=[])
+    result, stats = _verify_item(item)
+    assert (result.label, result.coerced) == (VerdictLabel.NOT_FOUND, True)
+    assert result.dropped_fact_ids == [fid(99)] and stats.coerced == 1
+
+
+@pytest.mark.parametrize("label", ["SUPPORTED", "CONTRADICTED"])
+def test_only_unknown_ids_is_not_found(label):
+    result, stats = _verify_one(label, [fid(98), fid(99), fid(99)])
+    assert (result.label, result.coerced) == (VerdictLabel.NOT_FOUND, True)
+    assert result.fact_ids == [] and result.dropped_fact_ids == [fid(98), fid(99)]
+
+
+def test_unknown_ids_are_never_fuzzy_matched():
+    # id gan dung voi fid(1) (khac 1 ky tu cuoi) van bi bo, khong duoc doan la fid(1)
+    near = fid(1)[:-1] + "2"
+    assert near != fid(1)
+    result, _ = _verify_one("SUPPORTED", [near], facts=(1,))
+    assert result.label == VerdictLabel.NOT_FOUND and result.dropped_fact_ids == [near]
+
+
+def test_legacy_output_without_stance_keeps_label_when_a_valid_id_remains():
+    # Output cu chi co "fact_ids" (khong stance): bo id la, con id hop le thi giu nhan
+    item = {"claim_index": 1, "label": "SUPPORTED", "fact_ids": [fid(1), fid(99)], "reason": "Khớp.",
+            "details": [], "unsupported_details": []}
+    result, _ = _verify_item(item)
+    assert (result.label, result.dropped_fact_ids) == (VerdictLabel.SUPPORTED, [fid(99)])
 
 
 def test_valid_contradicting_fact_on_a_detail_wins_over_unknown_fact_id():
@@ -272,8 +311,9 @@ def test_unknown_fact_id_cannot_create_a_fake_conflict():
     # fid(99) khong nam trong fact cua claim: bi loai truoc khi xet CONFLICTING
     item = verdict(1, "SUPPORTED", [fid(1), fid(99)], stances={fid(1): "supports", fid(99): "contradicts"})
     result, _ = _verify_item(item)
-    assert result.label == VerdictLabel.NOT_FOUND and result.coerced is True  # id la -> ep NOT_FOUND nhu cu
-    assert result.fact_stances == {fid(1): "supports"}
+    # id la bi bo; fid(1) hop le "supports" nen giu SUPPORTED (muc 3.22), khong thanh CONFLICTING
+    assert result.label == VerdictLabel.SUPPORTED and result.coerced is False
+    assert result.fact_stances == {fid(1): "supports"} and result.dropped_fact_ids == [fid(99)]
 
 
 def test_same_stance_on_all_facts_is_not_conflicting():
