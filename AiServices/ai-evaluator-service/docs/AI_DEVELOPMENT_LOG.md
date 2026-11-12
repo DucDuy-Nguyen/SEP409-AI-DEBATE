@@ -1146,6 +1146,288 @@ Truoc day `overall_score` Session chi la trung binh cac round duoc gui len, nen 
 - `stage_breakdown` khong co giai doan bo trong. Prompt them muc `[GIAI DOAN BO TRONG]` + luat "khong suy dien noi dung", CHI khi co giai doan bo trong (khac spec FE mot chut: spec de luat trong `SESSION_SYSTEM_PROMPT`; tach ra de phien binh thuong giu nguyen prompt).
 - Chi test offline bang FakeLLMClient, 0 request LLM; chua kiem chung LLM that co tuan thu luat khong suy dien.
 
+## 3.19. RAG Evidence buoc 1: ha tang + kho fact ViFactCheck + do baseline retrieval (2026-11)
+
+Chi do retrieval. Chua co claim extraction, verify bang LLM, sua prompt hay sua `/evaluate*`. Spec: `docs/RAG_STEP1_SPEC.md`.
+
+- **pgvector, khong dung vector DB rieng:** cung 1 Postgres cho vector va full-text. Image `pgvector/pgvector:pg16`, cong host **5434** (spec ghi 5433 nhung `ai-opponent-service` da dung 5433).
+- **bge-m3 (dense 1024 chieu):** da ngon ngu, chay local, khong ton token. Lazy load, normalize de dung cosine.
+- **Hybrid RRF (k_rrf = 60, moi nhanh 20 ung vien):** gop theo thu hang nen khong can can bang thang diem cosine va `ts_rank`. tsvector dung config `simple` vi Postgres khong co stemmer tieng Viet.
+- **HNSW loc topic sau khi quet index:** topic nho co the tra thieu dong, nen `vector_search` bat `hnsw.iterative_scan = strict_order` (pgvector >= 0.8).
+- **Tach `requirements-rag.txt`, `rag_enabled = False`:** service khong import torch/psycopg khi tat; co test kiem tra trong tien trinh rieng.
+- **Loc 3 chu de:** education va technology uu tien cot `Topic` goc (chuan hoa NFC + chu thuong vi dataset viet khong thong nhat), environment chi co keyword. Mot bai 1 topic. **Them nguong `MIN_KEYWORD_HITS = 3`** ngoai spec: voi 1 lan trung, keyword keo vao 145 bai environment va 187 bai technology, phan lon chi nhac qua.
+- **Du lieu that khac gia dinh cua spec:** khong co dataset gold rieng (gold la cot `Evidence`), khong co id bai bao (`article_id` = hash cua `Url`, khop 1-1 voi `Context`), mot phan `Context` khong o dang NFC nen ingest va eval deu chuan hoa NFC.
+- **Doi keyword search sang OR (quyet dinh nguoi dung, khac spec):** spec dung `plainto_tsquery`, nhung ham nay noi moi tu bang AND, nen doan van phai chua DU moi tu cua claim. Claim dai gan nhu khong khop: 262/308 claim khong co ket qua nao, hybrid thuc chat chi con vector. Nay `app/rag/keyword_query.py` bo stopword tieng Viet (hang so, 89 am tiet), giu so lam token (20%, 2023, 1.000.000), dat moi token trong nhay don de escape, ghep `to_tsquery('simple', 'tu1' | 'tu2' | ...)` va xep bang `ts_rank_cd`. Da thu tren Postgres that: parser xu ly token trong nhay giong het luc tao tsvector, nen token khop du doi dang: `'20%'` thanh `20` (bo dau %), `'3,5'` thanh `3 <-> 5`, `'covid-19'` thanh `covid <-> -19`, `'1.000.000'` giu nguyen. Test `test_rag_keyword_query.py` chi kiem chuoi Python; truy van that duoc chay qua `eval_retrieval.py`, chua co test tu dong tren DB. Khong bo "ai" khoi query vi token da ve chu thuong, khong phan biet duoc voi "AI".
+- **Chon k = 5** (`rag_top_k`): hybrid dat 0.990 article_hit va 0.906 evidence_hit, tu @5 len @10 khong tang them (0.990 va 0.912 o @10 chi tang 0.006 evidence_hit).
+
+**So lieu baseline (split test, Supported + Refuted, 308 claim; 318 source, 3462 fact card; 0 request LLM). Tran evidence_hit theo cach chunk hien tai (`evidence_reachable`) = 0.932:**
+
+| Mode | Do do | @1 | @3 | @5 | @10 |
+|---|---|---|---|---|---|
+| vector | article_hit | 0.948 | 0.977 | 0.981 | 0.987 |
+| vector | evidence_hit | 0.756 | 0.870 | 0.893 | 0.912 |
+| keyword TRUOC (AND, `plainto_tsquery`) | article_hit | 0.146 | 0.146 | 0.146 | 0.146 |
+| keyword TRUOC | evidence_hit | 0.149 | 0.149 | 0.149 | 0.149 |
+| keyword SAU (OR + bo stopword) | article_hit | 0.675 | 0.831 | 0.896 | 0.951 |
+| keyword SAU | evidence_hit | 0.588 | 0.760 | 0.838 | 0.893 |
+| hybrid TRUOC | article_hit | 0.945 | 0.977 | 0.981 | 0.987 |
+| hybrid TRUOC | evidence_hit | 0.760 | 0.870 | 0.893 | 0.912 |
+| hybrid SAU | article_hit | 0.935 | 0.987 | 0.990 | 0.990 |
+| hybrid SAU | evidence_hit | 0.808 | 0.896 | 0.906 | 0.912 |
+
+Claim keyword khong co ket qua: truoc 262/308, sau 0/308. Vector khong doi vi khong sua nhanh nay.
+
+Hybrid SAU o k=5 (evidence_hit, theo topic; vector dat 0.813 / 0.964 / 0.938): education 0.862 (123 claim), environment 0.945 (55 claim), technology 0.931 (130 claim).
+
+**Cach doc:**
+- Hybrid so voi vector o k=5 chi hon 4/308 claim ve evidence_hit, va THUA vector o environment, technology. Loi ro nhat la o @1: evidence_hit hon 16 claim, nhung article_hit lai kem 4 claim. Chua kiem dinh thong ke, chua du de ket luan hybrid tot hon ro ret.
+- **Gioi han lon nhat:** claim duoc viet tu CHINH cac bai trong kho, topic lay theo nhan dung, moi topic chi 514-1597 fact card, va chu de keyword con nhieu. CHUA test claim NGOAI kho (learner neu dieu kho khong co), nen chua biet he thong co tra ve fact sai chu de hay khong. So tren co the cao hon khi dung that.
+- Chi do retrieval, chua do chat luong cham diem Evidence.
+- Ket qua: `data/results/retrieval_20261104_141746.json` (truoc), `data/results/retrieval_20261104_142723.json` (sau); khong commit.
+
+## 3.20. RAG Evidence buoc 2: tach claim + verify bang LLM (2026-11) — out_of_kb tot, NEI bi gan SUPPORTED nhieu
+
+Spec: `docs/RAG_STEP2_SPEC.md`. Chua noi vao diem Evidence, chua sua `/evaluate*`, chua luu ket qua verify. Model: Groq `openai/gpt-oss-120b`, temperature 0.2.
+
+**Thiet ke verify:**
+- **Chi dua tren fact trong prompt**, prompt cam dung kien thuc rieng. 3 nhan: SUPPORTED (fact xac nhan noi dung chinh), CONTRADICTED (fact noi RO dieu trai: sai so, thoi gian, chu the, dao quan he), NOT_FOUND (fact khong du ket luan; claim co them chi tiet ma fact khong nhac -> NOT_FOUND). NOT_FOUND khong phai la sai.
+- **Rang buoc cung bang code** (`app/rag/verifier.py`): SUPPORTED/CONTRADICTED ma `fact_ids` rong, hoac co id khong nam trong fact cua CHINH claim do (id cua claim khac cung lo cung khong duoc), -> ep NOT_FOUND, `coerced=True`, reason them tien to. NOT_FOUND khong bao gio bi ep, chi bo id la.
+- **Gop lo 5 claim/lan goi**, moi claim kem fact rieng (hybrid top `rag_top_k` = 5), fact cat 600 ky tu, fact_id that (UUID). Claim khong co fact nao -> NOT_FOUND luon, khong goi LLM. Lo loi JSON / thieu claim_index / nhan la -> retry qua `call_llm_with_retry`.
+- **Tach claim:** 1 lan goi, toi da `rag_max_claims` = 5 (code cat lai), chi lay claim kiem chung duoc, viet lai cau doc lap, LLM chuan hoa so. Lap luan rong -> khong goi LLM; khong co claim -> khong verify.
+- Audit `rag_extract`, `rag_verify`. Endpoint debug `POST /rag/check-evidence` chi dang ky khi `RAG_ENABLED=true`, va ca khi bat cung khong nap torch/psycopg luc khoi dong.
+- **Them ngoai spec:** `LLMClient.last_usage` (OpenAI, Groq) de dem token; khong doi hanh vi cham diem.
+
+**Bo du lieu** (`scripts/rag/build_verify_set.py`, seed 42): in_kb 150 claim split test (50/nhan, education 56, environment 23, technology 71); out_of_kb 50 claim Supported/Refuted split test cua bai KHONG nap vao kho (topic goc the thao, quoc te, xa hoi...), topic truy van gan ngau nhien, ky vong NOT_FOUND. Extract: 15 lap luan Claude soan (`docs/rag_eval/extract_set.jsonl`, BAN NHAP chua duyet).
+
+**Ket qua verify:**
+
+| Tap | n | Accuracy | Macro F1 | F1 SUPPORTED | F1 CONTRADICTED | F1 NOT_FOUND |
+|---|---|---|---|---|---|---|
+| in_kb retrieve | 150 | 0.720 | 0.717 | 0.758 | 0.762 | 0.630 |
+| in_kb oracle (gold evidence) | 150 | 0.827 | 0.826 | 0.824 | 0.913 | 0.742 |
+
+- **out_of_kb retrieve: 48/50 = 0.960 tra dung NOT_FOUND**, 2 claim bi gan SUPPORTED, ca hai la cau chung chung khop fact chung chung ("quyen cua tre nho la nghia vu cua nguoi lon", "di lai thuan loi hon khi giao thong phat trien").
+- **false_contradiction_rate:** retrieve in_kb 2/100 = 0.02, out_of_kb 0/50, tong 2/150 = 0.013; oracle 0/100.
+- **coerced = 0** o moi lan chay (LLM luon dua fact_id hop le). Retry: 2 lan (retrieve, thieu claim_index), 0 (oracle), 0 (extract).
+- Confusion in_kb retrieve (dong = dung, cot = du doan S/C/N): S 47/1/2, C 7/32/11, N 20/1/29. Oracle: S 49/0/1, C 3/42/5, N 17/0/33.
+
+**Cach doc:**
+- **Loi lon nhat: NEI -> SUPPORTED (20/50 retrieve, 17/50 oracle).** Claim NEI cua ViFactCheck thuong la cau cua bai + 1 chi tiet bia them ("ong Tran Tan 60 tuoi", "vi day la van nan nhieu nguoi gap"); model bo qua chi tiet thua du prompt da ghi ro luat. Loi nay cho learner diem oan theo huong CO LOI cho learner, khong phai tru oan.
+- **CONTRADICTED -> NOT_FOUND (11/50 retrieve)** mot phan la do dinh nghia: claim Refuted cua ViFactCheck hay sai o chi tiet ma fact khong nhac thang (vd "xac minh bang giong noi"), theo luat cua spec thi NOT_FOUND la chap nhan duoc. Vi vay accuracy voi nhan ViFactCheck thap hon chat luong thuc.
+- **Retrieval lam mat ~10 diem accuracy** (0.720 so voi 0.827). 19 trong 42 loi retrieve cung sai o oracle (loi verify); con lai do fact retrieve khong dung doan, vd fact cua nghi si khac noi y tuong tu -> CONTRADICTED thanh SUPPORTED. Ca 2 false contradiction deu do retrieval (oracle dung).
+- **Out_of_kb la tin tot nhat** nhung moi 50 claim, va claim ViFactCheck rat cu the (ten, so). Lap luan learner chung chung hon, va chinh 2 loi out_of_kb la cau chung chung, nen ty le that co the thap hon.
+
+**Ket qua extract (15 lap luan, cosine bge-m3 >= 0.8, khong dung LLM cham):**
+- Lap luan quan diem bi tach ra claim: **2/5** (ky vong 0): "su chu y cua hoc sinh bi chia doi" (gan `study`), "hoc ba phan anh qua trinh ba nam".
+- 15 claim expected, tach ra 23, khop 14: **recall 0.933, precision 0.609**. Claim thua chu yeu la nhan dinh chung ("cac truong hoc thieu trang thiet bi", "TP.HCM la thanh pho co nguon luc lon nhat").
+- Chuan hoa so: 10/11 so expected xuat hien duoi dang chu so theo thuoc do cua script, nhung **2 so dung dau phay kieu tieng Anh** ("29,383", "12,000" — tieng Viet doc la so thap phan) va "mot trieu ha" khong duoc doi sang "1 trieu". Neu tinh dung dinh dang tieng Viet thi 8/11. Ban STT: claim giu chu thuong, co 1 claim trung lap la manh cau.
+- 1 claim khong du doc lap: "Du thao quy dinh neu 12 loai hinh dich vu" mat chu the "Ho Tay".
+
+**Token (Groq, gpt-oss-120b; completion, gom ca phan reasoning cua model, chiem 21% o retrieve va 50% o oracle):** retrieve 200 claim 280.494; oracle 150 claim 75.446; extract 15 lap luan 18.477; 2 lan chay thu `--limit 10` 18.092. **Tong 392.509**, vuot nguong 300.000 cua spec; nguoi dung da dong y chay day du sau khi xem uoc tinh.
+
+**Gioi han:** 1 lan chay moi tap, temperature 0.2, chua do do dao dong giua cac lan; out_of_kb chi 50 claim va chua loai tru truong hop bai khac trong kho dua cung tin; extract_set do Claude soan, claim thuc chung lay tu bai trong kho; nhan ViFactCheck khong hoan toan trung voi dinh nghia nhan cua spec (xem CONTRADICTED -> NOT_FOUND).
+
+Ket qua: `docs/rag_results/verify_retrieve_20261108_115856.json`, `docs/rag_results/verify_oracle_20261108_120059.json`, `docs/rag_results/extract_20261108_120439.json`.
+
+### 3.20.1. Sua verify: tach chi tiet + `unsupported_details` (quyet dinh nguoi dung, 2026-11) — NEI -> SUPPORTED giam mot nua, CONTRADICTED giam nhe
+
+**Thay doi:**
+- Prompt verify yeu cau tach moi claim thanh chi tiet (chu the, con so, thoi gian, dia diem, ten rieng, quan he nhan qua), moi chi tiet chi ra fact_id chua no, va tra them `unsupported_details`. SUPPORTED chi khi MOI chi tiet co trong fact.
+- **Rang buoc bang code:** SUPPORTED ma con chi tiet khong co trong fact -> NOT_FOUND, `downgraded=True`. Chi tiet LLM khong chi ra duoc fact_id hop le cung tinh la khong co trong fact (them ngoai yeu cau, cung tinh than "moi chi tiet phai chi ra fact_id"). Ep `coerced` xet truoc; chi SUPPORTED bi ha.
+- `rag_verify_max_tokens = 6000`: verify dung gioi han token rieng. **Lan chay dau voi `LLM_MAX_TOKENS=2000` chung bi cat cut JSON** (format moi dai gap doi, gioi han tinh ca reasoning): 29/30 lo loi, bo ket qua.
+- `groq_reasoning_effort` (mac dinh trong = khong gui, giu hanh vi cu). Groq co ho tro `reasoning_effort` cho gpt-oss-120b (gui qua `extra_body`).
+- `eval_verify.py`: bat moi loi theo lo, checkpoint sau moi lo, `--resume`. **Lan chay oracle thu 2 bi ngat o claim 105/150 vi `APIConnectionError`** va mat het ket qua vi chua co checkpoint.
+- Sua dem `retries`: lan goi bi provider tu choi (Groq `json_validate_failed`) truoc day khong duoc dem, ra so am.
+
+**Ket qua oracle (in_kb 150 claim, gold evidence):**
+
+| | Macro F1 | F1 SUPPORTED | F1 CONTRADICTED | F1 NOT_FOUND | NEI -> SUPPORTED | downgraded | false contradiction | token/claim |
+|---|---|---|---|---|---|---|---|---|
+| Truoc | 0.826 | 0.824 | 0.913 | 0.742 | 17 | - | 0/100 | 503 |
+| Sau | **0.861** | 0.857 | 0.882 | **0.843** | **6** | 0 | 2/100 | 867 |
+
+Confusion sau (dong = dung, cot = S/C/N): S 45/1/4, C 4/41/5, N 6/1/43 (truoc: S 49/0/1, C 3/42/5, N 17/0/33).
+
+Dieu kien cua nguoi dung (NOT_FOUND cai thien, SUPPORTED khong giam qua 0.05 F1) dat, nen chay tiep retrieve.
+
+**Ket qua retrieve (in_kb 150 + out_of_kb 50):**
+
+| | Macro F1 in_kb | F1 SUPPORTED | F1 CONTRADICTED | F1 NOT_FOUND | NEI -> SUPPORTED | out_of_kb NOT_FOUND | false contradiction (in_kb) | coerced | token/claim |
+|---|---|---|---|---|---|---|---|---|---|
+| Truoc | 0.717 | 0.758 | 0.762 | 0.630 | 20 | 48/50 | 2/100 | 0 | 1.402 |
+| Sau | **0.748** | 0.814 | 0.707 | **0.724** | **10** | **49/50** | 3/100 | 1 | 1.729 |
+
+Confusion sau: S 46/1/3, C 7/29/14, N 10/2/38 (truoc: S 47/1/2, C 7/32/11, N 20/1/29). Accuracy in_kb 0.720 -> 0.753.
+
+**Cach doc:**
+- **`downgraded = 0` o ca 2 lan chay:** cai thien den tu prompt (model tu gan NOT_FOUND khi thay chi tiet thieu), luat code chua lan nao kich hoat. Luat van giu lam lop bao ve.
+- **Cai gia: CONTRADICTED giam** (oracle 0.913 -> 0.882, retrieve 0.762 -> 0.707; retrieve C -> N 11 -> 14). Prompt nghieng ve NOT_FOUND, ke ca voi claim sai o chi tiet ma fact noi ro. Theo dinh nghia cua spec, C -> N khong tru oan learner.
+- **False contradiction tang nhe** (oracle 0 -> 2, retrieve in_kb 2 -> 3 tren 100). So tuyet doi nho, 1 lan chay, chua du ket luan, nhung la loi nang nhat nen can theo doi.
+- 1 lan chay moi cau hinh, temperature 0.2, chua do do dao dong.
+
+**Reasoning effort (oracle `--limit 10`, cung 10 claim):** mac dinh 948 token/claim, 10/10 dung; `low` 479 token/claim, 8/10 dung va 1 lan Groq tu choi JSON. Chua du mau de ket luan, giu mac dinh.
+
+**Token Viec 2 (prompt moi):** oracle 130.114; retrieve 345.739; chay hong 100.319 (them cac lan bi tu choi khong co usage); chay bi ngat 88.075; thu `--limit 10` 30.431; probe reasoning effort 314. **Tong khoang 695.000.**
+
+Ket qua: `docs/rag_results/verify_oracle_20261108_142059.json`, `docs/rag_results/verify_retrieve_20261108_144957.json`.
+
+### 3.20.2. Tach claim: dinh dang so tieng Viet (2026-11) — CHUA chay lai eval_extract
+
+Prompt tach claim them luat: dau cham phan cach hang nghin, dau phay thap phan ("29.383", "3,5%"), cam viet "29,383"; moi so bang chu doi het sang chu so, ke ca "mot trieu ha" -> "1 trieu ha". Chua sua phan loc claim quan diem (cho nguoi dung duyet `extract_set.jsonl`), chua chay lai `eval_extract.py`. Thuoc do so cua `eval_extract.py` van bo dau phan cach khi so, nen khong phat hien "29,383"; can sua thuoc do truoc lan chay toi.
+
+**Da sua thuoc do (buoc 3, chua chay lai eval_extract):** so trong claim tach ra phai cho CUNG gia tri khi doc theo dinh dang tieng Viet ("29,383" doc la 29,383 thap phan nen khong khop "29.383"), va dem rieng so viet dau phay hang nghin kieu tieng Anh. Ap thuoc do moi len ket qua cu (`extract_20261108_120439.json`, khong goi LLM): 8/11 so dung, bat duoc "29,383" va "12,000" — khop uoc tinh tay o tren.
+
+## 3.21. RAG Evidence buoc 3: noi kiem chung vao diem Evidence (Argument-level, 2026-11) — phuong an C da thu va BO, dang dung phuong an D (3.21.1)
+
+Spec: `docs/RAG_STEP3_SPEC.md`. Chi `POST /evaluate`; Round/Session de buoc sau. Khong luu ket qua verify, chua co luong Organizer nap fact.
+
+**Phuong an C (thi nghiem da thu, KHONG con dung; xem 3.21.1):** ket qua verify dua vao prompt cham de LLM tu can nhac muc do, CONG 1 luat mem bang code: co it nhat 1 claim CONTRADICTED thi Evidence khong duoc 5/5 (ha ve 4). Ly do: false contradiction hien ~2-3% (muc 3.20.1) va deu do retrieval lay nham doan, nen luat cung (vd Evidence <= 2) se tru oan; de LLM tu quyet hoan toan thi khong dam bao va khong chung minh duoc tac dung. Che do thi dau co giam khao nguoi xem lai diem AI.
+
+**Luong xu ly cua phuong an C** (da thay bang 3.21.1; `app/prompts/evidence_prompt.py` da xoa):
+- `rag_enabled=False` hoac request khong co `topic` -> goi thang `evaluate_argument` cu: prompt, ket qua y het, `evidence_check=None`.
+- Co topic + RAG bat -> `check_evidence` cua buoc 2 (import lazy, dung `get_default_embedder()`). Loi bat ky (DB, embed, verify) -> cham nhu khong co RAG, `status="unavailable"` + `error`, log warning; khong bao gio tra 5xx chi vi RAG.
+- `checked` / `no_claims` -> them khoi `[KET QUA KIEM CHUNG SO LIEU]` vao CUOI user prompt (`app/prompts/evidence_prompt.py`): tung claim + nhan + ly do + fact trich dan (<= 300 ky tu + nguon), luat: CONTRADICTED neu ro va tru diem theo muc do, SUPPORTED la bang chung co can cu, NOT_FOUND khong coi la sai, chi anh huong Evidence, co CONTRADICTED thi goi y sua so lieu. System prompt khong doi.
+- Sau khi parse: luat mem bang code, ha Evidence 5 -> 4, ghi chu vao reasoning cua Evidence, `overall_score` tinh lai bang `compute_weighted_score`; `evidence_capped`, `evidence_score_before_cap`. `EVIDENCE_CHECK_VERSION = "v1_soft_cap"`. Audit label `argument_rag`.
+
+**Khac spec (nguoi dung dong y truoc khi code):**
+- Spec yeu cau `config_fingerprint.py --check` khop `8eaaf59c...ef8d`, nhung TRUOC khi sua gi hash da la `55eb1245...a850`: hash 8eaaf59c chot o 3.15, sau do `evaluator.py` (them `audit_label`), `round_prompt.py`, `round_evaluator.py` (fix A, reference_turns, 3.16-3.17) da doi va da merge. Moc moi: `55eb124578d6861cf58912c30150552a2c6497e176c99256b05d82c48088a850`.
+- Fingerprint hash NOI DUNG `evaluator.py` va `evaluator_prompt.py`, nen code moi dat o FILE MOI (`app/services/evidence_evaluator.py`, `app/prompts/evidence_prompt.py`), 2 file cu giu nguyen tung byte, `--check` van khop moc moi. Nhuoc diem: khoi prompt RAG khong nam trong fingerprint.
+
+**Bo cap lap luan dung / bia** (`scripts/rag/build_evidence_pairs.py`, `docs/rag_eval/evidence_pairs.jsonl`): 15 lap luan goc do Claude soan (5/chu de, 125-172 tu, `docs/rag_eval/evidence_pairs_source.jsonl`), so lieu lay tu fact cua bai "train" (bai trong kho khong co claim nao thuoc split test, khong trung verify_set). Ban bia sinh bang script, khong dung LLM: doi MOI so cua claim da dung +/-30-60% (lam tron theo do chinh xac cua so goc, ty le phan tram khong vuot 100) hoac doi nam +/-2-5; script kiem tra moi so trong lap luan deu duoc doi hoac khai bao giu co chu dich ("27" trong "COP27"), va 2 ban giong het tung ky tu ngoai cac so.
+
+**Duyet bo cap (nguoi dung, truoc khi chay):** ra soat 15 cap theo 3 tieu chi: (1) so doi co lo bang kien thuc pho thong khong, (2) ban bia co mau thuan noi tai khong, (3) nam hop le. Da sua:
+- tech-5 (Einstein 1879/1915, "hon 150 nam sau" tu 1920 -> 2070): thay bang robot Iris cua sinh vien CMU (300 sinh vien, 800.000 USD, pin 50 gio).
+- tech-2 (Alibaba chia 6 don vi, 220 ty USD: tin quoc te lon): thay bang so lieu Shoppertainment (30% GMV, top 6, 65%).
+- env-5 ("nong dan ~60% dan so" la kien thuc pho thong): thay bang COP27 (hon 60 Bo truong, 90 nguyen thu).
+- edu-3: bo "dan so tren 13 trieu" (dan so TP.HCM la kien thuc pho thong). env-3: bo "92 nam thanh lap Doan" (1931 pho thong) va cum "mot nghin nguoi" viet bang chu (se lech voi so da doi).
+- Rang buoc noi tai khai bao trong file nguon: edu-1 (tham gia >= dat giai >= giai nhi), edu-2 (giao vien > truong), env-4 (dai bieu > dien gia >= quoc gia, truoc day ra "10 dien gia tu 14 quoc gia"), tech-1 (ty gia 20.000-26.000 dong/USDT), tech-4 (khoan lon nhat <= tong).
+- Luat cho ca script: nam sau khi doi <= 2025, giu thu tu truoc/sau giua cac nam; moi cap thu seed rieng "42:<pair_id>:<lan thu>" den khi thoa. edu-4 giu (nguoi dung chot).
+
+**Hash moc:** chay `config_fingerprint.py` tren worktree sach cua `origin/main` (86b245b, truoc buoc 3): COMBINED = `55eb1245...a850`, khop. Worktree da xoa.
+
+**Ket qua `eval_evidence_pairs.py` voi phuong an C** (15 cap x true/fake x RAG tat/bat = 60 lan cham, bo cap TRUOC khi sua luat "hon/tren" o 3.21.1, Groq gpt-oss-120b, stage opening, 1 lan chay; `docs/rag_results/evidence_pairs_20261108_161033.json`):
+
+| Dieu kien | Evidence true | Evidence fake | Chenh TB theo cap | Wilcoxon p | Overall true | Overall fake | Token TB/lan | Thoi gian TB |
+|---|---|---|---|---|---|---|---|---|
+| RAG tat | 3,40 | 3,40 | 0,00 | 1,0 | 8,47 | 8,53 | 2.863 | 3,9 s |
+| RAG bat | 4,13 | 2,13 | **2,00** | **0,0013** (*) | 8,63 | 7,23 | 10.081 | 14,7 s |
+
+(*) `scipy.stats.wilcoxon`, `zero_method="wilcox"`: 13/15 cap khac 0, W = 0, co ties nen p la xap xi chuan (p chinh xac nho hon, khoang 0,0002).
+
+- **Muc tieu dat:** RAG tat thi LLM khong phan biet duoc so that va so bia (chenh 0); RAG bat thi chenh 2 diem Evidence, 13/15 cap chenh duong, khong cap nao am.
+- Fake co it nhat 1 claim CONTRADICTED: 11/15. Khong phat hien: edu-3, env-2, tech-3, tech-4 (claim so bia bi gan NOT_FOUND thay vi CONTRADICTED).
+- **True bi CONTRADICTED: 0/15** (khong tru oan theo kieu CONTRADICTED). Luat mem kich hoat: **0 lan**: LLM tu khong cho 5 khi co CONTRADICTED, luat chi la lop bao ve.
+- RAG bat nang Evidence cua ban true (3,40 -> 4,13) nho claim SUPPORTED.
+- Do tre RAG bat: embed 0,34 s, tach claim 3,3 s, retrieve + verify 6,8 s, cham 4,4 s (RAG tat: cham 3,9 s). Token lan chay day du: RAG tat 85.886, RAG bat 302.424, tong 388.310. Rieng lan chay thu `--limit 2` truoc do ton 47.004 (khong nam trong 388.310); tong buoc 3 la 435.314.
+
+**Van de phat hien o phuong an C (ly do doi sang D):**
+1. **NOT_FOUND van bi tru diem**, trai luat trong prompt. env-2 fake (ca 3 claim NOT_FOUND): Evidence 4 -> 2, reasoning ghi "khong tim thay trong du lieu, do do bang chung yeu". edu-3 fake, tech-3 fake cung giam 1 diem chi vi NOT_FOUND. Voi learner that, claim ngoai kho se bi tru oan; muc 3.20 cho thay out_of_kb deu ra NOT_FOUND.
+2. **Tac dong phu khong ~0** (RAG bat - tat, cung lap luan): ban fake Logic -0,80, Persuasiveness -0,67, Structure -0,47, Relevance -0,07; ban true Structure -0,27, Relevance -0,13, Logic va Persuasiveness 0. Ket qua kiem chung lan sang tieu chi khac du prompt ghi "chi anh huong Evidence".
+3. **Ban bia "hon X" giam so van dung:** env-5 "hon 60 Bo truong" -> "hon 38" duoc gan SUPPORTED (dung ve logic). Can tranh giam so sau "hon/tren".
+4. edu-1: claim gop ca 3 so bia bi gan NOT_FOUND, CONTRADICTED lai roi vao claim "Ha Tinh khong thuoc nhom giau nhat" (LLM so sanh ty le), Evidence khong doi.
+
+**Gioi han:** 1 lan chay moi dieu kien (dao dong overall giua cac lan ~0,56, muc 3.12; ket qua khong sat nguong nen chua chay lap); 15 cap, lap luan do Claude soan tu chinh fact trong kho (claim deu co trong kho, chua do claim ngoai kho o buoc nay); stage opening, khong doi phuong; ban bia chi doi so, khong doi chu the/su kien.
+
+### 3.21.1. Phuong an D: dieu chinh Evidence bang code, luot cham khong chua khoi RAG (quyet dinh nguoi dung, 2026-11)
+
+**Vi sao doi tu C sang D:** o phuong an C, prompt khong giu duoc luat "NOT_FOUND khong tru diem" (env-2 fake toan NOT_FOUND: Evidence 4 -> 2) va ket qua kiem chung lan sang Logic/Persuasiveness (fake: -0,80 / -0,67) du prompt ghi chi anh huong Evidence. D bo hoan toan ket qua kiem chung khoi prompt cham va dieu chinh Evidence bang code.
+
+**Luat** (`adjust_evidence` trong `app/services/evidence_evaluator.py`; n = so claim da kiem S+C+N, n_c = CONTRADICTED, n_s = SUPPORTED):
+- n_c = 0: giu diem goc. Bien the co thuong (co `rag_evidence_bonus`, MAC DINH TAT): +1 (toi da 5) neu n >= 1 va n_s >= n/2.
+- n_c >= 1: min(goc, 4) - (1 neu n_c < n/2, nguoc lai 2), toi thieu 1.
+- NOT_FOUND khong bao gio lam giam Evidence; 4 tieu chi con lai giu nguyen; overall tinh lai bang `compute_weighted_score`. Ghi chu dieu chinh vao reasoning cua Evidence. `EVIDENCE_CHECK_VERSION = "v2_code_adjust"`.
+
+**Mo phong offline truoc khi trien khai** (khong goi LLM, tren ket qua phuong an C: diem goc = luot RAG tat, verify = luot RAG bat):
+
+| Bien the | Evidence that | Evidence bia | Chenh TB | Wilcoxon exact | Overall that | Overall bia | Ban that bi tru |
+|---|---|---|---|---|---|---|---|
+| Khong thuong | 3,40 | 2,13 | 1,27 | p = 0,000488 (12 cap khac 0) | 8,47 | 7,90 | 0 |
+| Co thuong | 4,40 | 2,27 | 2,13 | p = 0,000244 (13 cap khac 0) | 8,97 | 7,97 | 0 |
+
+Ca 2 dat dieu kien (0 ban that bi tru, p < 0,01) nen trien khai bien the khong thuong lam mac dinh.
+
+**Trien khai:**
+- Luot cham goi `evaluate_argument` cu (prompt y het, khong chen gi); pipeline kiem chung chay SONG SONG trong 1 thread rieng, roi code dieu chinh. RAG loi hoac qua `rag_check_timeout_seconds` (mac dinh 90 s) -> giu diem goc, status "unavailable".
+- `evidence_check` tra them `evidence_score_before`, `evidence_score_after`, `rule_applied` (bo `evidence_capped`, `evidence_score_before_cap` cua v1).
+- Feedback: moi claim CONTRADICTED them 1 dong vao `suggestions` = claim + ly do cua verify (thuong neu so dung theo nguon) + nguon cua fact duoc trich; khong goi LLM them.
+- `build_evidence_pairs.py`: so dung sau luong tu chan duoi ("hon", "tren", "ngoai") chi duoc tang. Luat nay cham 5 cap, khong chi env-5: edu-2 (hon 14.695 -> 10.223), env-1 (hon 30 -> 21), env-3 (hon 1.000 -> 700), env-4 (hon 200 -> 120), env-5 (hon 60 -> 38). Nguoi dung chot sinh lai ca 5 (seed ke tiep); 10 cap con lai giu nguyen tung byte.
+
+**Ket qua chay lai, chi RAG bat, luong D** (30 lan cham, bo cap da sinh lai; `docs/rag_results/evidence_pairs_rag_on_20261108_165841.json`):
+
+| Do do | That | Bia | Chenh TB | Wilcoxon exact |
+|---|---|---|---|---|
+| Evidence goc (luot cham, truoc dieu chinh) | 3,33 | 3,47 | -0,13 | p = 0,56 |
+| Evidence sau dieu chinh | 3,20 | 1,93 | **1,27** | **p = 0,00085** (14 cap khac 0) |
+| Overall | 8,27 | 7,80 | 0,47 | p = 0,064 |
+
+- Fake co CONTRADICTED: 13/15. Khong phat hien: edu-5 (2 claim so bia ra NOT_FOUND), tech-4 (claim so bia duoc SUPPORTED bang fact cua mot vu lua dao khac).
+- **Ban that bi tru: 2/15 (edu-1, edu-3)**, trai voi mo phong (0). Ca 2 do verify tim thay fact MAU THUAN THAT trong kho: edu-1 "68 hoc sinh dat giai" bi CONTRADICTED vi 1 bai khac ghi 69; edu-3 "thieu khoang 8.000 phong hoc" bi CONTRADICTED vi fact 3a23d30e ghi thieu 5.000 (bao cao khac). Khong phai LLM bia: kho ViFactCheck co cac bai bao noi khac nhau ve cung su kien. Moi lan bi tru 1 diem (1 claim CONTRADICTED tren 3-5 claim).
+- tech-4 chenh -1: ban fake duoc SUPPORTED nham, ban that giu nguyen.
+- 4 tieu chi con lai: khong doi theo thiet ke (luot cham khong co RAG).
+- **Do tre (song song):** tong 9,3 s/lan; luot cham 3,8 s, kiem chung 9,2 s (embed 0,4 s, tach claim 3,2 s, retrieve + verify 5,6 s). Tong ~ bang thoi gian kiem chung, thay vi cong 2 phan nhu C (14,7 s).
+- Token: 287.272 (9.576/lan); lan uoc tinh `--limit 2`: 36.738. Tong buoc D: 324.010.
+
+**Viec con mo (da xu ly (1) o 3.21.2):** (1) nguon trong kho tu mau thuan -> CONTRADICTED oan; can luat verify cho truong hop vua co fact khop vua co fact trai (vd ha ve NOT_FOUND khi co fact khop hoan toan), hoac lam sach kho; (2) bien the co thuong de sau; (3) moi 1 lan chay, verify dao dong giua cac lan (mo phong tren lan chay C: 0 ban that bi tru; lan chay D: 2).
+
+
+
+
+### 3.21.2. Nhan CONFLICTING (nguon chua thong nhat) + do do on dinh phan kiem chung (quyet dinh nguoi dung, 2026-11)
+
+**Vi sao them CONFLICTING:** o lan chay D (3.21.1), 2/15 ban that bi tru vi kho ViFactCheck co bai bao noi khac nhau ve cung su kien (edu-1: 68 va 69 hoc sinh dat giai; edu-3: thieu 8.000 va 5.000 phong hoc). Day khong phai loi cua learner, nen khong duoc tru.
+
+**Thiet ke:**
+- Prompt verify: moi fact trich ghi `stance` "supports" | "contradicts" (`cited_facts`); giu nguyen `unsupported_details`.
+- **Luat bang code:** sau khi bo fact_id la, claim co it nhat 1 fact supports VA it nhat 1 fact contradicts -> `CONFLICTING`, bat ke LLM gan nhan gi. LLM tu gan CONFLICTING ma stance khong mau thuan -> NOT_FOUND (coerced). fact_id la khong tao duoc CONFLICTING gia (co test).
+- Dieu chinh Evidence: CONFLICTING tinh vao n nhung khong vao n_c, khong bao gio bi tru. Feedback ghi "nguon chua thong nhat" kem noi dung rut gon (160 ky tu) cua fact moi phia va nguon. `EVIDENCE_CHECK_VERSION = "v3_conflicting"`.
+- `eval_verify.py`: CONFLICTING dem rieng (cot rieng trong confusion), loai khoi accuracy / F1 / false_contradiction vi ViFactCheck khong co nhan tuong ung.
+
+**Van giu tat thuong (`rag_evidence_bonus = False`):** chua do bien the co thuong tren luong that; thuong dua vao SUPPORTED, ma SUPPORTED cung dao dong giua cac lan verify; ky vong cua nguoi dung la uu tien "khong tru oan" truoc.
+
+**Do do on dinh** (`scripts/rag/eval_evidence_stability.py`): chi lap tach claim + verify cho 30 lap luan, diem goc lay lai tu lan chay D (`evidence_pairs_rag_on_20261108_165841.json`), ap luat offline. Spec yeu cau 3 lan; uoc tinh 3 lan ~634.000 token (> nguong 500.000) nen nguoi dung chot **2 lan**. Ket qua `docs/rag_results/evidence_stability_20261108_172832.json`:
+
+| Lan | Evidence that | Evidence bia | Chenh TB | Wilcoxon exact | That bi tru | Bia bi phat hien | Claim CONFLICTING |
+|---|---|---|---|---|---|---|---|
+| 1 | 3,33 | 2,13 | 1,20 | p = 0,0024 | 0 | 12/15 | 3 |
+| 2 | 3,33 | 2,00 | 1,33 | p = 0,00085 | 0 | 13/15 | 2 |
+| TB +/- SD | 3,33 +/- 0 | 2,07 +/- 0,09 | 1,27 +/- 0,09 | max 0,0024 | **0 +/- 0** | 12,5 +/- 0,7 | 2,5 +/- 0,7 |
+
+- **Ban that bi tru: 0 o ca 2 lan.** edu-3 that (8.000 phong hoc) ra CONFLICTING o ca 2 lan thay vi CONTRADICTED. edu-1 that (68 hoc sinh) ra CONFLICTING o lan uoc tinh truoc do.
+- Bia khong bi phat hien: lan 1 env-2, env-4, tech-4; lan 2 edu-1, tech-4. tech-4 khong bi phat hien ca 3 lan chay (D va 2 lan nay).
+- **Tac dung phu cua CONFLICTING:** 3/5 claim CONFLICTING nam o ban BIA (edu-5, env-4, tech-5): LLM gan "supports" cho fact chi khop phan khac cua cau (vd "kich thuoc bang hop dung giay") va "contradicts" cho fact chua con so bia, nen luat bien loi sai so thanh "nguon chua thong nhat" va khong tru. env-4 lan 1 khong bi phat hien chinh vi vay. Luat hien chua phan biet "nguon that su mau thuan ve CUNG chi tiet" voi "fact khop chi tiet khac".
+- Token: 396.763 cho 2 lan (lan uoc tinh 1 lap luan: 10.134). Thoi gian kiem chung ~6-16 s/lap luan.
+
+**Gioi han:** 2 lan lap (SD rat tho); lap luan va ban bia do Claude soan tu chinh fact trong kho; chua chay lai luot cham (diem goc dung lai tu lan D).
+
+
+### 3.21.3. CONFLICTING / CONTRADICTED xet theo tung chi tiet (quyet dinh nguoi dung, 2026-11)
+
+**Vi sao:** o 3.21.2, 3/5 claim CONFLICTING nam o ban bia: LLM gan "supports" cho fact khop chi tiet KHAC cua cau (vd "Robot Iris to bang hop dung giay") va "contradicts" cho fact chua con so bia (pin 50 gio), nen luat theo claim bien loi sai so thanh "nguon chua thong nhat" va khong tru.
+
+**Luat moi** (`detail_conflicts` trong `app/rag/verifier.py`; dung anh xa chi tiet -> fact_id da co trong output verify, KHONG doi prompt):
+- Voi tung chi tiet trong `details`: gom stance cua cac fact (hop le, sau khi bo fact_id la) gan voi chi tiet do.
+- Chi tiet chi co "contradicts" -> chi tiet sai. Chi tiet co ca "supports" va "contradicts" -> chi tiet mau thuan nguon.
+- Nhan claim: co it nhat 1 chi tiet sai -> CONTRADICTED (uu tien cao nhat, ke ca hon luat ep vi fact_id la); khong co chi tiet sai nhung co chi tiet mau thuan nguon -> CONFLICTING; con lai giu nhan LLM qua cac luat cu (LLM tu gan CONFLICTING, fact_id la, unsupported_details).
+- 1 fact duoc trich voi CA 2 stance (output that: env-1 "Long go dai 27 m da duoc phat hien trong bai chua", fact vua trai "27 m" vua khop "bai chua") -> khong biet stance nao thuoc chi tiet nao, nen bo qua fact do khi xet chi tiet (claim giu nhan qua luat cu). Truoc day (3.21.2) truong hop nay bi bat retry, de lam ca lo loi.
+- `EVIDENCE_CHECK_VERSION = "v4_detail_conflict"`. Test: ca "robot hop dung giay" ra CONTRADICTED voi ca 3 nhan LLM; ca 68/69 cung 1 chi tiet ra CONFLICTING; chi tiet sai thang chi tiet mau thuan; fact noi trai khong gan chi tiet nao thi giu luat cu; fact_id la tren chi tiet khong tao chi tiet sai.
+
+**Danh gia lai khong ton token** (`scripts/rag/reapply_verify_rules.py`): audit log (`logs/eval_audit.jsonl`) con nguyen prompt + raw output cua 61 lo verify co stance; script dung lai claim/fact tu prompt, chay luat moi, ghep voi 60 lap luan cua 2 lan do on dinh theo dung danh sach claim (bo qua 1 lo cua lan uoc tinh truoc dot do). Lan chay D (3.21.1) dung output cu chi co `fact_ids`, khong co stance, nen KHONG ap duoc luat nay. Ket qua `docs/rag_results/evidence_stability_reapplied_20261108_220140.json`:
+
+| Luat | Lan | Evidence that | Evidence bia | Chenh TB | Wilcoxon exact | That bi tru | Bia bi phat hien | Claim CONFLICTING |
+|---|---|---|---|---|---|---|---|---|
+| Cu (theo claim) | 1 | 3,33 | 2,13 | 1,20 | p = 0,0024 | 0 | 12/15 | 3 |
+| Cu (theo claim) | 2 | 3,33 | 2,00 | 1,33 | p = 0,00085 | 0 | 13/15 | 2 |
+| **Moi (theo chi tiet)** | 1 | 3,33 | 2,00 | 1,33 | p = 0,0012 | 0 | 13/15 | 2 |
+| **Moi (theo chi tiet)** | 2 | 3,33 | 2,00 | 1,33 | p = 0,00085 | 0 | 13/15 | 1 |
+
+- 2 claim doi nhan, ca 2 o ban bia, CONFLICTING -> CONTRADICTED: env-4 lan 1 ("hon 290 dai bieu, 10 dien gia... 7 quoc gia": "10 dien gia", "7 quoc gia" chi co contradicts) va tech-5 lan 2 ("hop dung giay" supports, "pin 70 gio" contradicts). env-4 lan 1 nho vay duoc phat hien.
+- Ban that bi tru: van 0 o ca 2 lan. edu-3 that van CONFLICTING (khong tru).
+- CONFLICTING con lai deu chua dung tinh than "cung 1 chi tiet so lieu": edu-3 that (fact "5.000" bi gan vao chi tiet chu the "TPHCM", chi tiet "8.000 phong hoc" chi supports) va edu-5 bia (chi tiet so bia khong gan fact nao, 1 chi tiet phu co fact mang ca 2 stance).
+
+**Gioi han:**
+- Stance van gan theo FACT, khong theo cap (chi tiet, fact): 1 fact co the khop chi tiet nay nhung trai chi tiet khac; LLM dang tu xu ly bang cach trich 2 lan voi 2 stance (1/153 claim). Muon chinh xac hon can doi output thanh `details[].facts[] = {fact_id, stance}` (doi prompt, can chay lai LLM).
+- **tech-4 khong bi phat hien o ca 4 lan do** (D, 2 lan on dinh, ap lai luat): retrieval lay fact cua MOT VU LUA DAO KHAC co con so gan trung (fanpage ban xe: khoan 12-16 trieu, tong gan 3 ty), verify gan SUPPORTED cho ban bia ("tu vai trieu den 16 trieu, tong hon 119 trieu"). Day la loi retrieval/doi chieu su kien, luat dieu chinh Evidence khong sua duoc.
+- 2 lan lap, lap luan do Claude soan; ap lai luat chi dung output da luu, khong do bien dong cua lan chay moi voi luat nay.
 
 ---
 
@@ -1213,3 +1495,10 @@ Truoc day `overall_score` Session chi la trung binh cac round duoc gui len, nen 
 - 2026-11: Dieu tra phien 13: loai tru gan nham phe; nguyen nhan goc la round cham tach roi (fix B cho). Them fix A, C + audit log raw output. C chi loai 3/50 diem yeu (khong phai nhan xet sai), closing giam, can quyet dinh truoc khi merge — xem 3.16.
 - 2026-11: Revert fix C (xac minh quote khong chan duoc dien giai nguoc vai). Them `reference_turns` phia evaluator + xoay vong audit log; do: het nhan xet sai cu nhung model cham lan ngu canh, chua nen bat — xem 3.17.
 - 2026-11: Them `skipped_stages` o cap Session: giai doan bo trong tinh 0 diem, giu `scoring_version`, tra lai trong response — xem 3.18.
+- 2026-11: RAG Evidence buoc 1: pgvector, bge-m3, hybrid RRF, tach `requirements-rag.txt`, loc ViFactCheck 3 chu de. Keyword AND khong co ket qua 262/308 claim nen doi sang OR + bo stopword; chon k=5; chua test claim ngoai kho — xem 3.19.
+- 2026-11: RAG Evidence buoc 2: tach claim + verify bang LLM, rang buoc fact_ids bang code, endpoint debug /rag/check-evidence. in_kb accuracy 0.720 (oracle 0.827), out_of_kb NOT_FOUND 0.960, false_contradiction 0.013; loi chinh NEI -> SUPPORTED — xem 3.20.
+- 2026-11: Verify tach chi tiet + `unsupported_details`, ha SUPPORTED bang code. Oracle macro F1 0.826 -> 0.861, retrieve 0.717 -> 0.748, NEI -> SUPPORTED 20 -> 10, out_of_kb 49/50; CONTRADICTED giam nhe. Tach claim them luat dinh dang so tieng Viet (chua chay lai) — xem 3.20.1, 3.20.2.
+- 2026-11: RAG Evidence buoc 3 (phuong an C, da bo): /evaluate nhan `topic`, ket qua kiem chung vao prompt + luat mem Evidence <= 4 khi co CONTRADICTED. RAG bat chenh Evidence 2,00 nhung NOT_FOUND van bi tru diem va lan sang Logic/Persuasiveness — xem 3.21.
+- 2026-11: Doi sang phuong an D: luot cham khong chua khoi RAG, Evidence dieu chinh bang code, kiem chung chay song song. Chenh Evidence that/bia 1,27 (Wilcoxon exact p = 0,00085), 2/15 ban that bi tru do nguon trong kho tu mau thuan; do tre 9,3 s — xem 3.21.1.
+- 2026-11: Them nhan CONFLICTING (fact supports + fact contradicts -> khong tru). 2 lan lap kiem chung: 0 ban that bi tru, chenh Evidence 1,27 +/- 0,09; nhung CONFLICTING che 1 ban bia (fact khop chi tiet khac) — xem 3.21.2.
+- 2026-11: CONFLICTING / CONTRADICTED xet theo tung chi tiet: ap lai tren output da luu (0 token), 2 claim bia CONFLICTING -> CONTRADICTED, bia bi phat hien 13/15 o ca 2 lan, van 0 ban that bi tru; tech-4 van lot do retrieval lay nham su kien — xem 3.21.3.

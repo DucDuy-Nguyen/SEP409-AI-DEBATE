@@ -10,7 +10,8 @@ from app.schemas import (
     SessionEvaluationRequest,
     SessionEvaluationResult,
 )
-from app.services.evaluator import EvaluationParseError, evaluate_argument
+from app.services.evaluator import EvaluationParseError
+from app.services.evidence_evaluator import evaluate_argument_with_evidence
 from app.services.round_evaluator import evaluate_round
 from app.services.session_evaluator import evaluate_session
 
@@ -23,9 +24,10 @@ router = APIRouter(prefix="/evaluate", tags=["evaluate"])
 def evaluate(req: ArgumentEvaluationRequest) -> ArgumentEvaluationResult:
     """
     Cham diem 1 luot lap luan tranh bien theo rubric 5 tieu chi (cap do Argument).
+    Co `topic` va RAG_ENABLED=true thi kiem chung so lieu truoc (evidence_check); khong thi cham y nhu cu.
     """
     try:
-        return evaluate_argument(req)
+        return evaluate_argument_with_evidence(req)
     except EvaluationParseError as e:
         logger.error("Parse loi tu LLM (argument): %s", e)
         raise HTTPException(status_code=502, detail="AI evaluator tra ve ket qua khong hop le, vui long thu lai.")

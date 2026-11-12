@@ -229,6 +229,66 @@ Cấu trúc response (nội dung nhận xét do LLM sinh bằng tiếng Việt):
 `raw_model_output` là output thô của LLM, chỉ để debug/audit — **không hiển
 thị cho learner**.
 
+**Kiểm chứng số liệu (RAG, thử nghiệm):** request có thể gửi thêm `topic`
+(`"education"`, `"environment"` hoặc `"technology"`). Khi service bật
+`RAG_ENABLED=true` và request có `topic`, service tách các claim thực chứng
+(số liệu, sự kiện) và đối chiếu với kho fact, **song song** với lượt chấm. Lượt
+chấm dùng đúng prompt cũ, không chứa kết quả đối chiếu. Sau đó **code** điều
+chỉnh riêng tiêu chí `Evidence` (n = số claim đã kiểm, n_c = số `CONTRADICTED`):
+
+- Không có claim `CONTRADICTED`: giữ nguyên điểm. `NOT_FOUND` (kho không đủ để
+  kết luận) và `CONFLICTING` (trong kho có fact xác nhận lẫn fact nói trái, tức
+  nguồn chưa thống nhất) không bao giờ làm giảm điểm. Code xét theo từng chi tiết
+  của claim: chi tiết chỉ bị fact nói trái thì claim là `CONTRADICTED`; chi tiết
+  vừa có fact xác nhận vừa có fact nói trái thì claim là `CONFLICTING`.
+- Có `CONTRADICTED`: `min(điểm gốc, 4) - 1` nếu n_c < n/2, ngược lại `- 2`;
+  tối thiểu 1.
+
+4 tiêu chí còn lại giữ nguyên, `overall_score` được tính lại. Mỗi claim
+`CONTRADICTED` được thêm vào `suggestions`, kèm lý do và nguồn; claim
+`CONFLICTING` được ghi "nguồn chưa thống nhất" kèm fact của mỗi phía. Không gửi
+`topic`, hoặc RAG tắt, thì chấm y như trước và `evidence_check` là `null`. Lỗi
+RAG (DB tắt, embed lỗi, quá `RAG_CHECK_TIMEOUT_SECONDS`) không làm hỏng lượt
+chấm: giữ điểm gốc, `evidence_check.status` là `"unavailable"`.
+`RAG_EVIDENCE_BONUS=true` bật thêm +1 khi không có `CONTRADICTED` và ít nhất
+một nửa số claim `SUPPORTED` (mặc định tắt).
+
+```json
+{
+  "motion": "Hợp tác quốc tế là chìa khóa để khắc phục ô nhiễm",
+  "side": "pro",
+  "argument_text": "USAID đã bàn giao 29.383 mét vuông đất đã xử lý dioxin tại sân bay Biên Hòa...",
+  "topic": "environment"
+}
+```
+
+Response có thêm:
+
+```json
+"evidence_check": {
+  "status": "checked",
+  "claims": [
+    {
+      "claim": "USAID đã bàn giao 29.383 mét vuông đất đã xử lý dioxin tại sân bay Biên Hòa.",
+      "label": "SUPPORTED",
+      "reason": "Fact nêu đúng diện tích và địa điểm.",
+      "citations": [{"fact_id": "...", "content": "... (tối đa 300 ký tự)", "citation": "Chính Phủ - https://...", "stance": "supports"}]
+    }
+  ],
+  "counts": {"SUPPORTED": 1, "CONTRADICTED": 0, "NOT_FOUND": 0},
+  "evidence_score_before": 4,
+  "evidence_score_after": 4,
+  "rule_applied": "Không có claim CONTRADICTED (1 claim đã kiểm): giữ nguyên điểm Evidence.",
+  "error": null,
+  "version": "v4_detail_conflict"
+}
+```
+
+`status`: `"checked"` (có claim đã kiểm chứng), `"no_claims"` (lập luận không có
+claim thực chứng, giữ nguyên điểm Evidence) hoặc `"unavailable"` (RAG lỗi,
+xem `error`). `NOT_FOUND` nghĩa là kho fact không đủ để kết luận, không phải
+claim sai. Thiết kế ở `docs/AI_DEVELOPMENT_LOG.md` mục 3.21.
+
 ### 4.2. `POST /evaluate/round` — chấm cả 1 giai đoạn
 
 `turns` liệt kê các lượt nói **theo đúng thứ tự thời gian**; bắt buộc có ít
@@ -482,3 +542,86 @@ làm ngay):
 - **Thời gian phản hồi** — mỗi request gọi LLM thật, thường mất vài giây đến
   vài chục giây (timeout mặc định 60 giây, cấu hình bằng `LLM_TIMEOUT_SECONDS`).
   Phía gọi nên đặt timeout đủ dài và hiển thị trạng thái đang chấm.
+
+---
+
+## 9. RAG Evidence (thử nghiệm)
+
+Kho fact và retrieval cho tiêu chí Evidence. **Chưa nối vào `/evaluate*`.** Tính
+năng tắt mặc định (`RAG_ENABLED=false`): khi tắt, service không import
+torch/sentence-transformers và không cần DB. Thiết kế ở
+`docs/AI_DEVELOPMENT_LOG.md` mục 3.19.
+
+```bash
+docker compose up -d                  # Postgres + pgvector, cổng host 5434
+pip install -r requirements-rag.txt   # torch, sentence-transformers, datasets, psycopg, pgvector
+```
+
+Cổng 5434 vì `ai-opponent-service` đã dùng 5433. Đổi DB qua `RAG_DATABASE_URL`.
+Schema nằm ở `docker/postgres-init/` và chỉ chạy khi volume còn trống.
+
+Chạy 4 script theo thứ tự (không gọi LLM, không tốn token):
+
+```bash
+python scripts/rag/explore_vifactcheck.py   # tải dataset, in tên cột và phân bố
+python scripts/rag/filter_vifactcheck.py    # lọc 3 chủ đề, ghi data/vifactcheck_3topics.jsonl
+python scripts/rag/ingest_vifactcheck.py    # chunk, embed bge-m3, nạp vào DB (chạy lại không trùng)
+python scripts/rag/eval_retrieval.py        # đo article_hit@k, evidence_hit@k, ghi data/results/
+```
+
+Lần ingest đầu tải model bge-m3 (khoảng 4,3 GB vào `.hf_cache/`). `data/` và
+`.hf_cache/` đã gitignore. Ingest bị ngắt giữa chừng thì chạy tiếp bằng
+`--skip-existing`.
+
+### Bước 2: tách claim + verify bằng LLM
+
+Thiết kế và kết quả ở `docs/AI_DEVELOPMENT_LOG.md` mục 3.20. Các script dưới
+đây **gọi LLM thật (tốn token)**, cần `.env` có API key:
+
+```bash
+python scripts/rag/build_verify_set.py                       # ghi data/eval/verify_set.jsonl (in_kb 150 + out_of_kb 50)
+python scripts/rag/eval_verify.py --set all --limit 10       # chạy thử, in ước tính token cho cả kế hoạch
+python scripts/rag/eval_verify.py --set all                  # in_kb + out_of_kb, fact lấy bằng retrieve
+python scripts/rag/eval_verify.py --set in_kb --oracle       # fact = gold evidence, tách lỗi retrieval và lỗi verify
+cp docs/rag_eval/extract_set.jsonl data/eval/                # bộ 15 lập luận (bản nháp, xem docs/rag_eval/README.md)
+python scripts/rag/eval_extract.py                           # tách claim, so với expected bằng cosine bge-m3 >= 0.8
+```
+
+### Bước 3: kiểm chứng vào điểm Evidence của `/evaluate`
+
+Luồng và kết quả ở `docs/AI_DEVELOPMENT_LOG.md` mục 3.21; field `topic` / `evidence_check` ở mục 4.1.
+
+```bash
+python scripts/rag/build_evidence_pairs.py candidates --topic education   # fact có số liệu của bài train, để soạn lập luận
+python scripts/rag/build_evidence_pairs.py build     # sinh bản bịa bằng script -> docs/rag_eval/evidence_pairs.jsonl
+python scripts/rag/eval_evidence_pairs.py --conditions rag_on --limit 2 --budget 300000  # chạy thử, ước tính token (GỌI LLM THẬT)
+python scripts/rag/eval_evidence_pairs.py --conditions rag_on  # chỉ RAG bật (điểm gốc nằm sẵn trong lượt chấm); --resume / --fresh
+python scripts/rag/eval_evidence_stability.py --estimate       # ước tính token cho đợt lặp kiểm chứng
+python scripts/rag/eval_evidence_stability.py --runs 2         # lặp tách claim + verify, áp luật offline trên điểm gốc của lần chạy D
+python scripts/rag/reapply_verify_rules.py                     # áp lại luật verify hiện tại lên output đã lưu trong audit log (0 token)
+```
+
+Kết quả được ghi vào `data/results/` và chép sang `docs/rag_results/`; các lần
+chạy thử `--limit` chỉ ghi vào `data/results/`. Với prompt verify hiện tại, một
+lần `--set all` tốn khoảng 345.000 token và `--oracle` khoảng 130.000.
+
+`eval_verify.py` lưu checkpoint sau mỗi lô: bị ngắt (lỗi mạng...) thì chạy lại
+cùng lệnh kèm `--resume` để chỉ chấm các claim còn thiếu hoặc bị `ERROR`.
+
+Cấu hình liên quan (`.env`): `RAG_VERIFY_MAX_TOKENS` (mặc định 6000, giới hạn
+token riêng của một lô verify, tính cả phần reasoning) và `GROQ_REASONING_EFFORT`
+(`low` / `medium` / `high` cho model reasoning như `openai/gpt-oss-120b`; để
+trống thì không gửi, giữ mức mặc định của model).
+
+Endpoint debug `POST /rag/check-evidence` chỉ có khi `RAG_ENABLED=true`, cần DB
+và `requirements-rag.txt`:
+
+```json
+{"argument_text": "...", "motion": "...", "topic": "education"}
+```
+
+`topic` là `education`, `environment` hoặc `technology`. Response gồm `claims`
+(mỗi claim có `label` SUPPORTED / CONTRADICTED / NOT_FOUND, `fact_ids`,
+`reason`, `coerced`, `details`, `unsupported_details`, `downgraded`,
+`retrieved`), `counts` theo nhãn và `skipped_reason` khi lập luận không có claim
+thực chứng.

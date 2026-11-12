@@ -9,6 +9,8 @@ LLM_PROVIDER dang de default = "groq" theo yeu cau dung tam trong luc chua co
 budget OpenAI/Anthropic — Groq co free tier khong can the, toc do rat nhanh.
 """
 from functools import lru_cache
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,6 +40,9 @@ class Settings(BaseSettings):
     # llama-3.3-70b-versatile: model free-tier pho bien nhat tren Groq hien tai.
     # Groq chay tren LPU rieng, toc do rat nhanh (~300 token/s), free tier khong can the.
     groq_model: str = "llama-3.3-70b-versatile"
+    # Chi cho model reasoning (vd openai/gpt-oss-120b): "low" | "medium" | "high". De trong = khong gui,
+    # Groq dung muc mac dinh cua model (hanh vi truoc day). Model khong ho tro tham so nay se bao loi.
+    groq_reasoning_effort: Literal["", "low", "medium", "high"] = ""
 
     # ---- LLM call behavior ----
     llm_temperature: float = 0.2  # thap vi day la tac vu cham diem, can on dinh khong "sang tao"
@@ -48,6 +53,24 @@ class Settings(BaseSettings):
     eval_audit_log_path: str = "logs/eval_audit.jsonl"
     eval_audit_log_max_bytes: int = 50_000_000  # 0 = khong gioi han
     eval_audit_log_backups: int = 3
+
+    # ---- RAG Evidence (thu nghiem) ----
+    # Tat thi service khong import torch/sentence-transformers va khong can DB.
+    # Chi dieu khien endpoint debug /rag/* (app/main.py); RAG chua noi vao /evaluate*.
+    rag_enabled: bool = False
+    # Port 5434: 5433 da duoc ai-opponent-service dung (xem docker-compose.yml)
+    rag_database_url: str = "postgresql://adpp:adpp@localhost:5434/ai_evaluation"
+    rag_embedding_model: str = "BAAI/bge-m3"
+    rag_top_k: int = 5
+    rag_max_claims: int = 5  # So claim thuc chung toi da tach tu 1 luot lap luan
+    # Gioi han token rieng cho 1 lo verify (5 claim, moi claim tach chi tiet), tinh ca phan reasoning cua model.
+    # llm_max_tokens chung (2000 trong .env) lam cat cut JSON giua chung (dev log muc 3.20).
+    rag_verify_max_tokens: int = 6000
+    # Phuong an D (dev log muc 3.21): Evidence dieu chinh bang code. Bat co nay thi them +1 (toi da 5) khi khong co
+    # CONTRADICTED va it nhat nua so claim SUPPORTED. Mac dinh tat (de sau).
+    rag_evidence_bonus: bool = False
+    # Kiem chung chay song song voi luot cham; qua thoi gian nay thi giu diem goc, status "unavailable"
+    rag_check_timeout_seconds: float = 90.0
 
     # ---- App ----
     app_name: str = "ADPP AI Evaluator Service"

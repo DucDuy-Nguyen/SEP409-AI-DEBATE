@@ -16,6 +16,12 @@ app = FastAPI(
 app.include_router(evaluate.router)
 app.include_router(coaching.router)
 
+if settings.rag_enabled:
+    # Import tai day: RAG tat thi khong nap module RAG nao (torch, psycopg chi nap khi thuc su goi)
+    from app.routers import rag
+
+    app.include_router(rag.router)
+
 
 @app.get("/health", tags=["health"])
 def health_check() -> dict:

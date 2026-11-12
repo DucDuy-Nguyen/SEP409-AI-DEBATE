@@ -1,0 +1,23 @@
+# PostgreSQL + pgvector cho RAG Evidence cua Evaluator (thu nghiem).
+# Port host 5434: 5433 da duoc ai-opponent-service dung (adpp-ai-generation-postgres).
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: adpp-ai-evaluation-postgres
+    environment:
+      POSTGRES_USER: adpp
+      POSTGRES_PASSWORD: adpp
+      POSTGRES_DB: ai_evaluation
+    ports:
+      - "5434:5432"
+    volumes:
+      - ai_evaluation_pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adpp -d ai_evaluation"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  ai_evaluation_pgdata:

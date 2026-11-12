@@ -6,7 +6,7 @@ demo truoc) vi JSON de parse chac chan hon trong code that, giam rui ro
 regex parse sai khi LLM tra loi khong dung dinh dang tuyet doi.
 """
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -63,6 +63,13 @@ class ArgumentEvaluationRequest(BaseModel):
         default=None,
         description="Tuy chon: Chi so phong thai khuon mat (DeepFace) & giong noi (Whisper) cua luot noi",
     )
+    topic: Optional[Literal["education", "environment", "technology"]] = Field(
+        default=None,
+        description=(
+            "Chu de kho fact de kiem chung so lieu (RAG Evidence, docs/AI_DEVELOPMENT_LOG.md muc 3.21). "
+            "Bo trong, hoac service tat RAG_ENABLED, thi cham y nhu truoc"
+        ),
+    )
 
     @field_validator("argument_text")
     @classmethod
@@ -85,6 +92,40 @@ class CriterionScore(BaseModel):
     name: str
     score: int = Field(..., ge=1, le=5)
     reasoning: str = Field(..., description="Giai thich TAI SAO cham diem nay — bat buoc, khong duoc de trong")
+
+
+# Phien ban cach dung ket qua kiem chung trong diem Evidence (docs/AI_DEVELOPMENT_LOG.md muc 3.21, phuong an D):
+# luot cham dung prompt cu (khong chen ket qua kiem chung), Evidence dieu chinh bang code theo so claim CONTRADICTED.
+# v1_soft_cap (phuong an C, prompt co khoi kiem chung) da bo. v3: them nhan CONFLICTING (nguon trong kho chua thong nhat),
+# khong tru diem (muc 3.21.2). v4: CONFLICTING / CONTRADICTED xet theo tung chi tiet cua claim (muc 3.21.3).
+EVIDENCE_CHECK_VERSION = "v4_detail_conflict"
+
+
+class EvidenceCitation(BaseModel):
+    fact_id: str
+    content: str = Field(..., description="Noi dung fact rut gon toi da 300 ky tu")
+    citation: Optional[str] = Field(default=None, description="Nguon cua fact (vd tac gia - url)")
+    stance: Optional[Literal["supports", "contradicts"]] = Field(default=None, description="Fact xac nhan hay noi trai claim")
+
+
+class EvidenceClaimSummary(BaseModel):
+    claim: str
+    label: Literal["SUPPORTED", "CONTRADICTED", "NOT_FOUND", "CONFLICTING"]
+    reason: str
+    citations: list[EvidenceCitation] = Field(default_factory=list)
+
+
+class EvidenceCheckSummary(BaseModel):
+    """Ket qua kiem chung so lieu/su kien cua luot lap luan, tra kem ket qua cham (chi khi co `topic` va RAG bat)."""
+
+    status: Literal["checked", "no_claims", "unavailable"]
+    claims: list[EvidenceClaimSummary] = Field(default_factory=list)
+    counts: dict[str, int] = Field(default_factory=dict)
+    evidence_score_before: Optional[int] = Field(default=None, description="Diem Evidence LLM cho (luot cham khong co RAG)")
+    evidence_score_after: Optional[int] = Field(default=None, description="Diem Evidence sau khi code dieu chinh")
+    rule_applied: str = Field(default="", description="Mo ta luat dieu chinh da ap")
+    error: Optional[str] = Field(default=None, description="Ly do khi status = unavailable")
+    version: str = EVIDENCE_CHECK_VERSION
 
 
 class ArgumentEvaluationResult(BaseModel):
@@ -130,6 +171,9 @@ class ArgumentEvaluationResult(BaseModel):
     delivery_analytics: Optional[DeliveryAnalytics] = Field(
         default=None,
         description="Chi so phong thai khuon mat & giong noi (neu request co gui kem)",
+    )
+    evidence_check: Optional[EvidenceCheckSummary] = Field(
+        default=None, description="Ket qua kiem chung so lieu (RAG); None khi request khong co topic hoac RAG tat"
     )
 
 

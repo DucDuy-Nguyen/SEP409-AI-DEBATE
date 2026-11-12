@@ -16,6 +16,10 @@ from app.services.json_utils import EvaluationParseError
 
 
 class LLMClient(ABC):
+    # Usage cua lan goi thanh cong gan nhat (prompt_tokens, completion_tokens...), None neu provider khong tra.
+    # Chi script do chi phi doc (scripts/rag/), luong cham diem khong dung.
+    last_usage = None
+
     @abstractmethod
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         """Goi LLM, tra ve text output (raw). Nem exception neu goi that bai."""
@@ -45,6 +49,7 @@ class OpenAIClient(LLMClient):
             max_tokens=self._max_tokens,
             response_format={"type": "json_object"},  # bat che do JSON mode cua OpenAI cho chac chan
         )
+        self.last_usage = getattr(response, "usage", None)
         content = response.choices[0].message.content
         if content is None:
             raise RuntimeError("OpenAI tra ve noi dung rong")
@@ -145,6 +150,9 @@ class GroqClient(LLMClient):
         self._model = settings.groq_model
         self._temperature = settings.llm_temperature
         self._max_tokens = settings.llm_max_tokens
+        # Gui qua extra_body: tham so rieng cua Groq, khong phu thuoc phien ban SDK openai
+        effort = settings.groq_reasoning_effort.strip()
+        self._extra_body = {"reasoning_effort": effort} if effort else None
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         max_attempts = 5
@@ -161,7 +169,9 @@ class GroqClient(LLMClient):
                     temperature=self._temperature,
                     max_tokens=self._max_tokens,
                     response_format={"type": "json_object"},
+                    **({"extra_body": self._extra_body} if self._extra_body else {}),
                 )
+                self.last_usage = getattr(response, "usage", None)
                 content = response.choices[0].message.content
                 if content is None:
                     raise RuntimeError("Groq tra ve noi dung rong")

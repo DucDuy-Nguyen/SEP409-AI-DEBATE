@@ -1,0 +1,3726 @@
+{
+  "pairs": 15,
+  "gradings": 60,
+  "conditions": {
+    "rag_off": {
+      "complete_pairs": 15,
+      "evidence_mean_true": 3.4,
+      "evidence_mean_fake": 3.4,
+      "per_pair_diff": {
+        "edu-1": 0,
+        "edu-2": 0,
+        "edu-3": 1,
+        "edu-4": 0,
+        "edu-5": 0,
+        "env-1": 0,
+        "env-2": 0,
+        "env-3": -1,
+        "env-4": 0,
+        "env-5": 0,
+        "tech-1": 0,
+        "tech-2": 1,
+        "tech-3": 0,
+        "tech-4": 0,
+        "tech-5": -1
+      },
+      "mean_diff": 0.0,
+      "wilcoxon": {
+        "statistic": 5.0,
+        "p_value": 1.0,
+        "nonzero_pairs": 4
+      },
+      "overall_mean_true": 8.467,
+      "overall_mean_fake": 8.533,
+      "seconds_mean": {
+        "total": 3.891,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.891
+      },
+      "tokens_total": 85886,
+      "tokens_mean": 2862.867
+    },
+    "rag_on": {
+      "complete_pairs": 15,
+      "evidence_mean_true": 4.133,
+      "evidence_mean_fake": 2.133,
+      "per_pair_diff": {
+        "edu-1": 0,
+        "edu-2": 3,
+        "edu-3": 1,
+        "edu-4": 2,
+        "edu-5": 3,
+        "env-1": 2,
+        "env-2": 2,
+        "env-3": 2,
+        "env-4": 2,
+        "env-5": 0,
+        "tech-1": 3,
+        "tech-2": 4,
+        "tech-3": 2,
+        "tech-4": 1,
+        "tech-5": 3
+      },
+      "mean_diff": 2.0,
+      "wilcoxon": {
+        "statistic": 0.0,
+        "p_value": 0.001257926068496905,
+        "nonzero_pairs": 13
+      },
+      "overall_mean_true": 8.633,
+      "overall_mean_fake": 7.233,
+      "seconds_mean": {
+        "total": 14.744,
+        "embed": 0.343,
+        "extract": 3.279,
+        "retrieve_verify_excl_embed": 6.768,
+        "grade": 4.352
+      },
+      "tokens_total": 302424,
+      "tokens_mean": 10080.8
+    }
+  },
+  "fake_with_contradicted": [
+    "edu-1",
+    "edu-2",
+    "edu-4",
+    "edu-5",
+    "env-1",
+    "env-3",
+    "env-4",
+    "env-5",
+    "tech-1",
+    "tech-2",
+    "tech-5"
+  ],
+  "fake_not_detected": [
+    "edu-3",
+    "env-2",
+    "tech-3",
+    "tech-4"
+  ],
+  "true_with_contradicted": [],
+  "soft_cap_triggered": [],
+  "evidence_check_status": {
+    "checked": 30,
+    "no_claims": 0,
+    "unavailable": 0
+  },
+  "side_effect_on_minus_off": {
+    "Logic": -0.4,
+    "Relevance": -0.1,
+    "Structure": -0.367,
+    "Persuasiveness": -0.333
+  },
+  "tokens_total": 388310,
+  "model": "openai/gpt-oss-120b",
+  "missing_or_error": [],
+  "records": [
+    {
+      "pair_id": "edu-1",
+      "topic": "education",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 3
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Cung cấp số liệu cụ thể về kỳ thi học sinh giỏi Hà Tĩnh, nhưng chỉ dựa trên một ví dụ duy nhất, thiếu dữ liệu rộng hơn để chứng minh tính đại diện.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 2.79,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 2.79
+      },
+      "tokens": {
+        "grade_prompt": 1605,
+        "grade_completion": 1038,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-1",
+      "topic": "education",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 3,
+        "Relevance": 3,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 6.5,
+      "evidence_reasoning": "Hai câu khẳng định 1 và 2 được hỗ trợ bởi nguồn tin cụ thể, nhưng câu khẳng định 3 (Hà Tĩnh không thuộc nhóm các tỉnh giàu nhất) không có bằng chứng (NOT_FOUND). Ngoài ra, không có bằng chứng nào chứng minh việc đầu tư vào trường chuyên sẽ không gây bất bình đẳng hay mang lại lợi ích cho toàn hệ thống.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Toàn tỉnh Hà Tĩnh có 84 học sinh tham gia kỳ thi học sinh giỏi quốc gia THPT và có 68 học sinh đạt giải, trong đó có 25 giải nhì.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết về số học sinh tham gia, số học sinh đạt giải và số giải nhì đều có trong fact_id 4933f45a-86a3-4921-a131-00cc47176f23, nên claim được hỗ trợ.",
+            "citations": [
+              {
+                "fact_id": "4933f45a-86a3-4921-a131-00cc47176f23",
+                "content": "Sáng 14.3, trao đổi với Thanh Niên, ông Nguyễn Công Hoàn, Hiệu trưởng Trường THPT chuyên Hà Tĩnh, cho biết, tại kỳ thi học sinh giỏi quốc gia THPT năm học 2022-2023, toàn tỉnh Hà Tĩnh có 84 học sinh tham gia thì có đến 68 em đạt giải. Nhóm học sinh ở Hà Tĩnh tham gia môn toán kỳ thi học sinh giỏi qu",
+                "citation": "Thanh Niên - https://thanhnien.vn/ngoi-truong-co-2-thi-sinh-dat-diem-cao-nhat-ky-thi-hoc-sinh-gioi-quoc-gia-185230314115454363.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Phần lớn đội tuyển kỳ thi học sinh giỏi quốc gia THPT của tỉnh Hà Tĩnh đến từ Trường THPT chuyên Hà Tĩnh.",
+            "label": "SUPPORTED",
+            "reason": "Fact 38703367-14d2-4561-ba49-6e63a37e0122 cho biết trong 84 học sinh dự thi, 76 học sinh đến từ Trường THPT chuyên Hà Tĩnh, chứng minh phần lớn đội tuyển đến từ trường này.",
+            "citations": [
+              {
+                "fact_id": "38703367-14d2-4561-ba49-6e63a37e0122",
+                "content": "Kỳ thi học sinh giỏi quốc gia THPT năm 2022 - 2023, Hà Tĩnh có 84 em dự thi. Trong đó, 76 học sinh đến từ Trường THPT chuyên Hà Tĩnh; 8 em đến từ các trường THPT không chuyên trên địa bàn gồm: THPT Nguyễn Văn Trỗi (H.Lộc Hà); THPT Lý Tự Trọng và THPT Nguyễn Trung Thiên (H.Thạch Hà); THPT Trần Phú (H",
+                "citation": "Thanh Niên - https://thanhnien.vn/ngoi-truong-co-2-thi-sinh-dat-diem-cao-nhat-ky-thi-hoc-sinh-gioi-quoc-gia-185230314115454363.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Tỉnh Hà Tĩnh không thuộc nhóm các tỉnh giàu nhất cả nước nhưng đạt tỷ lệ học sinh đạt giải cao trong kỳ thi học sinh giỏi quốc gia THPT.",
+            "label": "NOT_FOUND",
+            "reason": "Có thông tin về tỷ lệ học sinh đạt giải trong các fact, nhưng không có dữ liệu nào khẳng định tỉnh Hà Tĩnh không thuộc nhóm các tỉnh giàu nhất, nên claim không thể xác nhận đầy đủ.",
+            "citations": [
+              {
+                "fact_id": "4933f45a-86a3-4921-a131-00cc47176f23",
+                "content": "Sáng 14.3, trao đổi với Thanh Niên, ông Nguyễn Công Hoàn, Hiệu trưởng Trường THPT chuyên Hà Tĩnh, cho biết, tại kỳ thi học sinh giỏi quốc gia THPT năm học 2022-2023, toàn tỉnh Hà Tĩnh có 84 học sinh tham gia thì có đến 68 em đạt giải. Nhóm học sinh ở Hà Tĩnh tham gia môn toán kỳ thi học sinh giỏi qu",
+                "citation": "Thanh Niên - https://thanhnien.vn/ngoi-truong-co-2-thi-sinh-dat-diem-cao-nhat-ky-thi-hoc-sinh-gioi-quoc-gia-185230314115454363.htm"
+              },
+              {
+                "fact_id": "d3580d87-3bc3-4089-8e00-e0dd6a206851",
+                "content": "Tại Kỳ thi học sinh giỏi quốc gia năm học 2022 - 2023, tỉnh Hà Tĩnh tiếp tục gặt hái được thành tích ấn tượng với 69/84 học sinh dự thi đoạt giải (chiếm 82,14%), nằm trong Top 10 đơn vị có số lượng giải nhiều nhất. Bên cạnh đó, xếp theo địa phương, Hà Tĩnh đứng thứ hai cả nước về số học sinh đoạt gi",
+                "citation": "Tin Tức - https://baotintuc.vn/giao-duc/ha-tinh-co-2-hoc-sinh-dat-diem-cao-nhat-tai-ky-thi-hoc-sinh-gioi-quoc-gia-20230314230021356.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 2,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 1
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 15.93,
+        "embed": 2.03,
+        "extract": 2.59,
+        "retrieve_verify_excl_embed": 6.43,
+        "grade": 4.87
+      },
+      "tokens": {
+        "grade_prompt": 2750,
+        "grade_completion": 1255,
+        "grade_calls": 1,
+        "rag": 7794,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4776,
+          "completion_tokens": 3018,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-1",
+      "topic": "education",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 3
+      },
+      "overall_score": 8.0,
+      "evidence_reasoning": "Cung cấp số liệu cụ thể về số học sinh đạt giải ở Hà Tĩnh, nhưng chỉ dựa trên một tỉnh duy nhất và không có nguồn tham khảo. Thiếu dữ liệu so sánh rộng hơn hoặc nghiên cứu thống kê để khẳng định rằng đầu tư vào trường chuyên luôn mang lại lợi ích.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.39,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.39
+      },
+      "tokens": {
+        "grade_prompt": 1605,
+        "grade_completion": 1001,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-1",
+      "topic": "education",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 2,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 7.0,
+      "evidence_reasoning": "Có một số bằng chứng được hỗ trợ (phần lớn đội tuyển đến từ trường chuyên), nhưng cũng có các tuyên bố bị phản bác (số liệu 132/40) và một số không tìm thấy, nên bằng chứng chưa đầy đủ và chính xác.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Toàn tỉnh Hà Tĩnh có 132 học sinh tham gia kỳ thi học sinh giỏi quốc gia THPT và có 40 học sinh đạt giải, trong đó 17 học sinh giành giải nhì.",
+            "label": "NOT_FOUND",
+            "reason": "Không có fact nào khớp với các chi tiết của claim.",
+            "citations": []
+          },
+          {
+            "claim": "Phần lớn đội tuyển kỳ thi học sinh giỏi quốc gia THPT của tỉnh Hà Tĩnh đến từ Trường THPT chuyên Hà Tĩnh.",
+            "label": "SUPPORTED",
+            "reason": "Fact cho biết 76/84 học sinh (phần lớn) đến từ Trường THPT chuyên Hà Tĩnh.",
+            "citations": [
+              {
+                "fact_id": "38703367-14d2-4561-ba49-6e63a37e0122",
+                "content": "Kỳ thi học sinh giỏi quốc gia THPT năm 2022 - 2023, Hà Tĩnh có 84 em dự thi. Trong đó, 76 học sinh đến từ Trường THPT chuyên Hà Tĩnh; 8 em đến từ các trường THPT không chuyên trên địa bàn gồm: THPT Nguyễn Văn Trỗi (H.Lộc Hà); THPT Lý Tự Trọng và THPT Nguyễn Trung Thiên (H.Thạch Hà); THPT Trần Phú (H",
+                "citation": "Thanh Niên - https://thanhnien.vn/ngoi-truong-co-2-thi-sinh-dat-diem-cao-nhat-ky-thi-hoc-sinh-gioi-quoc-gia-185230314115454363.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Hà Tĩnh không thuộc nhóm các tỉnh giàu nhất cả nước nhưng đạt tỷ lệ học sinh đạt giải trong kỳ thi học sinh giỏi quốc gia THPT là khoảng 30% (40/132).",
+            "label": "CONTRADICTED",
+            "reason": "Các fact cho biết số học sinh tham gia là 84 và số học sinh đạt giải là 68‑69, không phù hợp với 132 và 40, đồng thời tỷ lệ đạt giải khoảng 81% chứ không phải 30%.",
+            "citations": [
+              {
+                "fact_id": "4933f45a-86a3-4921-a131-00cc47176f23",
+                "content": "Sáng 14.3, trao đổi với Thanh Niên, ông Nguyễn Công Hoàn, Hiệu trưởng Trường THPT chuyên Hà Tĩnh, cho biết, tại kỳ thi học sinh giỏi quốc gia THPT năm học 2022-2023, toàn tỉnh Hà Tĩnh có 84 học sinh tham gia thì có đến 68 em đạt giải. Nhóm học sinh ở Hà Tĩnh tham gia môn toán kỳ thi học sinh giỏi qu",
+                "citation": "Thanh Niên - https://thanhnien.vn/ngoi-truong-co-2-thi-sinh-dat-diem-cao-nhat-ky-thi-hoc-sinh-gioi-quoc-gia-185230314115454363.htm"
+              },
+              {
+                "fact_id": "d3580d87-3bc3-4089-8e00-e0dd6a206851",
+                "content": "Tại Kỳ thi học sinh giỏi quốc gia năm học 2022 - 2023, tỉnh Hà Tĩnh tiếp tục gặt hái được thành tích ấn tượng với 69/84 học sinh dự thi đoạt giải (chiếm 82,14%), nằm trong Top 10 đơn vị có số lượng giải nhiều nhất. Bên cạnh đó, xếp theo địa phương, Hà Tĩnh đứng thứ hai cả nước về số học sinh đoạt gi",
+                "citation": "Tin Tức - https://baotintuc.vn/giao-duc/ha-tinh-co-2-hoc-sinh-dat-diem-cao-nhat-tai-ky-thi-hoc-sinh-gioi-quoc-gia-20230314230021356.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 1,
+          "CONTRADICTED": 1,
+          "NOT_FOUND": 1
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 12.68,
+        "embed": 0.38,
+        "extract": 2.16,
+        "retrieve_verify_excl_embed": 6.02,
+        "grade": 4.11
+      },
+      "tokens": {
+        "grade_prompt": 2535,
+        "grade_completion": 907,
+        "grade_calls": 1,
+        "rag": 7818,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4786,
+          "completion_tokens": 3032,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-2",
+      "topic": "education",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 7.5,
+      "evidence_reasoning": "Có số liệu cụ thể về số trường, giáo viên và lớp tập huấn, nhưng thiếu bằng chứng thực nghiệm (kết quả học tập, nghiên cứu) chứng minh phương pháp này cải thiện kết quả học tập.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.48,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.48
+      },
+      "tokens": {
+        "grade_prompt": 1615,
+        "grade_completion": 1253,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-2",
+      "topic": "education",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 5,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Các tuyên bố về số trường, số giáo viên, số lớp tập huấn đều được trích dẫn từ các fact có nguồn tin cụ thể, đáp ứng đầy đủ yêu cầu bằng chứng hỗ trợ.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Tổ chức VVOB dự kiến sẽ tiếp cận hơn 14.695 trường tiểu học và 230.000 giáo viên ở Việt Nam vào cuối năm 2023.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết về số trường, số giáo viên, thời gian và địa điểm đều được xác nhận trong fact dd2150f5-90ea-41e0-95e1-dfae3e7fdd47.",
+            "citations": [
+              {
+                "fact_id": "dd2150f5-90ea-41e0-95e1-dfae3e7fdd47",
+                "content": "VVOB dự kiến đến cuối năm 2023, phương pháp HTQC sẽ tiếp cận được hơn 14.695 trường tiểu học, 230.000 giáo viên, 681.000 học sinh và 1.429.000 phụ huynh ở Việt Nam. VVOB phối hợp cùng các trường tiểu học tại Đà Nẵng tổ chức ngày hội Học thông qua chơi VVOB Cô Nguyễn Thị Ánh Tuyết, giáo viên Trường t",
+                "citation": "Thanh Niên - https://thanhnien.vn/hoc-thong-qua-choi-kich-thich-su-sang-tao-o-hoc-sinh-tieu-hoc-185230322111015524.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Trong khuôn khổ dự án, đã tổ chức 115 lớp tập huấn chuyên môn cho giáo viên ở nhiều tỉnh thành.",
+            "label": "SUPPORTED",
+            "reason": "Fact e7279a4a-c758-4a0c-b488-4c0f76cf10ca và fact 2af92cb1-d5a9-438d-b139-67ba528d9169 đều xác nhận việc tổ chức 115 lớp tập huấn cho giáo viên trong dự án.",
+            "citations": [
+              {
+                "fact_id": "e7279a4a-c758-4a0c-b488-4c0f76cf10ca",
+                "content": "Các chuyên gia kỳ vọng bộ tài liệu sẽ giúp nâng cao năng lực cho cán bộ quản lý giáo dục và giáo viên tiểu học về HTQC, hướng đến mục tiêu dạy học ở cấp tiểu học \"nhẹ nhàng-tự nhiên-hiệu quả\" và góp phần thực hiện thành công chương trình GDPT 2018. Đây là một phần trong dự án dự án \"Lồng ghép các ho",
+                "citation": "Thanh Niên - https://thanhnien.vn/hoc-thong-qua-choi-kich-thich-su-sang-tao-o-hoc-sinh-tieu-hoc-185230322111015524.htm"
+              },
+              {
+                "fact_id": "2af92cb1-d5a9-438d-b139-67ba528d9169",
+                "content": "Trong khuôn khổ dự án, có 115 lớp tập huấn hỗ trợ chuyên môn về phương pháp áp dụng HTQC và 24 ngày hội HTQC tại các trường tiểu học cùng những hoạt động khác ở 8 tỉnh thành: Hà Giang, Thái Nguyên, Lai Châu, Nghệ An, Quảng Ngãi, Quảng Trị, Đà Nẵng và TP.HCM. Học sinh Trường tiểu học Thái Nguyên tham",
+                "citation": "Thanh Niên - https://thanhnien.vn/hoc-thong-qua-choi-kich-thich-su-sang-tao-o-hoc-sinh-tieu-hoc-185230322111015524.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 2,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 12.82,
+        "embed": 0.25,
+        "extract": 2.99,
+        "retrieve_verify_excl_embed": 5.58,
+        "grade": 4.0
+      },
+      "tokens": {
+        "grade_prompt": 2462,
+        "grade_completion": 1191,
+        "grade_calls": 1,
+        "rag": 6372,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3642,
+          "completion_tokens": 2730,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-2",
+      "topic": "education",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.0,
+      "evidence_reasoning": "Bài đưa ra số liệu cụ thể về số trường, giáo viên và lớp tập huấn, cho thấy dự án đang được triển khai rộng rãi. Nhưng thiếu bằng chứng thực nghiệm hoặc nghiên cứu cho thấy học qua chơi thực sự nâng cao kết quả học tập của học sinh tiểu học.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.52,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.52
+      },
+      "tokens": {
+        "grade_prompt": 1615,
+        "grade_completion": 1285,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-2",
+      "topic": "education",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 2,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 7.0,
+      "evidence_reasoning": "Có hai tuyên bố bị phản bác bởi dữ liệu thực tế: 1) số trường và giáo viên mà VVOB sẽ tiếp cận (10.223 trường, 110.000 giáo viên) không khớp với số liệu thực tế (14.695 trường, 230.000 giáo viên vào cuối 2023); 2) số lớp tập huấn được nêu (153) không đúng với số liệu thực tế (115 lớp). Những sai lệch này làm giảm đáng kể độ tin cậy của bằng chứng.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Tổ chức VVOB dự kiến đến cuối năm 2025 sẽ tiếp cận hơn 10.223 trường tiểu học và 110.000 giáo viên ở Việt Nam.",
+            "label": "CONTRADICTED",
+            "reason": "Fact cho biết VVOB dự kiến đến cuối năm 2023 sẽ tiếp cận hơn 14.695 trường tiểu học và 230.000 giáo viên, mâu thuẫn về thời gian và số lượng.",
+            "citations": [
+              {
+                "fact_id": "dd2150f5-90ea-41e0-95e1-dfae3e7fdd47",
+                "content": "VVOB dự kiến đến cuối năm 2023, phương pháp HTQC sẽ tiếp cận được hơn 14.695 trường tiểu học, 230.000 giáo viên, 681.000 học sinh và 1.429.000 phụ huynh ở Việt Nam. VVOB phối hợp cùng các trường tiểu học tại Đà Nẵng tổ chức ngày hội Học thông qua chơi VVOB Cô Nguyễn Thị Ánh Tuyết, giáo viên Trường t",
+                "citation": "Thanh Niên - https://thanhnien.vn/hoc-thong-qua-choi-kich-thich-su-sang-tao-o-hoc-sinh-tieu-hoc-185230322111015524.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Trong khuôn khổ dự án đã có 153 lớp tập huấn chuyên môn cho giáo viên ở nhiều tỉnh thành.",
+            "label": "CONTRADICTED",
+            "reason": "Fact cho biết dự án chỉ có 115 lớp tập huấn, không khớp với 153 lớp được nêu trong claim.",
+            "citations": [
+              {
+                "fact_id": "e7279a4a-c758-4a0c-b488-4c0f76cf10ca",
+                "content": "Các chuyên gia kỳ vọng bộ tài liệu sẽ giúp nâng cao năng lực cho cán bộ quản lý giáo dục và giáo viên tiểu học về HTQC, hướng đến mục tiêu dạy học ở cấp tiểu học \"nhẹ nhàng-tự nhiên-hiệu quả\" và góp phần thực hiện thành công chương trình GDPT 2018. Đây là một phần trong dự án dự án \"Lồng ghép các ho",
+                "citation": "Thanh Niên - https://thanhnien.vn/hoc-thong-qua-choi-kich-thich-su-sang-tao-o-hoc-sinh-tieu-hoc-185230322111015524.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 0,
+          "CONTRADICTED": 2,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 13.4,
+        "embed": 0.24,
+        "extract": 1.98,
+        "retrieve_verify_excl_embed": 6.72,
+        "grade": 4.46
+      },
+      "tokens": {
+        "grade_prompt": 2265,
+        "grade_completion": 1265,
+        "grade_calls": 1,
+        "rag": 5756,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3752,
+          "completion_tokens": 2004,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-3",
+      "topic": "education",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Đưa ra số liệu cụ thể về thiếu 8.000 phòng và chi phí 1,6 tỷ đồng mỗi phòng, nhưng không kèm nguồn tham khảo, khiến độ tin cậy giảm một chút.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.63,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.63
+      },
+      "tokens": {
+        "grade_prompt": 1595,
+        "grade_completion": 1195,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-3",
+      "topic": "education",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 8.0,
+      "evidence_reasoning": "Có dẫn chứng cụ thể cho hai tuyên bố chính (thiếu 8.000 phòng và chi phí 1,6 tỷ đồng/phòng) từ nguồn Tiền Phong, nhưng thiếu bằng chứng cho các giả thiết phụ như dân số thực tế cao hơn số quản lý và tác động trực tiếp của quá tải lớp học tới chất lượng giảng dạy.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "TPHCM đang thiếu khoảng 8.000 phòng học.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết của claim được xác nhận bởi các fact: fact 06a9bf87 nêu rõ thành phố thiếu khoảng 8.000 phòng học; fact 3a23d30e đề cập đến TPHCM.",
+            "citations": [
+              {
+                "fact_id": "3a23d30e-01ed-4ffe-97a4-f2a3a501e8e0",
+                "content": "Để TPHCM tiếp tục thực hiện hiệu quả hơn nữa Nghị quyết 88 và Nghị quyết 51 của Quốc hội, Chủ tịch Ủy ban Mặt trận Tổ quốc Việt Nam Đỗ Văn Chiến đề nghị thành phố cần tiếp tục quan tâm việc đào tạo, tuyển dụng để sớm khắc phục tình trạng thiếu hụt giáo viên trong các cơ sở giáo dục công lập; đẩy mạn",
+                "citation": "Tiền Phong - https://tienphong.vn/thu-hut-dau-tu-cho-cac-truong-ngoai-cong-lap-post1521125.tpo"
+              },
+              {
+                "fact_id": "06a9bf87-30b6-4a28-a8a8-2ebf12056870",
+                "content": "Xét chỉ tiêu 300 phòng học/ một vạn dân theo Nghị quyết Đại hội Đảng bộ thành phố khóa XI thì thành phố thiếu khoảng 8.000 phòng học. Với chi phí xây dựng khoảng 1,6 tỷ đồng/ phòng học, khoản tiền thực hiện mục tiêu này là rất lớn. Do đó, TPHCM sẽ sớm làm việc với các sở ngành liên quan để đánh giá,",
+                "citation": "Tiền Phong - https://tienphong.vn/thu-hut-dau-tu-cho-cac-truong-ngoai-cong-lap-post1521125.tpo"
+              }
+            ]
+          },
+          {
+            "claim": "Chi phí xây dựng khoảng 1,6 tỷ đồng mỗi phòng.",
+            "label": "SUPPORTED",
+            "reason": "Fact 06a9bf87 xác nhận chi phí xây dựng khoảng 1,6 tỷ đồng cho mỗi phòng học.",
+            "citations": [
+              {
+                "fact_id": "06a9bf87-30b6-4a28-a8a8-2ebf12056870",
+                "content": "Xét chỉ tiêu 300 phòng học/ một vạn dân theo Nghị quyết Đại hội Đảng bộ thành phố khóa XI thì thành phố thiếu khoảng 8.000 phòng học. Với chi phí xây dựng khoảng 1,6 tỷ đồng/ phòng học, khoản tiền thực hiện mục tiêu này là rất lớn. Do đó, TPHCM sẽ sớm làm việc với các sở ngành liên quan để đánh giá,",
+                "citation": "Tiền Phong - https://tienphong.vn/thu-hut-dau-tu-cho-cac-truong-ngoai-cong-lap-post1521125.tpo"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 2,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 12.38,
+        "embed": 0.18,
+        "extract": 2.27,
+        "retrieve_verify_excl_embed": 5.02,
+        "grade": 4.91
+      },
+      "tokens": {
+        "grade_prompt": 2316,
+        "grade_completion": 1509,
+        "grade_calls": 1,
+        "rag": 5126,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3474,
+          "completion_tokens": 1652,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-3",
+      "topic": "education",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 8.0,
+      "evidence_reasoning": "Sử dụng số liệu cụ thể (3.800 phòng, 2,3 tỷ đồng/phòng) nhưng không trích nguồn, vì vậy độ tin cậy còn hạn chế.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 2.65,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 2.65
+      },
+      "tokens": {
+        "grade_prompt": 1595,
+        "grade_completion": 1091,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-3",
+      "topic": "education",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 2,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 7.0,
+      "evidence_reasoning": "Trong ba luận điểm, chỉ có một luận điểm (dân số thực tế cao hơn số quản lý) được hỗ trợ bằng nguồn tin. Hai luận điểm còn lại (thiếu 3.800 phòng và chi phí 2,3 tỷ đồng/phòng) không có bằng chứng, do đó bằng chứng yếu.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "TPHCM đang thiếu khoảng 3.800 phòng học.",
+            "label": "NOT_FOUND",
+            "reason": "Không có fact nào đề cập đến số phòng học thiếu khoảng 3.800 ở TPHCM.",
+            "citations": []
+          },
+          {
+            "claim": "Chi phí xây dựng mỗi phòng học khoảng 2,3 tỷ đồng.",
+            "label": "NOT_FOUND",
+            "reason": "Không có fact nào xác nhận chi phí xây dựng mỗi phòng học là 2,3 tỷ đồng.",
+            "citations": []
+          },
+          {
+            "claim": "Dân số thực tế của thành phố cao hơn nhiều so với con số quản lý.",
+            "label": "SUPPORTED",
+            "reason": "Các fact cho biết dân số quản lý khoảng 10 triệu, nhưng thực tế trên 13 triệu, chứng minh dân số thực tế cao hơn nhiều.",
+            "citations": [
+              {
+                "fact_id": "8e584fad-d73d-408b-98ae-143a44da8889",
+                "content": "Dân số thành phố theo hệ thống quản lý là khoảng 10 triệu người, nhưng thực tế đã trên 13 triệu người. Cùng với đó, số lượng người dân các vùng miền đến thành phố rất nhiều, cho nên các vấn đề quy hoạch, tính toán đều mang tính tương đối. Để TPHCM tiếp tục thực hiện hiệu quả hơn nữa Nghị quyết 88 và",
+                "citation": "Tiền Phong - https://tienphong.vn/thu-hut-dau-tu-cho-cac-truong-ngoai-cong-lap-post1521125.tpo"
+              },
+              {
+                "fact_id": "ab5abf64-57c1-4ed3-a832-1c92fa1833cb",
+                "content": "Do hạn chế về quỹ đất, tiến độ xây mới và mở rộng trường thực tế chưa đáp án yêu cầu về diện tích sân chơi... Trao đổi thêm, Chủ tịch UBND TPHCM Phan Văn Mãi cho biết mảng y tế, giáo dục của thành phố vẫn còn đối mặt rất nhiều khó khăn. Dân số thành phố theo hệ thống quản lý là khoảng 10 triệu người",
+                "citation": "Tiền Phong - https://tienphong.vn/thu-hut-dau-tu-cho-cac-truong-ngoai-cong-lap-post1521125.tpo"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 1,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 2
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 14.13,
+        "embed": 0.24,
+        "extract": 3.88,
+        "retrieve_verify_excl_embed": 6.53,
+        "grade": 3.47
+      },
+      "tokens": {
+        "grade_prompt": 2204,
+        "grade_completion": 1030,
+        "grade_calls": 1,
+        "rag": 6176,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4357,
+          "completion_tokens": 1819,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-4",
+      "topic": "education",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Có số liệu cụ thể về số trường và ngân sách tăng 56% nhưng chưa cung cấp bằng chứng trực tiếp cho việc chi tiêu không hiệu quả hay thiếu giáo viên.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 2.97,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 2.97
+      },
+      "tokens": {
+        "grade_prompt": 1603,
+        "grade_completion": 1122,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-4",
+      "topic": "education",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 2,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 7.0,
+      "evidence_reasoning": "Có hai tuyên bố: một được hỗ trợ (tổng chi ngân sách 12.812 tỷ đồng), một khác được đánh dấu NOT_FOUND (số cơ sở giáo dục 3.984). Vì một trong hai tuyên bố chưa có bằng chứng đầy đủ, bằng chứng tổng thể chỉ ở mức trung bình.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Theo thống kê gần đây, cả vùng Tây Nguyên có 3.984 cơ sở giáo dục mầm non, phổ thông và thường xuyên.",
+            "label": "NOT_FOUND",
+            "reason": "Một số chi tiết của claim không có trong fact, do đó không thể khẳng định đầy đủ.",
+            "citations": [
+              {
+                "fact_id": "20a1d466-d9a5-4f36-85be-99d2c54cb68e",
+                "content": "Theo thống kê, năm học 2021 - 2022, toàn vùng Tây Nguyên có 3.984 cơ sở giáo dục mầm non, phổ thông, thường xuyên. Tổng chi ngân sách nhà nước cho lĩnh vực giáo dục và đào tạo tại khu vực tăng dần qua các năm, năm 2021, tổng chi ngân sách nhà nước cho lĩnh vực giáo dục, đào tạo là 12.812 tỷ đồng, tă",
+                "citation": "Tin Tức - https://baotintuc.vn/giao-duc/phat-trien-giao-duc-dao-tao-vung-tay-nguyen-ngang-voi-mat-bang-chung-ca-nuoc-20230324194826255.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Năm 2021, tổng chi ngân sách nhà nước cho giáo dục và đào tạo của khu vực là 12.812 tỷ đồng, tăng 56% so với năm 2011.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết của claim đều có trong fact và khớp nhau.",
+            "citations": [
+              {
+                "fact_id": "20a1d466-d9a5-4f36-85be-99d2c54cb68e",
+                "content": "Theo thống kê, năm học 2021 - 2022, toàn vùng Tây Nguyên có 3.984 cơ sở giáo dục mầm non, phổ thông, thường xuyên. Tổng chi ngân sách nhà nước cho lĩnh vực giáo dục và đào tạo tại khu vực tăng dần qua các năm, năm 2021, tổng chi ngân sách nhà nước cho lĩnh vực giáo dục, đào tạo là 12.812 tỷ đồng, tă",
+                "citation": "Tin Tức - https://baotintuc.vn/giao-duc/phat-trien-giao-duc-dao-tao-vung-tay-nguyen-ngang-voi-mat-bang-chung-ca-nuoc-20230324194826255.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 1,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 1
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 14.65,
+        "embed": 0.29,
+        "extract": 1.97,
+        "retrieve_verify_excl_embed": 8.0,
+        "grade": 4.39
+      },
+      "tokens": {
+        "grade_prompt": 2236,
+        "grade_completion": 1505,
+        "grade_calls": 1,
+        "rag": 6111,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3726,
+          "completion_tokens": 2385,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-4",
+      "topic": "education",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Cung cấp số liệu cụ thể về số trường và ngân sách, nhưng thiếu nguồn tham khảo và không có dữ liệu chứng minh việc sử dụng tiền không hiệu quả.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.0,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.0
+      },
+      "tokens": {
+        "grade_prompt": 1603,
+        "grade_completion": 1209,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-4",
+      "topic": "education",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 2,
+        "Evidence": 1,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 6.0,
+      "evidence_reasoning": "Claim 1 (5.833 cơ sở) bị CONTRADICTED với số liệu thực tế 3.984; Claim 2 (ngân sách 5.261 tỷ đồng năm 2025) không có nguồn nào xác nhận (NOT_FOUND). Không có bằng chứng đáng tin cậy nào hỗ trợ lập luận, vì vậy điểm rất thấp.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Theo thống kê gần đây, cả vùng Tây Nguyên có 5.833 cơ sở giáo dục mầm non, phổ thông và thường xuyên.",
+            "label": "CONTRADICTED",
+            "reason": "Số lượng cơ sở giáo dục được nêu trong claim (5.833) không khớp với số liệu trong fact (3.984), do đó claim bị phản bác.",
+            "citations": [
+              {
+                "fact_id": "20a1d466-d9a5-4f36-85be-99d2c54cb68e",
+                "content": "Theo thống kê, năm học 2021 - 2022, toàn vùng Tây Nguyên có 3.984 cơ sở giáo dục mầm non, phổ thông, thường xuyên. Tổng chi ngân sách nhà nước cho lĩnh vực giáo dục và đào tạo tại khu vực tăng dần qua các năm, năm 2021, tổng chi ngân sách nhà nước cho lĩnh vực giáo dục, đào tạo là 12.812 tỷ đồng, tă",
+                "citation": "Tin Tức - https://baotintuc.vn/giao-duc/phat-trien-giao-duc-dao-tao-vung-tay-nguyen-ngang-voi-mat-bang-chung-ca-nuoc-20230324194826255.htm"
+              },
+              {
+                "fact_id": "b5209902-323d-4ed0-9eb1-6d3a842fe7a2",
+                "content": "Cũng tại hội nghị, bà Nguyễn Thị Anh Đào, Hiệu trưởng Đại học Đông Á cho rằng: Khu vực Tây Nguyên có thế mạnh, tiềm năng trong nông nghiệp, lâm nghiệp, chế biến nông sản… do đó việc đào tạo nguồn nhân lực chất lượng cao ở khu vực sẽ góp phần đánh thức tiềm năng của Tây Nguyên và nâng cao chất lượng ",
+                "citation": "Tin Tức - https://baotintuc.vn/giao-duc/phat-trien-giao-duc-dao-tao-vung-tay-nguyen-ngang-voi-mat-bang-chung-ca-nuoc-20230324194826255.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Năm 2025, tổng chi ngân sách nhà nước cho giáo dục và đào tạo của khu vực Tây Nguyên là 5.261 tỷ đồng, tăng 23% so với năm 2015.",
+            "label": "NOT_FOUND",
+            "reason": "Không có fact nào cung cấp thông tin về tổng chi ngân sách năm 2025 hoặc mức tăng 23% so với năm 2015, nên không thể khẳng định hay bác bỏ claim.",
+            "citations": []
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 0,
+          "CONTRADICTED": 1,
+          "NOT_FOUND": 1
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 14.67,
+        "embed": 0.24,
+        "extract": 2.59,
+        "retrieve_verify_excl_embed": 4.91,
+        "grade": 6.92
+      },
+      "tokens": {
+        "grade_prompt": 2277,
+        "grade_completion": 1353,
+        "grade_calls": 1,
+        "rag": 5482,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3738,
+          "completion_tokens": 1744,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-5",
+      "topic": "education",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Cung cấp số liệu cụ thể từ Nhật Bản (57% trường cấm nhuộm tóc) và Hàn Quốc (88% trường cấm nhuộm/uốn tóc), tuy nhiên thiếu nguồn tham khảo chi tiết và không có dữ liệu trong nước, nên còn chỗ để cải thiện.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.35,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.35
+      },
+      "tokens": {
+        "grade_prompt": 1621,
+        "grade_completion": 1309,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-5",
+      "topic": "education",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 5,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Hai ví dụ từ Nhật Bản và Hàn Quốc được xác nhận là đúng, cung cấp bằng chứng cụ thể, tăng tính thuyết phục của lập luận.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Ở Nhật Bản, tờ Asahi Shimbun khảo sát 170 trường học công lập năm 2017 và thấy 57% số trường cấm nhuộm tóc, thậm chí bắt học sinh chứng minh màu tóc của mình là tự nhiên.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết của claim khớp hoàn toàn với nội dung trong fact_id 79d7143a-2135-4e0c-826e-3a684e9e47f2.",
+            "citations": [
+              {
+                "fact_id": "79d7143a-2135-4e0c-826e-3a684e9e47f2",
+                "content": "Tuy nhiên, nữ sinh vẫn nhận được khoản bồi thường khoảng 330.000 yen. Nhiều trường học Nhật Bản không cho phép học sinh để tóc quá dài, cấm nhuộm tóc và yêu cầu về ăn mặc rất khắt khe, thậm chỉ chỉ định màu của đồ lót. Tờ Asahi Shimbun khảo sát 170 trường học công lập hồi năm 2017, kết quả 57% số tr",
+                "citation": "VnExpress - https://vnexpress.net/truong-hoc-chau-a-quy-dinh-de-toc-hoc-sinh-nhu-the-nao-4585468.html"
+              }
+            ]
+          },
+          {
+            "claim": "Ở Hàn Quốc, một khảo sát năm 2018 cho thấy 88% trường THCS và THPT được hỏi cấm học sinh nhuộm hoặc uốn tóc.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết của claim được xác nhận bởi fact_id 2c71995e-a75e-44c3-8f65-9f10d23b41a1.",
+            "citations": [
+              {
+                "fact_id": "2c71995e-a75e-44c3-8f65-9f10d23b41a1",
+                "content": "Một số trường dùng kéo hoặc tông đơ để cắt tóc học sinh nếu các em không tuân thủ nội quy. Năm 2018, trong một khảo sát được thực hiện với 200 trường THCS và THPT Hàn Quốc, 88% cấm học sinh nhuộm hoặc uốn tóc; gần 40% vẫn kiểm soát độ dài tóc của học sinh. Tờ Korea Times nhận định các quy định khắt ",
+                "citation": "VnExpress - https://vnexpress.net/truong-hoc-chau-a-quy-dinh-de-toc-hoc-sinh-nhu-the-nao-4585468.html"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 2,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 14.86,
+        "embed": 0.43,
+        "extract": 1.55,
+        "retrieve_verify_excl_embed": 3.83,
+        "grade": 9.04
+      },
+      "tokens": {
+        "grade_prompt": 2293,
+        "grade_completion": 1398,
+        "grade_calls": 1,
+        "rag": 5364,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3503,
+          "completion_tokens": 1861,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-5",
+      "topic": "education",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Đưa ra hai khảo sát cụ thể từ Nhật Bản và Hàn Quốc, tuy có số liệu nhưng chưa cung cấp nguồn chi tiết và phạm vi rộng hơn.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.5,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.5
+      },
+      "tokens": {
+        "grade_prompt": 1621,
+        "grade_completion": 1155,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "edu-5",
+      "topic": "education",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 2,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 7.5,
+      "evidence_reasoning": "Hai ví dụ về Nhật Bản và Hàn Quốc đều bị sai lệch so với nguồn thực tế: dữ liệu năm 2014/80 trường 77% không khớp với dữ liệu năm 2017/170 trường 57%; dữ liệu năm 2021 42% không khớp với dữ liệu năm 2018 88%. Do đó bằng chứng không hỗ trợ luận điểm và gây nhầm lẫn.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Theo tờ Asahi Shimbun, vào năm 2014, một khảo sát của 80 trường học công lập ở Nhật Bản cho thấy 77% các trường cấm nhuộm tóc và yêu cầu học sinh chứng minh màu tóc là tự nhiên.",
+            "label": "CONTRADICTED",
+            "reason": "Fact cho biết khảo sát của Asahi Shimbun được thực hiện vào năm 2017 với 170 trường và tỷ lệ 57%, không khớp với năm 2014, 80 trường và 77% trong claim.",
+            "citations": [
+              {
+                "fact_id": "79d7143a-2135-4e0c-826e-3a684e9e47f2",
+                "content": "Tuy nhiên, nữ sinh vẫn nhận được khoản bồi thường khoảng 330.000 yen. Nhiều trường học Nhật Bản không cho phép học sinh để tóc quá dài, cấm nhuộm tóc và yêu cầu về ăn mặc rất khắt khe, thậm chỉ chỉ định màu của đồ lót. Tờ Asahi Shimbun khảo sát 170 trường học công lập hồi năm 2017, kết quả 57% số tr",
+                "citation": "VnExpress - https://vnexpress.net/truong-hoc-chau-a-quy-dinh-de-toc-hoc-sinh-nhu-the-nao-4585468.html"
+              }
+            ]
+          },
+          {
+            "claim": "Theo một khảo sát năm 2021 ở Hàn Quốc, 42% các trường trung học cơ sở và trung học phổ thông được hỏi cấm học sinh nhuộm hoặc uốn tóc.",
+            "label": "CONTRADICTED",
+            "reason": "Fact đề cập đến khảo sát năm 2018 với 88% trường cấm nhuộm hoặc uốn tóc, khác với năm 2021 và 42% được nêu trong claim.",
+            "citations": [
+              {
+                "fact_id": "2c71995e-a75e-44c3-8f65-9f10d23b41a1",
+                "content": "Một số trường dùng kéo hoặc tông đơ để cắt tóc học sinh nếu các em không tuân thủ nội quy. Năm 2018, trong một khảo sát được thực hiện với 200 trường THCS và THPT Hàn Quốc, 88% cấm học sinh nhuộm hoặc uốn tóc; gần 40% vẫn kiểm soát độ dài tóc của học sinh. Tờ Korea Times nhận định các quy định khắt ",
+                "citation": "VnExpress - https://vnexpress.net/truong-hoc-chau-a-quy-dinh-de-toc-hoc-sinh-nhu-the-nao-4585468.html"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 0,
+          "CONTRADICTED": 2,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 12.39,
+        "embed": 0.41,
+        "extract": 4.13,
+        "retrieve_verify_excl_embed": 5.31,
+        "grade": 2.54
+      },
+      "tokens": {
+        "grade_prompt": 2307,
+        "grade_completion": 993,
+        "grade_calls": 1,
+        "rag": 6144,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3455,
+          "completion_tokens": 2689,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-1",
+      "topic": "environment",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 7.5,
+      "evidence_reasoning": "Cung cấp các số liệu cụ thể về khối lượng gỗ bị thu giữ và thời gian mọc lại của cây, nhưng thiếu bằng chứng thực nghiệm hoặc thống kê cho việc tăng hình phạt sẽ có hiệu quả ngăn ngừa.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 4.89,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 4.89
+      },
+      "tokens": {
+        "grade_prompt": 1627,
+        "grade_completion": 1253,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-1",
+      "topic": "environment",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 5,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Các ví dụ về việc bắt giữ 5,2 m³ và hơn 30 m³ gỗ trái phép ở Kon Tum được trích dẫn từ nguồn tin cụ thể, đáp ứng tiêu chí bằng chứng cụ thể và xác thực.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Công an tỉnh Kon Tum đã thu giữ 5,2 m³ gỗ của hai đối tượng khai thác trái phép tại rừng sản xuất.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết đều được xác nhận bởi các fact liên quan.",
+            "citations": [
+              {
+                "fact_id": "0723c4ff-45ca-49f9-9eec-f85489a17bf8",
+                "content": "TPO - Công an tỉnh Kon Tum vừa bắt quả tang hai đối tượng Uyên và Linh đang khai thác gỗ trái phép tại cánh rừng sản xuất thuộc xã Đăk Ui, huyện Đăk Hà. Ngày 22/3, Công an tỉnh Kon Tum cho biết vừa bắt quả tang hai đối tượng có hành vi khai thác gỗ trái pháp luật tại địa bàn xã Đăk Ui, huyện Đăk Hà.",
+                "citation": "Tiền Phong - https://tienphong.vn/cong-an-kon-tum-bat-qua-tang-2-doi-tuong-khai-thac-go-trai-phep-post1519731.tpo#1519731|zone-timeline-12|28"
+              },
+              {
+                "fact_id": "967670ba-5ff5-409d-a256-bae3a80135c3",
+                "content": "Kiểm tra tại hiện trường, lực lượng chức năng phát hiện có 1 gốc cây bị cưa hạ (gỗ phay thuộc nhóm VI), 7 đoạn cành bị cắt khúc với khối lượng là 1,4 m³ và 4 bìa có khối lượng 2,8m³. Qua lấy lời khai và đấu tranh ban đầu, các đối tượng khai nhận, khai thác gỗ để bán cho các đối tượng trên địa bàn hu",
+                "citation": "Tiền Phong - https://tienphong.vn/cong-an-kon-tum-bat-qua-tang-2-doi-tuong-khai-thac-go-trai-phep-post1519731.tpo#1519731|zone-timeline-12|28"
+              }
+            ]
+          },
+          {
+            "claim": "Cơ quan chức năng đã phát hiện hơn 30 m³ gỗ vi phạm được cất giấu trong bãi chứa của một điểm mỏ cát sỏi, trong đó có lóng gỗ dài khoảng 20 m.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết đều có trong fact cb427c3d.",
+            "citations": [
+              {
+                "fact_id": "cb427c3d-9e4f-48a6-a10c-5d7769c2c1f1",
+                "content": "Ước tính số lượng gỗ vi phạm trong vụ việc trên khoảng hơn 30m³ bao gồm gỗ lóng, gỗ tấm, gỗ hộp. Cá biệt có lóng gỗ dài khoảng 20m và có đường kính khoảng 1m. Toàn bộ số lượng gỗ được phát hiện tại điểm khai thác cát sỏi của Công ty TNHH 87 và các điểm lân cận đã được cơ quan chức năng kiểm đếm, vận",
+                "citation": "Tiền Phong - https://tienphong.vn/cong-an-kon-tum-bat-qua-tang-2-doi-tuong-khai-thac-go-trai-phep-post1519731.tpo#1519731|zone-timeline-12|28"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 2,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 13.93,
+        "embed": 0.25,
+        "extract": 2.74,
+        "retrieve_verify_excl_embed": 7.6,
+        "grade": 3.34
+      },
+      "tokens": {
+        "grade_prompt": 2450,
+        "grade_completion": 923,
+        "grade_calls": 1,
+        "rag": 6501,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3745,
+          "completion_tokens": 2756,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-1",
+      "topic": "environment",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Cung cấp các ví dụ cụ thể (6,9 m³, >21 m³, cây gỗ 30 m) giúp minh họa vấn đề, nhưng thiếu dữ liệu thống kê rộng hơn và nguồn tham khảo, nên bằng chứng còn hạn chế.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.0,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.0
+      },
+      "tokens": {
+        "grade_prompt": 1627,
+        "grade_completion": 1131,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-1",
+      "topic": "environment",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 7.5,
+      "evidence_reasoning": "Có một ví dụ được hỗ trợ (hơn 21 m³ gỗ vi phạm) nhưng một ví dụ khác bị phản bác (6,9 m³) và một tuyên bố không có bằng chứng (gỗ dài 30 m). Vì vậy bằng chứng chỉ ở mức trung bình, cần cải thiện độ chính xác và đầy đủ.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Công an tỉnh Kon Tum vừa thu giữ 6.9 m³ gỗ của hai đối tượng khai thác trái phép tại rừng sản xuất.",
+            "label": "CONTRADICTED",
+            "reason": "Claim khẳng định thu giữ 6.9 m³ gỗ, nhưng các fact chỉ ghi nhận tổng khối lượng 5.2 m³.",
+            "citations": [
+              {
+                "fact_id": "967670ba-5ff5-409d-a256-bae3a80135c3",
+                "content": "Kiểm tra tại hiện trường, lực lượng chức năng phát hiện có 1 gốc cây bị cưa hạ (gỗ phay thuộc nhóm VI), 7 đoạn cành bị cắt khúc với khối lượng là 1,4 m³ và 4 bìa có khối lượng 2,8m³. Qua lấy lời khai và đấu tranh ban đầu, các đối tượng khai nhận, khai thác gỗ để bán cho các đối tượng trên địa bàn hu",
+                "citation": "Tiền Phong - https://tienphong.vn/cong-an-kon-tum-bat-qua-tang-2-doi-tuong-khai-thac-go-trai-phep-post1519731.tpo#1519731|zone-timeline-12|28"
+              }
+            ]
+          },
+          {
+            "claim": "Cơ quan chức năng phát hiện hơn 21 m³ gỗ vi phạm được cất giấu trong bãi chứa của một điểm mỏ cát sỏi.",
+            "label": "SUPPORTED",
+            "reason": "Các fact xác nhận việc phát hiện hơn 21 m³ gỗ vi phạm, ước tính hơn 30 m³, được cất giấu tại bãi chứa của điểm mỏ cát sỏi.",
+            "citations": [
+              {
+                "fact_id": "cb427c3d-9e4f-48a6-a10c-5d7769c2c1f1",
+                "content": "Ước tính số lượng gỗ vi phạm trong vụ việc trên khoảng hơn 30m³ bao gồm gỗ lóng, gỗ tấm, gỗ hộp. Cá biệt có lóng gỗ dài khoảng 20m và có đường kính khoảng 1m. Toàn bộ số lượng gỗ được phát hiện tại điểm khai thác cát sỏi của Công ty TNHH 87 và các điểm lân cận đã được cơ quan chức năng kiểm đếm, vận",
+                "citation": "Tiền Phong - https://tienphong.vn/cong-an-kon-tum-bat-qua-tang-2-doi-tuong-khai-thac-go-trai-phep-post1519731.tpo#1519731|zone-timeline-12|28"
+              }
+            ]
+          },
+          {
+            "claim": "Lòng gỗ dài khoảng 30 m.",
+            "label": "NOT_FOUND",
+            "reason": "Không có fact nào cung cấp độ dài 30 m cho lòng gỗ; fact duy nhất đề cập đến độ dài là khoảng 20 m.",
+            "citations": []
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 1,
+          "CONTRADICTED": 1,
+          "NOT_FOUND": 1
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 14.63,
+        "embed": 0.28,
+        "extract": 2.47,
+        "retrieve_verify_excl_embed": 8.38,
+        "grade": 3.49
+      },
+      "tokens": {
+        "grade_prompt": 2386,
+        "grade_completion": 1332,
+        "grade_calls": 1,
+        "rag": 7462,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4698,
+          "completion_tokens": 2764,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-2",
+      "topic": "environment",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Cung cấp số liệu cụ thể từ Tiền Giang (1.267 lượt) và Vĩnh Long (hơn 2.300 lượt) làm minh chứng cho sự sẵn lòng tham gia, nhưng phạm vi dữ liệu còn hạn chế.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 2.71,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 2.71
+      },
+      "tokens": {
+        "grade_prompt": 1588,
+        "grade_completion": 1058,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-2",
+      "topic": "environment",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 5,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.5,
+      "evidence_reasoning": "Có số liệu cụ thể về lượt ý kiến của hội nông dân Tiền Giang và Vĩnh Long; trong đó Vĩnh Long được xác nhận (SUPPORTED) còn Tiền Giang là NOT_FOUND, vì thiếu nguồn đáng tin nên bằng chứng chưa hoàn toàn đầy đủ.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Khi lấy ý kiến dự thảo Luật Đất đai sửa đổi, hội nông dân Tiền Giang tổng hợp được 1.267 lượt ý kiến.",
+            "label": "NOT_FOUND",
+            "reason": "[Ép về NOT_FOUND vì thiếu fact_id hợp lệ] Thông tin về 1.267 lượt ý kiến của hội nông dân Tiền Giang được ghi trong fact_id 02add3fb-8a83-46b7-a16c-3d6a19b9a915.",
+            "citations": []
+          },
+          {
+            "claim": "Vĩnh Long có trên 2.300 lượt ý kiến.",
+            "label": "SUPPORTED",
+            "reason": "Số lượt ý kiến trên 2.300 của Vĩnh Long được nêu trong fact_id 02add3fb-8a83-46b7-a16c-3d6a19b9a915.",
+            "citations": [
+              {
+                "fact_id": "02add3fb-8a83-46b7-a16c-3d6a19b9a915",
+                "content": "với nhiều hình thức như tổ chức hội nghị, hội thảo, tọa đàm, lồng ghép trong nội dung sinh hoạt chi, tổ hội nông dân. Trong đó nhiều tỉnh, thành hội đã tổng hợp được rất nhiều ý kiến như Tiền Giang (1.267 lượt ý kiến), Vĩnh Long (trên 2.300 lượt ý kiến)... Trung ương Hội Nông dân Việt Nam đã có nhiề",
+                "citation": "Chính Phủ - https://baochinhphu.vn/nguoi-dan-phai-duoc-thu-huong-loi-ich-tu-qua-trinh-chuyen-dich-dat-dai-102230307181523872.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 1,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 1
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 10.72,
+        "embed": 0.18,
+        "extract": 4.02,
+        "retrieve_verify_excl_embed": 3.44,
+        "grade": 3.09
+      },
+      "tokens": {
+        "grade_prompt": 2113,
+        "grade_completion": 1160,
+        "grade_calls": 1,
+        "rag": 5040,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 1,
+          "downgraded": 0,
+          "prompt_tokens": 3642,
+          "completion_tokens": 1398,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-2",
+      "topic": "environment",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Cung cấp số liệu cụ thể về lượt ý kiến ở Tiền Giang (1.743) và Vĩnh Long (trên 3.000), chứng minh tính khả thi, nhưng không kèm nguồn tham khảo nên mức độ thuyết phục còn hạn chế.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 5.26,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 5.26
+      },
+      "tokens": {
+        "grade_prompt": 3200,
+        "grade_completion": 2108,
+        "grade_calls": 2,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-2",
+      "topic": "environment",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 2,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 7.5,
+      "evidence_reasoning": "Các con số về lượt ý kiến (1.743 và trên 3.000) và khẳng định \"hàng triệu nông dân\" không có nguồn xác thực; kiểm chứng cho thấy các claim này không tìm thấy trong dữ liệu, do đó bằng chứng yếu và chưa thuyết phục.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Luật đất đai ảnh hưởng trực tiếp đến sinh kế và môi trường sống của hàng triệu nông dân.",
+            "label": "NOT_FOUND",
+            "reason": "Có bằng chứng cho việc luật đất đai bảo đảm sinh kế và điều kiện sống cho nông dân, nhưng không có thông tin về số lượng \"hàng triệu\" nông dân.",
+            "citations": [
+              {
+                "fact_id": "9088dfe2-4d0d-485e-90de-fa2eedecc035",
+                "content": "Theo bà Nguyễn Thanh Xuân, Chủ tịch Hội nông dân TPHCM, thực hiện dự án tái định cư khi thu hồi đất không chỉ quan tâm đến chính sách hỗ trợ, bồi thường mà cần đảm bảo sinh kế và điều kiện sống tốt hơn nơi ở cũ cho nông dân. Chỉ luật hóa những vấn đề đã chín, đã đủ rõ Phát biểu tại hội nghị, Phó Chủ",
+                "citation": "Chính Phủ - https://baochinhphu.vn/nguoi-dan-phai-duoc-thu-huong-loi-ich-tu-qua-trinh-chuyen-dich-dat-dai-102230307181523872.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Khi lấy ý kiến dự thảo Luật Đất đai sửa đổi, hội nông dân Tiền Giang tổng hợp được 1.743 lượt ý kiến.",
+            "label": "NOT_FOUND",
+            "reason": "Không có fact nào đề cập đến hội nông dân Tiền Giang hoặc số lượng 1.743 lượt ý kiến, nên không thể xác nhận hay bác bỏ claim.",
+            "citations": []
+          },
+          {
+            "claim": "Vĩnh Long có trên 3.000 lượt ý kiến khi lấy ý kiến dự thảo Luật Đất đai sửa đổi.",
+            "label": "NOT_FOUND",
+            "reason": "Không có fact nào chứa thông tin về Vĩnh Long hoặc số lượt ý kiến trên 3.000, do đó không thể khẳng định claim.",
+            "citations": []
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 0,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 3
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 11.47,
+        "embed": 0.28,
+        "extract": 3.0,
+        "retrieve_verify_excl_embed": 4.82,
+        "grade": 3.37
+      },
+      "tokens": {
+        "grade_prompt": 2157,
+        "grade_completion": 1093,
+        "grade_calls": 1,
+        "rag": 7341,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4884,
+          "completion_tokens": 2457,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-3",
+      "topic": "environment",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.0,
+      "evidence_reasoning": "Cung cấp ví dụ cụ thể về giải chạy bộ với hơn 1.000 người tham gia và các hoạt động đi kèm, nhưng chỉ dựa trên một trường hợp duy nhất, thiếu dữ liệu đo lường kết quả lâu dài.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 2.76,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 2.76
+      },
+      "tokens": {
+        "grade_prompt": 1623,
+        "grade_completion": 1127,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-3",
+      "topic": "environment",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 5,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.5,
+      "evidence_reasoning": "Câu khẳng định về số người tham gia (hơn 1.000) được fact‑check xác nhận (SUPPORTED). Tuy nhiên các tuyên bố phụ như \"trồng cây xanh, tiết kiệm điện, tuyên truyền tiêu dùng xanh\" chưa có bằng chứng cụ thể trong văn bản, nên điểm chưa đạt tối đa.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Giải chạy bộ “Bước chân xanh” ở TPHCM hưởng ứng Giờ Trái đất năm 2023 đã thu hút hơn 1.000 người tham gia.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết của claim đều được xác nhận trong fact 2c72f06a-7ba1-4abf-a5f1-26cee5f157c3.",
+            "citations": [
+              {
+                "fact_id": "2c72f06a-7ba1-4abf-a5f1-26cee5f157c3",
+                "content": "TPO - Sáng 25/3, Thành Đoàn, Hội LHTN Việt Nam TPHCM , Hội Sinh viên Việt Nam TPHCM tổ chức Giải chạy bộ “Bước chân xanh” lần thứ 2. Giải chạy thu hút hơn 1.000 người tham gia hưởng ứng chiến dịch Giờ Trái đất năm 2023. Bên cạnh đông đảo đoàn viên, thanh niên, sinh viên, giải chạy bộ “Bước chân xanh",
+                "citation": "Tiền Phong - https://tienphong.vn/hoa-hau-hhen-nie-cung-hang-ngan-ban-tre-tham-gia-chay-bo-huong-ung-chien-dich-gio-trai-dat-2023-post1520613.tpo"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 1,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 8.27,
+        "embed": 0.11,
+        "extract": 1.53,
+        "retrieve_verify_excl_embed": 2.51,
+        "grade": 4.12
+      },
+      "tokens": {
+        "grade_prompt": 2067,
+        "grade_completion": 1302,
+        "grade_calls": 1,
+        "rag": 4206,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 2705,
+          "completion_tokens": 1501,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-3",
+      "topic": "environment",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Cung cấp ví dụ thực tế với số liệu (hơn 700 người) và các hoạt động liên quan, nhưng chỉ dựa vào một trường hợp duy nhất, thiếu dữ liệu định lượng rộng hơn.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 2.59,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 2.59
+      },
+      "tokens": {
+        "grade_prompt": 1621,
+        "grade_completion": 1036,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-3",
+      "topic": "environment",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 2,
+        "Relevance": 4,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 6.5,
+      "evidence_reasoning": "Hai tuyên bố về năm 2025 và số người tham gia >700 bị phản bác bởi dữ liệu thực tế năm 2023 và >1000 người, còn một tuyên bố không có bằng chứng đủ.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Giải chạy bộ “Bước chân xanh” được tổ chức tại Thành phố Hồ Chí Minh vào năm 2025, là một hoạt động hưởng ứng Giờ Trái đất.",
+            "label": "CONTRADICTED",
+            "reason": "Claim nêu năm 2025 nhưng các fact chỉ đề cập đến năm 2023, gây mâu thuẫn.",
+            "citations": [
+              {
+                "fact_id": "2c72f06a-7ba1-4abf-a5f1-26cee5f157c3",
+                "content": "TPO - Sáng 25/3, Thành Đoàn, Hội LHTN Việt Nam TPHCM , Hội Sinh viên Việt Nam TPHCM tổ chức Giải chạy bộ “Bước chân xanh” lần thứ 2. Giải chạy thu hút hơn 1.000 người tham gia hưởng ứng chiến dịch Giờ Trái đất năm 2023. Bên cạnh đông đảo đoàn viên, thanh niên, sinh viên, giải chạy bộ “Bước chân xanh",
+                "citation": "Tiền Phong - https://tienphong.vn/hoa-hau-hhen-nie-cung-hang-ngan-ban-tre-tham-gia-chay-bo-huong-ung-chien-dich-gio-trai-dat-2023-post1520613.tpo"
+              }
+            ]
+          },
+          {
+            "claim": "Giải chạy bộ “Bước chân xanh” năm 2025 đã thu hút hơn 700 người tham gia, trong đó có đoàn viên, nghệ sĩ và các công dân trẻ.",
+            "label": "CONTRADICTED",
+            "reason": "Claim nêu năm 2025 nhưng các fact chỉ đề cập đến năm 2023, gây mâu thuẫn.",
+            "citations": [
+              {
+                "fact_id": "2c72f06a-7ba1-4abf-a5f1-26cee5f157c3",
+                "content": "TPO - Sáng 25/3, Thành Đoàn, Hội LHTN Việt Nam TPHCM , Hội Sinh viên Việt Nam TPHCM tổ chức Giải chạy bộ “Bước chân xanh” lần thứ 2. Giải chạy thu hút hơn 1.000 người tham gia hưởng ứng chiến dịch Giờ Trái đất năm 2023. Bên cạnh đông đảo đoàn viên, thanh niên, sinh viên, giải chạy bộ “Bước chân xanh",
+                "citation": "Tiền Phong - https://tienphong.vn/hoa-hau-hhen-nie-cung-hang-ngan-ban-tre-tham-gia-chay-bo-huong-ung-chien-dich-gio-trai-dat-2023-post1520613.tpo"
+              }
+            ]
+          },
+          {
+            "claim": "Hoạt động “Bước chân xanh” được tổ chức nhân dịp kỷ niệm ngày thành lập Đoàn Thanh niên và đã thúc đẩy các hành động cụ thể tại cơ sở như trồng cây xanh, tiết kiệm điện và tuyên truyền tiêu dùng xanh.",
+            "label": "NOT_FOUND",
+            "reason": "Một số chi tiết (trồng cây xanh) không có trong fact, nên không thể khẳng định đầy đủ.",
+            "citations": [
+              {
+                "fact_id": "1435a353-9a8c-455a-b4f2-5e56b8863e3e",
+                "content": "Đồng thời, tuổi trẻ thành phố mong muốn tiếp tục lan tỏa tinh thần xây dựng lối sống xanh, cộng đồng xanh và góp phần vào nỗ lực chung trong vấn đề tiết kiệm năng lượng bảo vệ môi trường và biến đổi khí hậu. Đây đồng thời cũng là hoạt động chào mừng kỷ niệm 92 năm thành lập Đoàn TNCS Hồ Chí Minh (26",
+                "citation": "Tiền Phong - https://tienphong.vn/hoa-hau-hhen-nie-cung-hang-ngan-ban-tre-tham-gia-chay-bo-huong-ung-chien-dich-gio-trai-dat-2023-post1520613.tpo"
+              },
+              {
+                "fact_id": "92295654-caa1-43f9-af09-71f005364faa",
+                "content": "Giờ Trái đất là sự kiện quốc tế diễn ra hằng năm do Tổ chức Quốc tế về Bảo tồn thiên nhiên (WWF) khởi xướng từ năm 2007. Đến nay, sau 14 năm tổ chức, chiến dịch đã tạo chuyển biến tích cực trong cộng đồng về nhận thức ý nghĩa, lợi ích của việc tiết kiệm năng lượng, bảo vệ môi trường, ứng phó với biế",
+                "citation": "Chính Phủ - https://baochinhphu.vn/nganh-dien-thu-do-tich-cuc-huong-ung-su-kien-gio-trai-dat-102230314132459026.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 0,
+          "CONTRADICTED": 2,
+          "NOT_FOUND": 1
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 13.35,
+        "embed": 0.45,
+        "extract": 2.45,
+        "retrieve_verify_excl_embed": 7.85,
+        "grade": 2.59
+      },
+      "tokens": {
+        "grade_prompt": 2700,
+        "grade_completion": 943,
+        "grade_calls": 1,
+        "rag": 8149,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4775,
+          "completion_tokens": 3374,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-4",
+      "topic": "environment",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 8.0,
+      "evidence_reasoning": "Bài đưa ra bằng chứng về hội nghị Đối thoại Biển với hơn 200 đại biểu và 16 diễn giả từ 10 quốc gia, cùng việc UNCLOS là khung pháp lý. Tuy nhiên thiếu dữ liệu cụ thể về tiềm năng sản xuất điện, chi phí đầu tư và giảm phát thải thực tế, nên bằng chứng chưa đủ mạnh.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 4.27,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 4.27
+      },
+      "tokens": {
+        "grade_prompt": 1607,
+        "grade_completion": 1408,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-4",
+      "topic": "environment",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Ba tuyên bố chính đều được chứng thực bằng nguồn tin thực tế (đối thoại Biển, UNCLOS, giảm phát thải). Tuy nhiên, chưa có số liệu cụ thể về mức giảm phát thải hay chi phí đầu tư, nên bằng chứng chưa đầy đủ tối đa.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Đối thoại Biển tổ chức tại Nha Trang với chủ đề năng lượng tái tạo ngoài khơi đã có sự tham gia của hơn 200 đại biểu, 16 diễn giả đến từ 10 quốc gia.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết về địa điểm, chủ đề, số lượng đại biểu, số lượng và nguồn gốc diễn giả đều có trong các fact được cung cấp, nên claim được hỗ trợ đầy đủ.",
+            "citations": [
+              {
+                "fact_id": "86f6f125-e2e3-40ba-abdc-819e70eb34cf",
+                "content": "(Chinhphu.vn) - Ngày 23/3, tại Nha Trang (Khánh Hòa) đã khai mạc Đối thoại Biển lần thứ 10 với chủ đề \"Năng lượng tái tạo ngoài khơi: Cơ hội và thách thức đối với chuyển đổi xanh\" do Học viện Ngoại giao (DAV) và Quỹ Konrad Adenauer Stiftung (KAS) đồng tổ chức. Đối thoại Biển lần thứ 10 với chủ đề \"N",
+                "citation": "Chính Phủ - https://baochinhphu.vn/nang-luong-tai-tao-ngoai-khoi-co-hoi-va-thach-thuc-doi-voi-chuyen-doi-xanh-102230324083226941.htm"
+              },
+              {
+                "fact_id": "9a1c609c-cd7a-4bca-ba93-b6d6d0ab1718",
+                "content": "Phát biểu bế mạc Đối thoại, TS. Nguyễn Hùng Sơn, Phó Giám đốc Học viện Ngoại giao, nhấn mạnh các quốc gia ven Biển Đông cần quản lý tốt tranh chấp để thúc đẩy hợp tác, tranh thủ cơ hội phát triển năng lượng tái tạo ngoài khơi phục vụ phát triển của khu vực. Điểm nhấn trong Đối thoại lần này là sự gó",
+                "citation": "Dân Trí - https://dantri.com.vn/the-gioi/hop-tac-xuyen-quoc-gia-chia-khoa-phat-trien-nang-luong-tai-tao-ngoai-khoi-20230324100715634.htm"
+              }
+            ]
+          },
+          {
+            "claim": "UNCLOS là khuôn khổ pháp lý nền tảng để khai thác năng lượng tái tạo ngoài khơi.",
+            "label": "SUPPORTED",
+            "reason": "Fact chỉ ra UNCLOS là khuôn khổ pháp lý bao trùm và nền tảng cho việc khai thác năng lượng tái tạo ngoài khơi, khớp hoàn toàn với claim.",
+            "citations": [
+              {
+                "fact_id": "13b0d6bb-4772-4f62-88d0-a1e60acb7371",
+                "content": "Các diễn giả đã tập trung thảo luận về khuôn khổ pháp lý điều chỉnh hoạt động khai thác năng lượng tái tạo ngoài khơi, cụ thể là điện gió và nhận định UNCLOS là khuôn khổ pháp lý bao trùm, là nền tảng giúp các quốc gia có cách tiếp cận cân bằng giữa việc phát triển năng lượng tái tạo ngoài khơi và v",
+                "citation": "Chính Phủ - https://baochinhphu.vn/nang-luong-tai-tao-ngoai-khoi-co-hoi-va-thach-thuc-doi-voi-chuyen-doi-xanh-102230324083226941.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Điện gió giúp giảm phát thải mà không chiếm đất canh tác.",
+            "label": "SUPPORTED",
+            "reason": "Các fact cho thấy điện gió góp phần giảm phát thải và các dự án điện gió ngoài khơi chỉ chiếm rất ít diện tích đất, nên không chiếm đất canh tác, khớp với claim.",
+            "citations": [
+              {
+                "fact_id": "fcf61056-9670-498a-babc-f7865cd3a7fe",
+                "content": "Theo đơn vị tư vấn, phương án cấp điện gió hoặc điện mặt trời mặt đất với quy mô công suất lớn sẽ chiếm dụng nhiều diện tích đất, nên không phù hợp với quy hoạch chung. Bởi theo quy hoạch của huyện Côn Đảo được phê duyệt, quỹ đất cho công trình năng lượng có tỉ trọng thấp, chiếm 0,04% diện tích tự n",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/evn-van-de-xuat-cap-dien-cho-con-dao-bang-cap-ngam-vuot-bien-20230317105713882.htm"
+              },
+              {
+                "fact_id": "48d7bdfe-6656-49a8-8a29-e0bc7394473c",
+                "content": "Các quốc gia cần có chính sách khuyến khích sử dụng các công nghệ mới, hỗ trợ phát triển cơ sở hạ tầng, đào tạo nhân lực chất lượng cao và hỗ trợ tài chính phù hợp, giảm thiểu rủi ro cho các nhà đầu tư để năng lượng tái tạo ngoài khơi nói chung và điện gió ngoài khơi nói riêng có thể tiếp tục phát t",
+                "citation": "Chính Phủ - https://baochinhphu.vn/nang-luong-tai-tao-ngoai-khoi-co-hoi-va-thach-thuc-doi-voi-chuyen-doi-xanh-102230324083226941.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 3,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 14.54,
+        "embed": 0.4,
+        "extract": 2.11,
+        "retrieve_verify_excl_embed": 7.88,
+        "grade": 4.15
+      },
+      "tokens": {
+        "grade_prompt": 2801,
+        "grade_completion": 1266,
+        "grade_calls": 1,
+        "rag": 7367,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4719,
+          "completion_tokens": 2648,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-4",
+      "topic": "environment",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.0,
+      "evidence_reasoning": "Đưa ra ví dụ về Đối thoại Biển, số lượng đại biểu và UNCLOS, nhưng thiếu số liệu cụ thể về tiềm năng năng lượng, chi phí đầu tư và giảm phát thải.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 4.33,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 4.33
+      },
+      "tokens": {
+        "grade_prompt": 1607,
+        "grade_completion": 1261,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-4",
+      "topic": "environment",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 2,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 7.5,
+      "evidence_reasoning": "Có một tuyên bố về số lượng đại biểu và diễn giả tại Đối thoại Biển nhưng bị phản bác bởi số liệu thực tế, và các bằng chứng khác (UNCLOS, lợi thế bờ biển) không được trích dẫn cụ thể, nên bằng chứng yếu.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Đối thoại Biển tổ chức tại Nha Trang với chủ đề năng lượng tái tạo ngoài khơi đã có sự tham gia của hơn 120 đại biểu, cùng 23 diễn giả đến từ 16 quốc gia.",
+            "label": "CONTRADICTED",
+            "reason": "Các fact cho biết số đại biểu hơn 200 và số diễn giả 16 người từ 10 quốc gia, không khớp với số liệu trong claim (hơn 120 đại biểu, 23 diễn giả từ 16 quốc gia).",
+            "citations": [
+              {
+                "fact_id": "86f6f125-e2e3-40ba-abdc-819e70eb34cf",
+                "content": "(Chinhphu.vn) - Ngày 23/3, tại Nha Trang (Khánh Hòa) đã khai mạc Đối thoại Biển lần thứ 10 với chủ đề \"Năng lượng tái tạo ngoài khơi: Cơ hội và thách thức đối với chuyển đổi xanh\" do Học viện Ngoại giao (DAV) và Quỹ Konrad Adenauer Stiftung (KAS) đồng tổ chức. Đối thoại Biển lần thứ 10 với chủ đề \"N",
+                "citation": "Chính Phủ - https://baochinhphu.vn/nang-luong-tai-tao-ngoai-khoi-co-hoi-va-thach-thuc-doi-voi-chuyen-doi-xanh-102230324083226941.htm"
+              },
+              {
+                "fact_id": "9a1c609c-cd7a-4bca-ba93-b6d6d0ab1718",
+                "content": "Phát biểu bế mạc Đối thoại, TS. Nguyễn Hùng Sơn, Phó Giám đốc Học viện Ngoại giao, nhấn mạnh các quốc gia ven Biển Đông cần quản lý tốt tranh chấp để thúc đẩy hợp tác, tranh thủ cơ hội phát triển năng lượng tái tạo ngoài khơi phục vụ phát triển của khu vực. Điểm nhấn trong Đối thoại lần này là sự gó",
+                "citation": "Dân Trí - https://dantri.com.vn/the-gioi/hop-tac-xuyen-quoc-gia-chia-khoa-phat-trien-nang-luong-tai-tao-ngoai-khoi-20230324100715634.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 0,
+          "CONTRADICTED": 1,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 17.17,
+        "embed": 0.13,
+        "extract": 6.31,
+        "retrieve_verify_excl_embed": 7.58,
+        "grade": 3.15
+      },
+      "tokens": {
+        "grade_prompt": 2225,
+        "grade_completion": 1233,
+        "grade_calls": 1,
+        "rag": 4928,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 2747,
+          "completion_tokens": 2181,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-5",
+      "topic": "environment",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Có dẫn chứng cụ thể về phát biểu của Ngoại trưởng Ai Cập và số lượng nguyên thủ quốc gia tham dự, nhưng thiếu dữ liệu thực tế về mức giảm phát thải hay các cam kết chưa thực hiện, khiến bằng chứng chưa đủ mạnh để chứng minh \"không có thay đổi thực chất\".",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.74,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.74
+      },
+      "tokens": {
+        "grade_prompt": 1627,
+        "grade_completion": 1261,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-5",
+      "topic": "environment",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Hai tuyên bố về lời phát biểu của Ngoại trưởng Ai Cập và số nguyên thủ quốc gia được xác thực, nhưng tuyên bố \"các hội nghị ngày càng đông người tham dự\" không có nguồn, và không có dữ liệu thực tế về mức giảm phát thải để hỗ trợ kết luận.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Trước COP27, Ngoại trưởng Ai Cập đã phát biểu trước hơn 60 Bộ trưởng các nước tại hội nghị chuẩn bị ở Kinshasa.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết đều có trong fact d7bcf017, khớp với nội dung tuyên bố.",
+            "citations": [
+              {
+                "fact_id": "d7bcf017-471d-4c31-ad6f-771ee27d5f52",
+                "content": "(Chinhphu.vn) - Ngoại trưởng Ai Cập kiêm Chủ tịch Hội nghị COP27, ông Sameh Shoukry, kêu gọi các nước đặt lợi ích quốc gia sang một bên và nêu cao tinh thần trách nhiệm tập thể nhằm giải quyết thách thức toàn cầu liên quan tới biến đổi khí hậu. Ngoại trưởng Ai Cập Sameh Shoukry - Ảnh: cop27.eg Tuyên",
+                "citation": "Chính Phủ - https://baochinhphu.vn/ai-cap-keu-goi-trach-nhiem-tap-the-trong-ung-pho-bien-doi-khi-hau-10222100411103016.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Nước chủ nhà cho biết 90 nguyên thủ quốc gia đã xác nhận tham dự hội nghị chính thức.",
+            "label": "SUPPORTED",
+            "reason": "Fact d13d918c xác nhận thông tin về 90 nguyên thủ quốc gia tham dự, khớp với claim.",
+            "citations": [
+              {
+                "fact_id": "d13d918c-8e8b-4b35-9299-a23923053b5f",
+                "content": "Một quan chức nước chủ nhà COP27 cho biết 90 nguyên thủ quốc gia đã xác nhận tham dự hội nghị lần này. Hiện Ai Cập đang tích cực chuẩn bị tổ chức COP27 và mong muốn xây dựng các mô hình thành công về khí hậu đồng thời thúc đẩy nỗ lực biến các cam kết về khí hậu thành hành động cụ thể dựa trên thành ",
+                "citation": "Chính Phủ - https://baochinhphu.vn/ai-cap-keu-goi-trach-nhiem-tap-the-trong-ung-pho-bien-doi-khi-hau-10222100411103016.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Các hội nghị khí hậu ngày càng đông người tham dự.",
+            "label": "NOT_FOUND",
+            "reason": "Chi tiết về xu hướng đông người tham dự không có trong bất kỳ fact nào, nên không đủ để khẳng định claim.",
+            "citations": []
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 2,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 1
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 25.74,
+        "embed": 0.28,
+        "extract": 9.36,
+        "retrieve_verify_excl_embed": 5.08,
+        "grade": 11.02
+      },
+      "tokens": {
+        "grade_prompt": 2285,
+        "grade_completion": 1314,
+        "grade_calls": 1,
+        "rag": 7212,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4617,
+          "completion_tokens": 2595,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-5",
+      "topic": "environment",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.0,
+      "evidence_reasoning": "Có ví dụ cụ thể về bài phát biểu của Ngoại trưởng Ai Cập và số lượng người tham dự, nhưng thiếu dữ liệu thực tế về mức giảm phát thải hoặc các cam kết chưa thực hiện, nên bằng chứng chưa đủ mạnh.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 4.34,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 4.34
+      },
+      "tokens": {
+        "grade_prompt": 1627,
+        "grade_completion": 1082,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "env-5",
+      "topic": "environment",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 7.5,
+      "evidence_reasoning": "Lập luận sử dụng một số bằng chứng cụ thể (phát biểu của Ngoại trưởng Ai Cập) được hỗ trợ, nhưng cũng có thông tin sai (số 47 nguyên thủ) và một khẳng định không có dữ liệu (số người tham dự tăng), nên mức độ chứng minh ở mức trung bình.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Số lượng người tham dự các hội nghị khí hậu quốc tế đang tăng lên theo thời gian.",
+            "label": "NOT_FOUND",
+            "reason": "Không có fact nào đề cập đến xu hướng tăng số lượng người tham dự các hội nghị khí hậu quốc tế theo thời gian.",
+            "citations": []
+          },
+          {
+            "claim": "Trước hội nghị COP27, Ngoại trưởng Ai Cập đã phát biểu trước hơn 38 Bộ trưởng các nước tại hội nghị chuẩn bị ở Kinshasa.",
+            "label": "SUPPORTED",
+            "reason": "Fact d7bcf017 cho biết Ngoại trưởng Ai Cập phát biểu trước hơn 60 Bộ trưởng tại hội nghị chuẩn bị ở Kinshasa, nên khẳng định được việc ông phát biểu trước hơn 38 Bộ trưởng.",
+            "citations": [
+              {
+                "fact_id": "d7bcf017-471d-4c31-ad6f-771ee27d5f52",
+                "content": "(Chinhphu.vn) - Ngoại trưởng Ai Cập kiêm Chủ tịch Hội nghị COP27, ông Sameh Shoukry, kêu gọi các nước đặt lợi ích quốc gia sang một bên và nêu cao tinh thần trách nhiệm tập thể nhằm giải quyết thách thức toàn cầu liên quan tới biến đổi khí hậu. Ngoại trưởng Ai Cập Sameh Shoukry - Ảnh: cop27.eg Tuyên",
+                "citation": "Chính Phủ - https://baochinhphu.vn/ai-cap-keu-goi-trach-nhiem-tap-the-trong-ung-pho-bien-doi-khi-hau-10222100411103016.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Nước chủ nhà cho biết 47 nguyên thủ quốc gia đã xác nhận tham dự hội nghị chính thức.",
+            "label": "CONTRADICTED",
+            "reason": "Fact 0266181d-782d-449c-b30e-4e000d10b5e4 nêu rằng 90 nguyên thủ quốc gia đã xác nhận, trái với số 47 trong claim.",
+            "citations": [
+              {
+                "fact_id": "0266181d-782d-449c-b30e-4e000d10b5e4",
+                "content": "Hội nghị chuẩn bị cho COP27 sẽ tập trung vào một số vấn đề chính cần giải quyết tại hội nghị chính thức, bao gồm nỗ lực giảm phát thải carbon, thích ứng với biến đổi khí hậu, vấn đề tài chính và những tác động bất lợi của biến đổi khí hậu. Hội nghị COP27 do Ai Cập đăng cai diễn ra từ ngày 7-18/11 tạ",
+                "citation": "Chính Phủ - https://baochinhphu.vn/ai-cap-keu-goi-trach-nhiem-tap-the-trong-ung-pho-bien-doi-khi-hau-10222100411103016.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 1,
+          "CONTRADICTED": 1,
+          "NOT_FOUND": 1
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 8.62,
+        "embed": 0.28,
+        "extract": 1.99,
+        "retrieve_verify_excl_embed": 3.15,
+        "grade": 3.19
+      },
+      "tokens": {
+        "grade_prompt": 2346,
+        "grade_completion": 1313,
+        "grade_calls": 1,
+        "rag": 6334,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4621,
+          "completion_tokens": 1713,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-1",
+      "topic": "technology",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Đưa ví dụ cụ thể ở Quảng Nam với số liệu thanh toán và lợi nhuận, cung cấp bằng chứng thực tế; nhưng chỉ có một trường hợp duy nhất, thiếu dữ liệu tổng quan.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 6.81,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 6.81
+      },
+      "tokens": {
+        "grade_prompt": 1611,
+        "grade_completion": 1084,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-1",
+      "topic": "technology",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 5,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Mọi tuyên bố đều được hỗ trợ bằng các nguồn tin cụ thể, chi tiết về vụ việc ở Quảng Nam, số tiền, thiết bị và cách thức hoạt động, đáp ứng đầy đủ tiêu chí Evidence.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Ở Quảng Nam, một nhóm đối tượng đã dùng thiết bị giả trạm BTS đặt trên ô tô để phát tán tin nhắn rác đến thuê bao di động ở nhiều tỉnh.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết về địa điểm, nhóm đối tượng, thiết bị giả trạm BTS, phương tiện ô tô, hành vi phát tán tin nhắn rác và phạm vi nhiều tỉnh đều được xác nhận trong các fact.",
+            "citations": [
+              {
+                "fact_id": "a1a7b332-b7a0-4082-9e40-1fd496c369fe",
+                "content": "(NLĐO) – Các đối tượng đã thực hiện việc phát tán tin nhắn rác đến thuê bao di động tại hai tỉnh Thừa Thiên - Huế, Quảng Nam và TP Đà Nẵng. Ngày 24-3, Công an tỉnh Quảng Nam cho biết lực lượng an ninh mạng và phòng chống tội phạm sử dụng công nghệ cao Công an tỉnh này vừa phát hiện, bắt giữ 2 đối tư",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              },
+              {
+                "fact_id": "2e45214b-38dd-47a6-bbc2-90079a38a45f",
+                "content": "2 đối tượng Chinh và An bị Công an tỉnh Quảng Nam bắt Ảnh: Công an Quảng Nam Trước đó, lúc 19 giờ 45 phút ngày 21-3, tại khu vực đường Nguyễn Hoàng (thuộc phường An Sơn, TP Tam Kỳ, tỉnh Quảng Nam), tổ công tác Công an tỉnh Quảng Nam đã phối hợp với Sở Thông tin truyền thông, Viện kiểm sát nhân dân t",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              },
+              {
+                "fact_id": "a5941ef3-250b-4311-8465-0b9734c14652",
+                "content": "Chiếc ô tô biển số Quảng Nam đang dừng ở ngã ba tại TP Pleiku để phát tin nhắn rác thì bị Công an Gia Lai ập vào bắt quả tang. Bộ thiết bị cài đặt trong ô tô biển số Quảng Nam nhằm mục đích phát tin nhắn rác - Ảnh: B.D. Ngày 24-3, nguồn tin Tuổi Trẻ Online cho biết Phòng an ninh mạng và phòng chống ",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/dung-thiet-bi-gan-tren-o-to-di-toi-dau-phat-tin-nhan-rac-toi-do-20230324171852239.htm"
+              },
+              {
+                "fact_id": "64906015-c957-4f57-bbae-93e272b313f5",
+                "content": "Từ khi thực hiện hành vi sử dụng thiết bị lập trạm BTS giả để phát tán tin nhắn SMS đến nay, Chinh được người đàn ông Trung Quốc trả khoảng 5.000 USDT, tương đương 110 triệu đồng. Chinh đã chuyển cho Bảo 30 triệu đồng, An 30 triệu đồng. Các đối tượng đã thực hiện việc phát tán tin nhắn rác đến thuê ",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              },
+              {
+                "fact_id": "b84d2265-bbe2-41f4-bf6e-876e013e508f",
+                "content": "Kiểm tra máy tính, lực lượng chức năng phát hiện 1 phần mềm đang chạy thể hiện các thông số các mạng di động tại vị trí xe ô tô đang đỗ. Qua đấu tranh, Chinh khai từ tháng 2-2023 đã nhận 1 máy tính và 2 thiết bị giả trạm BTS các nhà mạng từ một người đàn ông có quốc tịch Trung Quốc để phát tán tin n",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Kẻ cầm đầu được một người đàn ông Trung Quốc trả khoảng 5.000 USDT, tương đương 110.000.000 đồng.",
+            "label": "SUPPORTED",
+            "reason": "Fact xác nhận rằng kẻ cầm đầu (Chinh) nhận được 5.000 USDT (~110 triệu đồng) từ người đàn ông Trung Quốc.",
+            "citations": [
+              {
+                "fact_id": "64906015-c957-4f57-bbae-93e272b313f5",
+                "content": "Từ khi thực hiện hành vi sử dụng thiết bị lập trạm BTS giả để phát tán tin nhắn SMS đến nay, Chinh được người đàn ông Trung Quốc trả khoảng 5.000 USDT, tương đương 110 triệu đồng. Chinh đã chuyển cho Bảo 30 triệu đồng, An 30 triệu đồng. Các đối tượng đã thực hiện việc phát tán tin nhắn rác đến thuê ",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              },
+              {
+                "fact_id": "dc4ae79f-c03b-4337-b51e-0753e9087084",
+                "content": "Sau khi cài đặt và thực hiện phát tán tin nhắn thành công, Chinh đã hướng dẫn cho em ruột là Đỗ Quốc Bảo thực hiện. Chinh cũng đã hướng dẫn và thuê Phạm Đức An thực hiện việc này và trả công cho An 400.000 đồng/10.000 tin nhắn được phát tán. Từ khi thực hiện hành vi sử dụng thiết bị lập trạm BTS giả",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Theo quy ước, cứ 10.000 tin nhắn được gửi đi thì hắn nhận 500.000 đồng qua ví tiền ảo.",
+            "label": "SUPPORTED",
+            "reason": "Fact mô tả quy ước trả 500.000 đồng qua ví tiền ảo cho mỗi 10.000 tin nhắn được gửi đi.",
+            "citations": [
+              {
+                "fact_id": "e0df8a46-5d96-4bad-9e9c-166cffe4d3c8",
+                "content": "Máy tính và thiết bị giả trạm BTS hoạt động trên xe ô tô của Chinh và An Ảnh: Công an Quảng Nam Người này cũng đã hướng dẫn cách cài đặt, cách thức phát tán tin nhắn cho Chinh. Quy ước 10.000 tin nhắn được gửi đi, người này sẽ trả cho Chinh 500.000 đồng qua ví tiền ảo USDT. Sau khi cài đặt và thực h",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 3,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 20.62,
+        "embed": 0.36,
+        "extract": 2.87,
+        "retrieve_verify_excl_embed": 12.03,
+        "grade": 5.37
+      },
+      "tokens": {
+        "grade_prompt": 3281,
+        "grade_completion": 1382,
+        "grade_calls": 1,
+        "rag": 8770,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4411,
+          "completion_tokens": 4359,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-1",
+      "topic": "technology",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Cung cấp ví dụ cụ thể ở Quảng Nam với số liệu chi tiết về lợi nhuận, nhưng chỉ dựa trên một trường hợp duy nhất, chưa có dữ liệu tổng thể.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.86,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.86
+      },
+      "tokens": {
+        "grade_prompt": 1611,
+        "grade_completion": 1007,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-1",
+      "topic": "technology",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 2,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 3
+      },
+      "overall_score": 7.5,
+      "evidence_reasoning": "Một số claim được nguồn tin xác thực (điều tra Quảng Nam), nhưng các con số về khoản thanh toán và quy ước 4.000 tin nhắn/790.000 đồng bị phản bác bởi nguồn, dẫn đến lỗi CONTRADICTED.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Ở Quảng Nam, một nhóm đối tượng đã dùng thiết bị giả trạm BTS đặt trên ô tô để phát tán tin nhắn rác đến thuê bao di động ở nhiều tỉnh.",
+            "label": "SUPPORTED",
+            "reason": "Các fact cung cấp đầy đủ thông tin về địa điểm, thiết bị và hành vi, khớp với claim.",
+            "citations": [
+              {
+                "fact_id": "a1a7b332-b7a0-4082-9e40-1fd496c369fe",
+                "content": "(NLĐO) – Các đối tượng đã thực hiện việc phát tán tin nhắn rác đến thuê bao di động tại hai tỉnh Thừa Thiên - Huế, Quảng Nam và TP Đà Nẵng. Ngày 24-3, Công an tỉnh Quảng Nam cho biết lực lượng an ninh mạng và phòng chống tội phạm sử dụng công nghệ cao Công an tỉnh này vừa phát hiện, bắt giữ 2 đối tư",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              },
+              {
+                "fact_id": "2e45214b-38dd-47a6-bbc2-90079a38a45f",
+                "content": "2 đối tượng Chinh và An bị Công an tỉnh Quảng Nam bắt Ảnh: Công an Quảng Nam Trước đó, lúc 19 giờ 45 phút ngày 21-3, tại khu vực đường Nguyễn Hoàng (thuộc phường An Sơn, TP Tam Kỳ, tỉnh Quảng Nam), tổ công tác Công an tỉnh Quảng Nam đã phối hợp với Sở Thông tin truyền thông, Viện kiểm sát nhân dân t",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              },
+              {
+                "fact_id": "a5941ef3-250b-4311-8465-0b9734c14652",
+                "content": "Chiếc ô tô biển số Quảng Nam đang dừng ở ngã ba tại TP Pleiku để phát tin nhắn rác thì bị Công an Gia Lai ập vào bắt quả tang. Bộ thiết bị cài đặt trong ô tô biển số Quảng Nam nhằm mục đích phát tin nhắn rác - Ảnh: B.D. Ngày 24-3, nguồn tin Tuổi Trẻ Online cho biết Phòng an ninh mạng và phòng chống ",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/dung-thiet-bi-gan-tren-o-to-di-toi-dau-phat-tin-nhan-rac-toi-do-20230324171852239.htm"
+              },
+              {
+                "fact_id": "64906015-c957-4f57-bbae-93e272b313f5",
+                "content": "Từ khi thực hiện hành vi sử dụng thiết bị lập trạm BTS giả để phát tán tin nhắn SMS đến nay, Chinh được người đàn ông Trung Quốc trả khoảng 5.000 USDT, tương đương 110 triệu đồng. Chinh đã chuyển cho Bảo 30 triệu đồng, An 30 triệu đồng. Các đối tượng đã thực hiện việc phát tán tin nhắn rác đến thuê ",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              },
+              {
+                "fact_id": "b84d2265-bbe2-41f4-bf6e-876e013e508f",
+                "content": "Kiểm tra máy tính, lực lượng chức năng phát hiện 1 phần mềm đang chạy thể hiện các thông số các mạng di động tại vị trí xe ô tô đang đỗ. Qua đấu tranh, Chinh khai từ tháng 2-2023 đã nhận 1 máy tính và 2 thiết bị giả trạm BTS các nhà mạng từ một người đàn ông có quốc tịch Trung Quốc để phát tán tin n",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Kẻ cầm đầu nhận được khoản thanh toán khoảng 2.300 USDT, tương đương 50.000.000 đồng, từ một người đàn ông Trung Quốc.",
+            "label": "CONTRADICTED",
+            "reason": "Fact cho biết số tiền trả là 5.000 USDT (≈110 triệu đồng), không khớp với khoản 2.300 USDT (≈50 triệu đồng) trong claim.",
+            "citations": [
+              {
+                "fact_id": "64906015-c957-4f57-bbae-93e272b313f5",
+                "content": "Từ khi thực hiện hành vi sử dụng thiết bị lập trạm BTS giả để phát tán tin nhắn SMS đến nay, Chinh được người đàn ông Trung Quốc trả khoảng 5.000 USDT, tương đương 110 triệu đồng. Chinh đã chuyển cho Bảo 30 triệu đồng, An 30 triệu đồng. Các đối tượng đã thực hiện việc phát tán tin nhắn rác đến thuê ",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              },
+              {
+                "fact_id": "dc4ae79f-c03b-4337-b51e-0753e9087084",
+                "content": "Sau khi cài đặt và thực hiện phát tán tin nhắn thành công, Chinh đã hướng dẫn cho em ruột là Đỗ Quốc Bảo thực hiện. Chinh cũng đã hướng dẫn và thuê Phạm Đức An thực hiện việc này và trả công cho An 400.000 đồng/10.000 tin nhắn được phát tán. Từ khi thực hiện hành vi sử dụng thiết bị lập trạm BTS giả",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Theo quy ước, mỗi 4.000 tin nhắn được gửi đi, kẻ cầm đầu nhận 790.000 đồng qua ví tiền ảo.",
+            "label": "CONTRADICTED",
+            "reason": "Fact cho biết quy ước là 10.000 tin nhắn → 500.000 đồng qua ví tiền ảo, không khớp với 4.000 tin nhắn → 790.000 đồng trong claim.",
+            "citations": [
+              {
+                "fact_id": "e0df8a46-5d96-4bad-9e9c-166cffe4d3c8",
+                "content": "Máy tính và thiết bị giả trạm BTS hoạt động trên xe ô tô của Chinh và An Ảnh: Công an Quảng Nam Người này cũng đã hướng dẫn cách cài đặt, cách thức phát tán tin nhắn cho Chinh. Quy ước 10.000 tin nhắn được gửi đi, người này sẽ trả cho Chinh 500.000 đồng qua ví tiền ảo USDT. Sau khi cài đặt và thực h",
+                "citation": "Người lao động - https://nld.com.vn/phap-luat/bat-2-ke-phat-tan-tin-nhan-rac-thue-cho-nguoi-dan-ong-trung-quoc-20230324203548639.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 1,
+          "CONTRADICTED": 2,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 27.27,
+        "embed": 0.33,
+        "extract": 11.2,
+        "retrieve_verify_excl_embed": 9.78,
+        "grade": 5.96
+      },
+      "tokens": {
+        "grade_prompt": 3295,
+        "grade_completion": 1081,
+        "grade_calls": 1,
+        "rag": 9435,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4476,
+          "completion_tokens": 4959,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-2",
+      "topic": "technology",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Sử dụng số liệu dự đoán 30% và tăng trưởng 65% để làm bằng chứng, tuy có tính thuyết phục nhưng không nêu nguồn cụ thể, nên còn thiếu độ tin cậy cao hơn.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 4.74,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 4.74
+      },
+      "tokens": {
+        "grade_prompt": 1625,
+        "grade_completion": 896,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-2",
+      "topic": "technology",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 5,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Cả hai claim đều được trích dẫn nguồn thực tế, khớp với fact_id đã cung cấp, chứng minh rõ ràng tầm ảnh hưởng 30% GMV và tốc độ tăng trưởng 65% của Việt Nam.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Shoppertainment sẽ chiếm đến 30% tổng giá trị hàng hóa bán ra của thương mại điện tử tại thị trường châu Á - Thái Bình Dương.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết của claim đều có trong fact_id 5e769f3d-928e-4908-a24d-d1394bc1a25d, chứng minh Shoppertainment chiếm 30% GMV tại APAC.",
+            "citations": [
+              {
+                "fact_id": "5e769f3d-928e-4908-a24d-d1394bc1a25d",
+                "content": "(NLĐO) - Chiều ngày 11-2, MCV Group đã tổ chức ngày hội \"Kinh doanh theo xu hướng Shoppertainment: Điển hình TikTok Shop\" Ngày hội này nhằm hiện thực hóa cơ hội và đồng hành với các đối tác để cùng dẫn đầu xu hướng mua sắm kết hợp giải trí - Shoppertainment được dự đoán sẽ tạo ra nhiều đột phá về do",
+                "citation": "Người lao động - https://nld.com.vn/cong-nghe/don-dau-kinh-doanh-theo-xu-huong-shoppertainment-voi-tiktok-shop-mcv-20230211153530355.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Việt Nam nằm trong top 6 quốc gia có tốc độ tăng trưởng kép hằng năm của mô hình này, ở mức 65%.",
+            "label": "SUPPORTED",
+            "reason": "Fact chứa đầy đủ các chi tiết về vị trí xếp hạng và tốc độ tăng trưởng của Việt Nam trong mô hình Shoppertainment.",
+            "citations": [
+              {
+                "fact_id": "ce0bb7e3-6ce0-46be-8b09-1ea3bfc69c05",
+                "content": "Đặc biệt, Việt Nam là Top 6 quốc gia đạt tốc độ tăng trưởng kép hằng năm là 65% (gấp gần 5 lần so với tốc độ tăng trưởng kép hằng năm của e-Commerce) trong giai đoạn này. Ngày hội \"Kinh doanh theo xu hướng Shoppertainment: Điển hình TikTok Shop\" thu hút được hơn 50 nhà sáng tạo nội dung trên nền tản",
+                "citation": "Người lao động - https://nld.com.vn/cong-nghe/don-dau-kinh-doanh-theo-xu-huong-shoppertainment-voi-tiktok-shop-mcv-20230211153530355.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 2,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 10.11,
+        "embed": 0.27,
+        "extract": 1.48,
+        "retrieve_verify_excl_embed": 5.29,
+        "grade": 3.07
+      },
+      "tokens": {
+        "grade_prompt": 2272,
+        "grade_completion": 1048,
+        "grade_calls": 1,
+        "rag": 5761,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3698,
+          "completion_tokens": 2063,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-2",
+      "topic": "technology",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 8.0,
+      "evidence_reasoning": "Đưa ra các con số 48% và 36% để hỗ trợ quan điểm, nhưng không cung cấp nguồn cụ thể hay ví dụ thực tế về các mô hình shoppertainment thành công, nên mức độ thuyết phục của bằng chứng còn hạn chế.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 4.98,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 4.98
+      },
+      "tokens": {
+        "grade_prompt": 1625,
+        "grade_completion": 1279,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-2",
+      "topic": "technology",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 1,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 6.5,
+      "evidence_reasoning": "Hai tuyên bố chính về tỷ lệ 48% và tốc độ tăng trưởng 36% bị các nguồn thực tế phản bác (thực tế là 30% và 65%/top 6). Vì vậy bằng chứng không chỉ thiếu sức thuyết phục mà còn sai lệch.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Shoppertainment sẽ chiếm 48% tổng giá trị hàng hóa bán ra của thương mại điện tử tại thị trường châu Á - Thái Bình Dương.",
+            "label": "CONTRADICTED",
+            "reason": "Fact cho biết Shoppertainment chiếm 30% GMV tại APAC, không khớp với 48% trong claim.",
+            "citations": [
+              {
+                "fact_id": "5e769f3d-928e-4908-a24d-d1394bc1a25d",
+                "content": "(NLĐO) - Chiều ngày 11-2, MCV Group đã tổ chức ngày hội \"Kinh doanh theo xu hướng Shoppertainment: Điển hình TikTok Shop\" Ngày hội này nhằm hiện thực hóa cơ hội và đồng hành với các đối tác để cùng dẫn đầu xu hướng mua sắm kết hợp giải trí - Shoppertainment được dự đoán sẽ tạo ra nhiều đột phá về do",
+                "citation": "Người lao động - https://nld.com.vn/cong-nghe/don-dau-kinh-doanh-theo-xu-huong-shoppertainment-voi-tiktok-shop-mcv-20230211153530355.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Việt Nam nằm trong 9 quốc gia có tốc độ tăng trưởng kép hằng năm của mô hình này, ở mức 36%.",
+            "label": "CONTRADICTED",
+            "reason": "Fact cho biết Việt Nam là trong top 6 với tốc độ tăng trưởng 65%, không khớp với 9 quốc gia và 36% trong claim.",
+            "citations": [
+              {
+                "fact_id": "ce0bb7e3-6ce0-46be-8b09-1ea3bfc69c05",
+                "content": "Đặc biệt, Việt Nam là Top 6 quốc gia đạt tốc độ tăng trưởng kép hằng năm là 65% (gấp gần 5 lần so với tốc độ tăng trưởng kép hằng năm của e-Commerce) trong giai đoạn này. Ngày hội \"Kinh doanh theo xu hướng Shoppertainment: Điển hình TikTok Shop\" thu hút được hơn 50 nhà sáng tạo nội dung trên nền tản",
+                "citation": "Người lao động - https://nld.com.vn/cong-nghe/don-dau-kinh-doanh-theo-xu-huong-shoppertainment-voi-tiktok-shop-mcv-20230211153530355.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 0,
+          "CONTRADICTED": 2,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 14.42,
+        "embed": 0.21,
+        "extract": 1.61,
+        "retrieve_verify_excl_embed": 9.69,
+        "grade": 2.91
+      },
+      "tokens": {
+        "grade_prompt": 2256,
+        "grade_completion": 1004,
+        "grade_calls": 1,
+        "rag": 5887,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3696,
+          "completion_tokens": 2191,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-3",
+      "topic": "technology",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Có ví dụ cụ thể về TS Bùi Thanh Duyên với số liệu rõ ràng (năm, số tiền, trường, lĩnh vực nghiên cứu). Tuy nhiên chỉ một trường hợp duy nhất, thiếu dữ liệu thống kê hoặc các ví dụ khác để củng cố luận điểm.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.02,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.02
+      },
+      "tokens": {
+        "grade_prompt": 1608,
+        "grade_completion": 1108,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-3",
+      "topic": "technology",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 5,
+        "Evidence": 5,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 10.0,
+      "evidence_reasoning": "Ba tuyên bố chính về TS Bùi Thanh Duyên đều được các nguồn tin xác thực hỗ trợ (SUPPORTED), cung cấp bằng chứng cụ thể cho ví dụ minh họa, đáp ứng tiêu chí Evidence.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Năm 2010, TS Bùi Thanh Duyên là một trong 37 sinh viên xuất sắc nhận học bổng trị giá 54.000 USD cho 2 năm đầu học tiến sĩ tại Mỹ.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết của claim 1 đều xuất hiện trong fact a1502164-38bd-4171-abe3-dd604d8d7333, nên claim được hỗ trợ.",
+            "citations": [
+              {
+                "fact_id": "a1502164-38bd-4171-abe3-dd604d8d7333",
+                "content": "Càng làm việc, nghiên cứu, tôi lại càng có niềm tin rằng mình sẽ tìm ra được thêm những điều mới mẻ, có ích cho nền di truyền học tại Việt Nam cũng như thế giới\". Năm 2010, Bùi Thanh Duyên là một trong 37 sinh viên xuất sắc nhận được học bổng trị giá 54.000 USD cho 2 năm đầu học tiến sĩ tại Mỹ. Tốt ",
+                "citation": "Người lao động - https://nld.com.vn/cong-nghe/mo-giai-ma-nguoi-gien-viet-20230118092847142.htm"
+              }
+            ]
+          },
+          {
+            "claim": "TS Bùi Thanh Duyên tốt nghiệp tiến sĩ ngành di truyền học tại Đại học Cornell.",
+            "label": "SUPPORTED",
+            "reason": "Fact a1502164-... và e5754ada-... đều khẳng định TS Bùi Thanh Duyên tốt nghiệp tiến sĩ ngành di truyền học tại ĐH Cornell, nên claim được hỗ trợ.",
+            "citations": [
+              {
+                "fact_id": "a1502164-38bd-4171-abe3-dd604d8d7333",
+                "content": "Càng làm việc, nghiên cứu, tôi lại càng có niềm tin rằng mình sẽ tìm ra được thêm những điều mới mẻ, có ích cho nền di truyền học tại Việt Nam cũng như thế giới\". Năm 2010, Bùi Thanh Duyên là một trong 37 sinh viên xuất sắc nhận được học bổng trị giá 54.000 USD cho 2 năm đầu học tiến sĩ tại Mỹ. Tốt ",
+                "citation": "Người lao động - https://nld.com.vn/cong-nghe/mo-giai-ma-nguoi-gien-viet-20230118092847142.htm"
+              },
+              {
+                "fact_id": "e5754ada-1d4f-48aa-ad4d-432d3cfcbdc4",
+                "content": "Tốt nghiệp tiến sĩ ngành di truyền học và sinh học phân tử tại ĐH Cornell, chị làm việc tại Trường Y - ĐH California, San Francisco (Mỹ). Tại đây, Duyên cùng đồng sự nghiên cứu sâu về cơ chế phân tử của quá trình nhân bản lại của DNA - giải thích một phần nguyên nhân sâu xa vì sao đột biến gien hình",
+                "citation": "Người lao động - https://nld.com.vn/cong-nghe/mo-giai-ma-nguoi-gien-viet-20230118092847142.htm"
+              }
+            ]
+          },
+          {
+            "claim": "TS Bùi Thanh Duyên nghiên cứu các gen liên quan đến ung thư.",
+            "label": "SUPPORTED",
+            "reason": "Các fact b58b71d0-... và 21a3ef66-... cho thấy TS Bùi Thanh Duyên đã nghiên cứu các gen liên quan đến ung thư, do đó claim được hỗ trợ.",
+            "citations": [
+              {
+                "fact_id": "b58b71d0-4b64-4d0c-9c14-52cda7265d70",
+                "content": "Ban đầu, nhóm của chị tập trung nghiên cứu ung thư di truyền. Tuy nhiên, 90%-95% ung thư không phải là do những đột biến di truyền, vì thế chị chuyển sang nghiên cứu gien. TS Bùi Thanh Duyên nhận thấy giải mã gien còn mang lại rất nhiều ứng dụng.",
+                "citation": "Người lao động - https://nld.com.vn/cong-nghe/mo-giai-ma-nguoi-gien-viet-20230118092847142.htm"
+              },
+              {
+                "fact_id": "21a3ef66-69e1-4e95-b7c4-1403dad30bf0",
+                "content": "Khi người ta mang đột biến gây bệnh của một trong 2 gien này thì khả năng bị ung thư sẽ lên đến 40%-60%. Nghiên cứu của TS Bùi Thanh Duyên cùng đồng sự phát hiện rằng một số biến đổi nhỏ tưởng chừng không gây ảnh hưởng trong 2 gien MLH1 - PMS1 lại làm cho các tế bào có thể mang nhiều đột biến và tro",
+                "citation": "Người lao động - https://nld.com.vn/cong-nghe/mo-giai-ma-nguoi-gien-viet-20230118092847142.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 3,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 14.78,
+        "embed": 0.35,
+        "extract": 3.75,
+        "retrieve_verify_excl_embed": 7.81,
+        "grade": 2.88
+      },
+      "tokens": {
+        "grade_prompt": 2671,
+        "grade_completion": 1174,
+        "grade_calls": 1,
+        "rag": 6852,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 4272,
+          "completion_tokens": 2580,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-3",
+      "topic": "technology",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 5,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.5,
+      "evidence_reasoning": "Cung cấp ví dụ cụ thể về TS Bùi Thanh Duyên với số liệu học bổng và thành tựu nghiên cứu, nhưng thiếu dữ liệu tổng thể hoặc thống kê về số lượng sinh viên khác và tác động chung của học bổng.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 4.67,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 4.67
+      },
+      "tokens": {
+        "grade_prompt": 1608,
+        "grade_completion": 1655,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-3",
+      "topic": "technology",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Một trong hai tuyên bố được xác thực (về việc tốt nghiệp và nghiên cứu tại Cornell), nhưng tuyên bố về học bổng năm 2006 không có bằng chứng (NOT_FOUND), nên bằng chứng chưa đầy đủ.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Năm 2006, cô là một trong 57 sinh viên xuất sắc nhận học bổng trị giá 32.000 USD cho 1 năm đầu học tiến sĩ tại Mỹ.",
+            "label": "NOT_FOUND",
+            "reason": "Không có fact nào khớp với các chi tiết của claim.",
+            "citations": []
+          },
+          {
+            "claim": "Cô tốt nghiệp tiến sĩ ngành di truyền học tại Đại học Cornell và nghiên cứu các gen liên quan đến ung thư.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết đều có trong fact.",
+            "citations": [
+              {
+                "fact_id": "a1502164-38bd-4171-abe3-dd604d8d7333",
+                "content": "Càng làm việc, nghiên cứu, tôi lại càng có niềm tin rằng mình sẽ tìm ra được thêm những điều mới mẻ, có ích cho nền di truyền học tại Việt Nam cũng như thế giới\". Năm 2010, Bùi Thanh Duyên là một trong 37 sinh viên xuất sắc nhận được học bổng trị giá 54.000 USD cho 2 năm đầu học tiến sĩ tại Mỹ. Tốt ",
+                "citation": "Người lao động - https://nld.com.vn/cong-nghe/mo-giai-ma-nguoi-gien-viet-20230118092847142.htm"
+              },
+              {
+                "fact_id": "e5754ada-1d4f-48aa-ad4d-432d3cfcbdc4",
+                "content": "Tốt nghiệp tiến sĩ ngành di truyền học và sinh học phân tử tại ĐH Cornell, chị làm việc tại Trường Y - ĐH California, San Francisco (Mỹ). Tại đây, Duyên cùng đồng sự nghiên cứu sâu về cơ chế phân tử của quá trình nhân bản lại của DNA - giải thích một phần nguyên nhân sâu xa vì sao đột biến gien hình",
+                "citation": "Người lao động - https://nld.com.vn/cong-nghe/mo-giai-ma-nguoi-gien-viet-20230118092847142.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 1,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 1
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 11.56,
+        "embed": 0.21,
+        "extract": 1.48,
+        "retrieve_verify_excl_embed": 7.23,
+        "grade": 2.64
+      },
+      "tokens": {
+        "grade_prompt": 2162,
+        "grade_completion": 1024,
+        "grade_calls": 1,
+        "rag": 5430,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3344,
+          "completion_tokens": 2086,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-4",
+      "topic": "technology",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Chỉ đưa ra một ví dụ cá nhân về mất tiền do tài khoản bị chiếm đoạt, thiếu số liệu thống kê hoặc nghiên cứu chứng minh 2FA giảm thiểu rủi ro một cách tổng thể.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 2.84,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 2.84
+      },
+      "tokens": {
+        "grade_prompt": 1599,
+        "grade_completion": 1018,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-4",
+      "topic": "technology",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Ví dụ về vụ lừa đảo được trích dẫn từ nguồn thực tế, chứng minh thiệt hại tài chính; tuy nhiên chưa có bằng chứng cụ thể cho thấy 2FA sẽ ngăn chặn hoàn toàn trường hợp này.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Kẻ gian chiếm tài khoản Facebook của một người phụ nữ và nhắn tin vay tiền, người ít cho vay vài triệu đồng, người nhiều đến 30 triệu đồng, tổng cộng hơn 80 triệu đồng",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết về việc chiếm tài khoản Facebook, không đăng nhập được, số tiền vay (vài triệu‑30 triệu) và tổng số hơn 80 triệu đồng được xác nhận trong fact b3032b8a‑d5a5‑45f9‑be6d‑27fd552bb6a2; mức vay từng vài triệu và tới 30 triệu đồng cũng xuất hiện trong fact f187faa4‑8821‑4f1e‑9dca‑26616665daca.",
+            "citations": [
+              {
+                "fact_id": "f187faa4-8821-4f1e-9dca-26616665daca",
+                "content": "Nhưng ngày và tối hôm sau, bà H. vô cùng bất ngờ khi thấy nhiều người quen gọi điện hỏi về việc bà vay tiền họ. Những người này nói rằng bà đã nhắn tin cho họ qua messenger để hỏi vay tiền và họ đã chuyển tiền vào số tài khoản bà gửi cho họ qua tin nhắn. Người ít thì vài triệu đồng, người nhiều đến ",
+                "citation": "Chính Phủ - https://baochinhphu.vn/canh-giac-voi-quai-chieu-lua-dao-moi-qua-mang-xa-hoi-102230412160408625.htm"
+              },
+              {
+                "fact_id": "b3032b8a-d5a5-45f9-be6d-27fd552bb6a2",
+                "content": "Người ít thì vài triệu đồng, người nhiều đến 30 triệu đồng. Tổng số tiền họ đã cho bà H. vay là hơn 80 triệu đồng. Hoảng hốt kiểm tra messenger của mình thì bà H. nhận thấy không đăng nhập facebook của mình được nữa.",
+                "citation": "Chính Phủ - https://baochinhphu.vn/canh-giac-voi-quai-chieu-lua-dao-moi-qua-mang-xa-hoi-102230412160408625.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 1,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 9.84,
+        "embed": 0.15,
+        "extract": 2.05,
+        "retrieve_verify_excl_embed": 4.55,
+        "grade": 3.09
+      },
+      "tokens": {
+        "grade_prompt": 2191,
+        "grade_completion": 1123,
+        "grade_calls": 1,
+        "rag": 4648,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 2470,
+          "completion_tokens": 2178,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-4",
+      "topic": "technology",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Đưa ra một ví dụ thực tế với số liệu cụ thể, nhưng chỉ dựa vào một trường hợp cá nhân, thiếu dữ liệu thống kê rộng hơn để củng cố luận điểm.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 6.46,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 6.46
+      },
+      "tokens": {
+        "grade_prompt": 1599,
+        "grade_completion": 1138,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-4",
+      "topic": "technology",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Có bằng chứng hỗ trợ câu chuyện chiếm tài khoản, nhưng tổng số tiền >119 triệu đồng và mức vay tới 16 triệu không có nguồn xác nhận, dẫn đến thiếu bằng chứng cho một phần quan trọng.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Kẻ gian đã chiếm tài khoản Facebook của một phụ nữ và nhắn tin vay tiền bạn bè của bà",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết đều có trong các fact, không có mâu thuẫn.",
+            "citations": [
+              {
+                "fact_id": "7efe93bf-cbaf-4e4b-ac66-b1d45a1b509c",
+                "content": "Lúc này bà H. mới hiểu khi bà nhấn vào đường link thì đã bị kẻ xấu chiếm đoạt quyền quản trị facebook. Từ đó, đối tượng đã mạo danh bà nhắn tin lừa vay tiền người thân, bạn bè. Theo cơ quan công an, thủ đoạn chiếm quyền sử dụng tài khoản facebook cá nhân bằng cách lừa người dùng click vào các đường ",
+                "citation": "Chính Phủ - https://baochinhphu.vn/canh-giac-voi-quai-chieu-lua-dao-moi-qua-mang-xa-hoi-102230412160408625.htm"
+              },
+              {
+                "fact_id": "f187faa4-8821-4f1e-9dca-26616665daca",
+                "content": "Nhưng ngày và tối hôm sau, bà H. vô cùng bất ngờ khi thấy nhiều người quen gọi điện hỏi về việc bà vay tiền họ. Những người này nói rằng bà đã nhắn tin cho họ qua messenger để hỏi vay tiền và họ đã chuyển tiền vào số tài khoản bà gửi cho họ qua tin nhắn. Người ít thì vài triệu đồng, người nhiều đến ",
+                "citation": "Chính Phủ - https://baochinhphu.vn/canh-giac-voi-quai-chieu-lua-dao-moi-qua-mang-xa-hoi-102230412160408625.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Tổng số tiền bị vay trong vụ việc trên là hơn 119 triệu đồng, với các khoản vay dao động từ vài triệu đồng đến 16 triệu đồng",
+            "label": "NOT_FOUND",
+            "reason": "Không có fact nào xác nhận tổng số tiền >119 triệu đồng và khoảng vay tới 16 triệu đồng.",
+            "citations": []
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 1,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 1
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 17.28,
+        "embed": 0.21,
+        "extract": 1.58,
+        "retrieve_verify_excl_embed": 9.68,
+        "grade": 5.82
+      },
+      "tokens": {
+        "grade_prompt": 2177,
+        "grade_completion": 1021,
+        "grade_calls": 1,
+        "rag": 5384,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3324,
+          "completion_tokens": 2060,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-5",
+      "topic": "technology",
+      "version": "true",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 3,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.0,
+      "evidence_reasoning": "Cung cấp ví dụ cụ thể về robot Iris với số liệu sinh viên, chi phí và thông số kỹ thuật, nhưng không có nguồn tham khảo và chỉ dựa vào một trường hợp duy nhất, nên độ tin cậy còn hạn chế.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 5.75,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 5.75
+      },
+      "tokens": {
+        "grade_prompt": 1635,
+        "grade_completion": 1285,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-5",
+      "topic": "technology",
+      "version": "true",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 8.5,
+      "evidence_reasoning": "Các dữ liệu về dự án Iris (số sinh viên, chi phí, kích thước, thời lượng pin) được xác thực và hỗ trợ ví dụ, nhưng thiếu bằng chứng cho khẳng định chung về lợi ích học tập của mọi dự án thực tế và cho tuyên bố \"Không giáo trình nào dạy được\".",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Khoảng 300 sinh viên đã tham gia tạo ra robot tự hành Iris của Đại học Carnegie Mellon ở Mỹ.",
+            "label": "SUPPORTED",
+            "reason": "Các chi tiết đều được xác nhận trong các fact, ví dụ fact 305bc88c-9a18-49f1-8519-4621f999aba1 khẳng định 300 sinh viên CMU (Mỹ) đã thiết kế robot Iris.",
+            "citations": [
+              {
+                "fact_id": "305bc88c-9a18-49f1-8519-4621f999aba1",
+                "content": "Sắp tới đây, một chuyến bay vũ trụ thương mại sẽ đưa robot tự hành Iris lên thám hiểm Mặt trăng. Robot do 300 sinh viên Đại học Carnegie Mellon (Mỹ) thiết kế. Mô hình xe tự hành Iris tại Viện Robotics, Đại học Carnegie Mellons - Ảnh: Đại học Carnegie Mellons Cho đến nay, Mỹ là quốc gia đầu tiên và d",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/sinh-vien-dai-hoc-carnegie-mellon-dua-robot-len-mat-trang-truoc-ca-nasa-2023033017540247.htm"
+              },
+              {
+                "fact_id": "2abcafd9-70b9-4c57-8431-b66b0fa3d121",
+                "content": "Theo Hãng tin Bloomberg, NASA sẽ tiếp tục bị \"qua mặt\", lần này là một nhóm sinh viên Đại học Carnegie Mellon (CMU). Nhóm này đã triển khai dự án đưa robot tự hành tên Iris lên thám hiểm Mặt trăng vào tháng 5 tới. Cô Raewyn Duvall, 28 tuổi, nghiên cứu sinh tiến sĩ tại CMU, là trưởng dự án Iris.",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/sinh-vien-dai-hoc-carnegie-mellon-dua-robot-len-mat-trang-truoc-ca-nasa-2023033017540247.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Toàn bộ dự án robot Iris tiêu tốn 800.000 USD, trong đó một phần do nhà trường và nhà tài trợ hỗ trợ, phần còn lại nhờ gây quỹ cộng đồng.",
+            "label": "SUPPORTED",
+            "reason": "Fact 6d480bb1-0a4e-4591-bb21-f8ad799622a2 và 23663206-692a-4ce2-8b35-9ec537aa0a31 xác nhận chi phí 800.000 USD và cách tài trợ của dự án robot Iris.",
+            "citations": [
+              {
+                "fact_id": "6d480bb1-0a4e-4591-bb21-f8ad799622a2",
+                "content": "Toàn bộ dự án robot tự hành Iris đã tiêu tốn 800.000 USD. Trường CMU cùng các nhà tài trợ tư nhân hỗ trợ tài chính một phần, một phần thông qua chiến dịch gây quỹ cộng đồng. Có 900 sinh viên của trường đã đóng góp.",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/sinh-vien-dai-hoc-carnegie-mellon-dua-robot-len-mat-trang-truoc-ca-nasa-2023033017540247.htm"
+              },
+              {
+                "fact_id": "23663206-692a-4ce2-8b35-9ec537aa0a31",
+                "content": "Dự án này trị giá 5 triệu USD có tên là MoonRanger và được NASA tài trợ. MoonRanger sẽ được thiết kế để đi đến cực nam của Mặt trăng tìm kiếm băng. Toàn bộ dự án robot tự hành Iris đã tiêu tốn 800.000 USD.",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/sinh-vien-dai-hoc-carnegie-mellon-dua-robot-len-mat-trang-truoc-ca-nasa-2023033017540247.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Robot Iris có kích thước chỉ bằng một hộp đựng giày và thời lượng pin khoảng 50 giờ.",
+            "label": "SUPPORTED",
+            "reason": "Fact ec19ee1a-5f4e-4d41-aba5-f994fd1a744c mô tả kích thước hộp giày và fact 8d5c3a98-25c8-431b-b33c-c8e1ac68afe6 mô tả thời lượng pin khoảng 50 giờ.",
+            "citations": [
+              {
+                "fact_id": "ec19ee1a-5f4e-4d41-aba5-f994fd1a744c",
+                "content": "Khoảng 300 sinh viên CMU đã tham gia tạo ra Iris. Robot có kích thước bằng một chiếc hộp đựng giày và nặng chưa đến 2kg. Đây là robot tự hành nhỏ nhất và nhẹ nhất sẽ lên Mặt trăng.",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/sinh-vien-dai-hoc-carnegie-mellon-dua-robot-len-mat-trang-truoc-ca-nasa-2023033017540247.htm"
+              },
+              {
+                "fact_id": "8d5c3a98-25c8-431b-b33c-c8e1ac68afe6",
+                "content": "Tuy nhiên, nó có lợi thế là nằm thấp trên mặt đất của Mặt trăng, và camera của nó có thể chụp được những bức cận cảnh về bụi Mặt trăng. Iris có thời lượng pin khoảng 50 giờ. Khi hết pin, nó sẽ ở lại trên Mặt trăng.",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/sinh-vien-dai-hoc-carnegie-mellon-dua-robot-len-mat-trang-truoc-ca-nasa-2023033017540247.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 3,
+          "CONTRADICTED": 0,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 18.73,
+        "embed": 0.34,
+        "extract": 3.42,
+        "retrieve_verify_excl_embed": 10.32,
+        "grade": 4.65
+      },
+      "tokens": {
+        "grade_prompt": 2928,
+        "grade_completion": 1328,
+        "grade_calls": 1,
+        "rag": 7253,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3841,
+          "completion_tokens": 3412,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-5",
+      "topic": "technology",
+      "version": "fake",
+      "condition": "rag_off",
+      "scores": {
+        "Logic": 4,
+        "Evidence": 4,
+        "Relevance": 5,
+        "Structure": 5,
+        "Persuasiveness": 4
+      },
+      "overall_score": 9.0,
+      "evidence_reasoning": "Cung cấp ví dụ cụ thể về dự án robot Iris với số liệu sinh viên, chi phí và kết quả, cho thấy tính thực tiễn. Tuy nhiên chỉ dựa vào một ví dụ duy nhất, thiếu dữ liệu, nghiên cứu hoặc ví dụ đa dạng để củng cố luận điểm.",
+      "evidence_check": null,
+      "seconds": {
+        "total": 3.42,
+        "embed": 0.0,
+        "extract": 0.0,
+        "retrieve_verify_excl_embed": 0.0,
+        "grade": 3.42
+      },
+      "tokens": {
+        "grade_prompt": 1637,
+        "grade_completion": 1043,
+        "grade_calls": 1,
+        "rag": 0,
+        "rag_stats": {
+          "requests": 0,
+          "llm_calls": 0,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 0,
+          "completion_tokens": 0,
+          "calls_without_usage": 0
+        }
+      }
+    },
+    {
+      "pair_id": "tech-5",
+      "topic": "technology",
+      "version": "fake",
+      "condition": "rag_on",
+      "scores": {
+        "Logic": 3,
+        "Evidence": 1,
+        "Relevance": 5,
+        "Structure": 4,
+        "Persuasiveness": 3
+      },
+      "overall_score": 6.5,
+      "evidence_reasoning": "Ba thông tin chính đều sai so với nguồn: (1) số sinh viên tham gia robot Iris thực tế là khoảng 300, không phải 460; (2) tổng chi phí dự án là 800.000 USD, không phải 1.190.000 USD; (3) thời lượng pin thực tế khoảng 50 giờ, không phải 70 giờ. Các sai lệch này làm lập luận mất tính thuyết phục.",
+      "evidence_check": {
+        "status": "checked",
+        "claims": [
+          {
+            "claim": "Khoảng 460 sinh viên đã tham gia tạo ra robot tự hành Iris của Đại học Carnegie Mellon ở Mỹ, dự kiến sẽ lên thám hiểm Mặt trăng.",
+            "label": "CONTRADICTED",
+            "reason": "Fact cho biết robot Iris được 300 sinh viên thiết kế, không phải khoảng 460 người, gây mâu thuẫn; phần còn lại về việc robot sẽ lên Mặt trăng được fact xác nhận.",
+            "citations": [
+              {
+                "fact_id": "305bc88c-9a18-49f1-8519-4621f999aba1",
+                "content": "Sắp tới đây, một chuyến bay vũ trụ thương mại sẽ đưa robot tự hành Iris lên thám hiểm Mặt trăng. Robot do 300 sinh viên Đại học Carnegie Mellon (Mỹ) thiết kế. Mô hình xe tự hành Iris tại Viện Robotics, Đại học Carnegie Mellons - Ảnh: Đại học Carnegie Mellons Cho đến nay, Mỹ là quốc gia đầu tiên và d",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/sinh-vien-dai-hoc-carnegie-mellon-dua-robot-len-mat-trang-truoc-ca-nasa-2023033017540247.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Toàn bộ dự án robot Iris tiêu tốn 1.190.000 USD, trong đó một phần được nhà trường và nhà tài trợ hỗ trợ, phần còn lại nhờ gây quỹ cộng đồng.",
+            "label": "CONTRADICTED",
+            "reason": "Fact cho biết tổng chi phí dự án là 800.000 USD, không phải 1.190.000 USD, nên phần chi phí gây mâu thuẫn; các chi tiết về hỗ trợ tài chính và gây quỹ cộng đồng được fact xác nhận.",
+            "citations": [
+              {
+                "fact_id": "6d480bb1-0a4e-4591-bb21-f8ad799622a2",
+                "content": "Toàn bộ dự án robot tự hành Iris đã tiêu tốn 800.000 USD. Trường CMU cùng các nhà tài trợ tư nhân hỗ trợ tài chính một phần, một phần thông qua chiến dịch gây quỹ cộng đồng. Có 900 sinh viên của trường đã đóng góp.",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/sinh-vien-dai-hoc-carnegie-mellon-dua-robot-len-mat-trang-truoc-ca-nasa-2023033017540247.htm"
+              }
+            ]
+          },
+          {
+            "claim": "Robot Iris có kích thước chỉ bằng một hộp đựng giày và thời lượng pin khoảng 70 giờ, sẽ ở lại trên Mặt trăng khi hết pin.",
+            "label": "CONTRADICTED",
+            "reason": "Fact xác nhận robot có kích thước bằng hộp giày, nhưng thời lượng pin thực tế là khoảng 50 giờ, không phải 70 giờ, gây mâu thuẫn; việc robot sẽ ở lại trên Mặt trăng khi hết pin được fact xác nhận.",
+            "citations": [
+              {
+                "fact_id": "8d5c3a98-25c8-431b-b33c-c8e1ac68afe6",
+                "content": "Tuy nhiên, nó có lợi thế là nằm thấp trên mặt đất của Mặt trăng, và camera của nó có thể chụp được những bức cận cảnh về bụi Mặt trăng. Iris có thời lượng pin khoảng 50 giờ. Khi hết pin, nó sẽ ở lại trên Mặt trăng.",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/sinh-vien-dai-hoc-carnegie-mellon-dua-robot-len-mat-trang-truoc-ca-nasa-2023033017540247.htm"
+              },
+              {
+                "fact_id": "ec19ee1a-5f4e-4d41-aba5-f994fd1a744c",
+                "content": "Khoảng 300 sinh viên CMU đã tham gia tạo ra Iris. Robot có kích thước bằng một chiếc hộp đựng giày và nặng chưa đến 2kg. Đây là robot tự hành nhỏ nhất và nhẹ nhất sẽ lên Mặt trăng.",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/sinh-vien-dai-hoc-carnegie-mellon-dua-robot-len-mat-trang-truoc-ca-nasa-2023033017540247.htm"
+              },
+              {
+                "fact_id": "da840741-243e-4d75-ac5e-0d29193b1323",
+                "content": "Khi hết pin, nó sẽ ở lại trên Mặt trăng. Bất chấp những hạn chế, Iris là một bước tiến không thể phủ nhận đối với ngành công nghiệp vũ trụ tư nhân. Nó được coi là robot tự hành đầu tiên không phải do một quốc gia chế tạo đáp xuống Mặt trăng.",
+                "citation": "Tuổi Trẻ - https://tuoitre.vn/sinh-vien-dai-hoc-carnegie-mellon-dua-robot-len-mat-trang-truoc-ca-nasa-2023033017540247.htm"
+              }
+            ]
+          }
+        ],
+        "counts": {
+          "SUPPORTED": 0,
+          "CONTRADICTED": 3,
+          "NOT_FOUND": 0
+        },
+        "evidence_capped": false,
+        "evidence_score_before_cap": null,
+        "error": null,
+        "version": "v1_soft_cap"
+      },
+      "seconds": {
+        "total": 21.35,
+        "embed": 0.52,
+        "extract": 6.84,
+        "retrieve_verify_excl_embed": 10.03,
+        "grade": 3.95
+      },
+      "tokens": {
+        "grade_prompt": 2775,
+        "grade_completion": 1594,
+        "grade_calls": 1,
+        "rag": 7074,
+        "rag_stats": {
+          "requests": 2,
+          "llm_calls": 2,
+          "coerced": 0,
+          "downgraded": 0,
+          "prompt_tokens": 3659,
+          "completion_tokens": 3415,
+          "calls_without_usage": 0
+        }
+      }
+    }
+  ]
+}

@@ -26,12 +26,18 @@ data/ibm_opening_speeches.parquet
 data/dagstuhl_processed.csv
 data/_dagstuhl_raw/
 
+# --- RAG: dataset tai ve, ket qua do va cache model ---
+data/
+.hf_cache/
+
 # --- File tam cua script batch / kiem tra thu cong ---
 scratch_*.txt
 data/dagstuhl_processed_vi.csv
 data/_dagstuhl_vi_partial.json
 data/dagstuhl_processed_vi_sample.csv
 *.jsonl
+# Ban sao bo danh gia RAG co chu dich commit (docs/RAG_STEP2_SPEC.md muc 2.2)
+!docs/rag_eval/*.jsonl
 data/_dagstuhl_issue_vi.json
 data/_dagstuhl_vi_sample50.json
 vi_variance_report.txt
