@@ -2,8 +2,16 @@ __pycache__
 *.pyc
 .pytest_cache
 .venv
+venv
 .env
+.env.*
 .git
 tests
 scripts
 docs
+data
+logs
+.hf_cache
+*.ps1
+*.dump
+docker-compose*.yml

@@ -658,3 +658,36 @@ và `requirements-rag.txt`:
 `reason`, `coerced`, `details`, `unsupported_details`, `downgraded`,
 `retrieved`), `counts` theo nhãn và `skipped_reason` khi lập luận không có claim
 thực chứng.
+
+## 10. Deploy lên VM (bản có RAG, docker compose)
+
+Bản trên Azure Container Apps (`Dockerfile`, không RAG) giữ nguyên. Bản có RAG chạy trên 1 VM gồm 2 container:
+`evaluator` (`Dockerfile.rag`, torch CPU + bge-m3) và `postgres` (pgvector, kho fact). Postgres **không mở port ra ngoài**.
+
+**Yêu cầu VM:** RAM ≥ 8 GB (bge-m3 + torch ~4 GB), đĩa trống ≥ 30 GB (image vài GB + model ~2,3 GB), Docker Engine + compose plugin.
+
+1. Đưa code lên (không cần clone repo trên VM), từ thư mục gốc repo:
+   ```bash
+   git archive --format=tar.gz -o evaluator.tar.gz HEAD:AiServices/ai-evaluator-service
+   scp evaluator.tar.gz facts.dump <user>@<ip>:~/adpp-evaluator/
+   ssh <user>@<ip> "cd ~/adpp-evaluator && tar xzf evaluator.tar.gz && mkdir -p logs"
+   ```
+2. Tạo `~/adpp-evaluator/.env` từ `.env.prod.example` (khóa LLM + `POSTGRES_PASSWORD` chỉ gồm chữ và số), `chmod 600 .env`.
+3. Postgres + dữ liệu fact (`facts.dump` = `pg_dump -Fc` từ kho fact local, không ingest lại):
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d postgres
+   docker compose -f docker-compose.prod.yml cp facts.dump postgres:/tmp/facts.dump
+   docker compose -f docker-compose.prod.yml exec postgres pg_restore -U adpp -d ai_evaluation --clean --if-exists --no-owner /tmp/facts.dump
+   ```
+4. Evaluator: `docker compose -f docker-compose.prod.yml up -d --build evaluator`. Lần đầu tải bge-m3 vào volume `models`
+   (vài phút); log có dòng `Warm-up RAG xong`, rồi `GET /health/ready` trả 200 kèm `rag_warmup_seconds`.
+
+**Vận hành**
+- Log: `docker compose -f docker-compose.prod.yml logs -f evaluator`; audit log chấm điểm ở `~/adpp-evaluator/logs/`.
+- Restart: `docker compose -f docker-compose.prod.yml restart evaluator`.
+- Cập nhật phiên bản: tạo lại `evaluator.tar.gz` từ commit mới, `scp`, giải nén đè, rồi
+  `docker compose -f docker-compose.prod.yml up -d --build evaluator` (model và dữ liệu fact giữ nguyên trong volume).
+
+**Trỏ hệ thống sang bản này:** SystemService đặt `AiServices__EvaluatorUrl=http://<ip>:8000`; Gateway đổi địa chỉ cluster
+`ai-evaluator-cluster` (route `/api/evaluate/...`). Cổng 8000 không có xác thực: giới hạn Source IP trong NSG của VM chỉ
+cho nơi chạy SystemService / Gateway.
