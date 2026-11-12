@@ -691,3 +691,18 @@ Bản trên Azure Container Apps (`Dockerfile`, không RAG) giữ nguyên. Bản
 **Trỏ hệ thống sang bản này:** SystemService đặt `AiServices__EvaluatorUrl=http://<ip>:8000`; Gateway đổi địa chỉ cluster
 `ai-evaluator-cluster` (route `/api/evaluate/...`). Cổng 8000 không có xác thực: giới hạn Source IP trong NSG của VM chỉ
 cho nơi chạy SystemService / Gateway.
+
+## 11. Deploy Azure Container Apps (bản có RAG, tag `v2-rag`)
+
+Container App `adpp-ai-evaluator` chạy image `Dockerfile.rag`; kho fact là Azure Database for PostgreSQL Flexible Server
+(database `ai_evaluation`, cần `VECTOR` trong tham số `azure.extensions`). Image `v1` (`Dockerfile`, không RAG) giữ lại để rollback.
+
+- **Image:** torch CPU + model bge-m3 tải sẵn lúc build vào `/app/.hf_cache` (chỉ `pytorch_model.bin` + cấu hình/tokenizer,
+  bỏ bản ONNX trùng lặp), `HF_HUB_OFFLINE=1` nên container không gọi Hugging Face khi khởi động. Kích thước khoảng 6,3 GB.
+  Build: `az acr build -r <acr> -t adpp-ai-evaluator:v2-rag -f Dockerfile.rag .` (hoặc `docker build` + `docker push`).
+- **Kho fact:** `pg_dump -Fc` từ kho local rồi `pg_restore --no-owner --no-acl --clean --if-exists` lên Azure (sslmode=require).
+- **Container App:** CPU 2 / RAM 4 Gi; env `RAG_ENABLED=true`, `RAG_DATABASE_URL=secretref:rag-db-url`
+  (secret `postgresql://<user>:<mật khẩu URL-encode>@<server>.postgres.database.azure.com:5432/ai_evaluation?sslmode=require`);
+  giữ nguyên các env LLM cũ. Probe: startup + readiness `GET /health/ready` (503 trong lúc nạp model), liveness `GET /health`.
+  Scale min 0 / max 1: request đầu sau khi về 0 phải chờ container khởi động + nạp model.
+- **Rollback:** `az containerapp update -n adpp-ai-evaluator -g <rg> --image <acr>/adpp-ai-evaluator:v1 --remove-env-vars RAG_ENABLED RAG_DATABASE_URL`.
