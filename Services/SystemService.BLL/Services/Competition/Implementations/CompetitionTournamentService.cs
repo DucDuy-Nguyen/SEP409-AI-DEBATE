@@ -33,8 +33,8 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
         var competition = await LockCompetitionAsync(competitionId, ct);
         if (competition == null) return ApiResponse<BracketResponse>.FailureResponse("Competition not found.", CompetitionErrorCodes.NotFound);
         if (competition.CreatedBy != actorId) return ApiResponse<BracketResponse>.FailureResponse("Only the creator may generate the bracket.", CompetitionErrorCodes.Forbidden);
-        if (competition.Status != "RegistrationClosed" || DateTime.UtcNow < competition.RegistrationEnd)
-            return ApiResponse<BracketResponse>.FailureResponse("Registration must be closed and its deadline passed.", CompetitionErrorCodes.Conflict);
+        if (competition.Status != "RegistrationClosed")
+            return ApiResponse<BracketResponse>.FailureResponse("Registration must be closed before generating the bracket.", CompetitionErrorCodes.Conflict);
         if (await _db.CompetitionRounds.AnyAsync(r => r.CompetitionId == competitionId, ct)
             || await _db.CompetitionMatches.AnyAsync(m => m.CompetitionId == competitionId, ct))
             return ApiResponse<BracketResponse>.FailureResponse("Bracket already exists.", CompetitionErrorCodes.Conflict);
@@ -131,7 +131,7 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
         }
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
-        return await GetBracketAsync(competitionId, ct);
+        return await GetBracketAsync(competitionId, ct, actorId);
     }
 
     public static List<int> SeedSlots(int size)
@@ -145,12 +145,17 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
         return slots;
     }
 
-    public async Task<ApiResponse<BracketResponse>> GetBracketAsync(int competitionId, CancellationToken ct = default)
+    public async Task<ApiResponse<BracketResponse>> GetBracketAsync(int competitionId, CancellationToken ct = default, int? actorId = null)
     {
-        if (!await _db.Competitions.AnyAsync(c => c.CompetitionId == competitionId, ct))
+        var competition = await _db.Competitions.AsNoTracking().SingleOrDefaultAsync(c => c.CompetitionId == competitionId, ct);
+        if (competition == null)
             return ApiResponse<BracketResponse>.FailureResponse("Competition not found.", CompetitionErrorCodes.NotFound);
+        if (!await CanViewCompetitionAsync(competition, actorId, ct))
+            return ApiResponse<BracketResponse>.FailureResponse("You do not have permission to view this competition.", CompetitionErrorCodes.Forbidden);
         var rounds = await _db.CompetitionRounds.AsNoTracking().Where(r => r.CompetitionId == competitionId)
-            .Include(r => r.Matches).ThenInclude(m => m.Participants).OrderBy(r => r.RoundNumber).ToListAsync(ct);
+            .Include(r => r.Matches).ThenInclude(m => m.Participants)
+            .Include(r => r.Matches).ThenInclude(m => m.DebateSession)
+            .OrderBy(r => r.RoundNumber).ToListAsync(ct);
         var final = rounds.LastOrDefault()?.Matches.SingleOrDefault();
         return ApiResponse<BracketResponse>.SuccessResponse(new BracketResponse(competitionId,
             rounds.Select(r => new RoundResponse(r.RoundNumber, r.Status,
@@ -160,9 +165,70 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
                     m.Participants.FirstOrDefault(p => p.Side == "PRO")?.TeamId,
                     m.Participants.FirstOrDefault(p => p.Side == "CON")?.UserId,
                     m.Participants.FirstOrDefault(p => p.Side == "CON")?.TeamId,
-                    m.WinnerUserId, m.WinnerTeamId)).ToList())).ToList(),
+                    m.WinnerUserId, m.WinnerTeamId, m.DebateSessionId, m.DebateSession?.Status.ToString())).ToList())).ToList(),
             final?.Status == "Completed" ? final.WinnerUserId : null,
             final?.Status == "Completed" ? final.WinnerTeamId : null));
+    }
+
+    public async Task<ApiResponse<MatchDetailResponse>> GetMatchDetailAsync(int competitionId, int matchId, int? actorId, CancellationToken ct = default)
+    {
+        var match = await _db.CompetitionMatches.AsNoTracking()
+            .Include(m => m.Competition)
+            .Include(m => m.Round)
+            .Include(m => m.DebateSession).ThenInclude(s => s!.Topic)
+            .Include(m => m.Participants).ThenInclude(p => p.User)
+            .Include(m => m.Participants).ThenInclude(p => p.Team).ThenInclude(t => t!.Captain)
+            .Include(m => m.Participants).ThenInclude(p => p.Team).ThenInclude(t => t!.TeamMembers).ThenInclude(tm => tm.User)
+            .SingleOrDefaultAsync(m => m.CompetitionMatchId == matchId && m.CompetitionId == competitionId, ct);
+        if (match == null)
+            return ApiResponse<MatchDetailResponse>.FailureResponse("Match not found.", CompetitionErrorCodes.NotFound);
+        if (!await CanViewCompetitionAsync(match.Competition, actorId, ct))
+            return ApiResponse<MatchDetailResponse>.FailureResponse("You do not have permission to view this competition.", CompetitionErrorCodes.Forbidden);
+
+        return ApiResponse<MatchDetailResponse>.SuccessResponse(new MatchDetailResponse(
+            match.CompetitionMatchId,
+            match.CompetitionRoundId,
+            match.Round.RoundNumber,
+            match.BracketPosition,
+            match.NextMatchId,
+            match.Status,
+            match.DebateSession?.Topic == null ? null : new MatchTopicResponse(match.DebateSession.Topic.TopicId, match.DebateSession.Topic.Title),
+            match.DebateSession == null ? null : new MatchDebateSessionResponse(match.DebateSessionId!.Value, match.DebateSession.Status.ToString()),
+            MapMatchSide(match.Participants.SingleOrDefault(p => p.Side == "PRO")),
+            MapMatchSide(match.Participants.SingleOrDefault(p => p.Side == "CON")),
+            match.WinnerUserId,
+            match.WinnerTeamId));
+    }
+
+    private static MatchSideResponse? MapMatchSide(MatchParticipant? participant)
+    {
+        if (participant == null) return null;
+        if (participant.Team != null)
+        {
+            var teamMembers = new[] { participant.Team.Captain }
+                .Concat(participant.Team.TeamMembers.Select(member => member.User))
+                .Where(user => user != null)
+                .GroupBy(user => user!.UserId)
+                .Select(group => group.First()!)
+                .OrderBy(user => user.UserId)
+                .Select(user => new MatchMemberResponse(user.UserId, user.FullName))
+                .ToList();
+            return new MatchSideResponse(participant.Side, null, null, participant.TeamId, participant.Team.TeamName, teamMembers);
+        }
+        var user = participant.User;
+        var individualMembers = user == null ? Array.Empty<MatchMemberResponse>() : new[] { new MatchMemberResponse(user.UserId, user.FullName) };
+        return new MatchSideResponse(participant.Side, participant.UserId, user?.FullName, null, null, individualMembers);
+    }
+
+    private async Task<bool> CanViewCompetitionAsync(SystemService.DAL.Entities.Competition.Competition competition, int? actorId, CancellationToken ct)
+    {
+        if (competition.IsPublic) return true;
+        if (!actorId.HasValue) return false;
+        if (competition.CreatedBy == actorId.Value) return true;
+        if (await _db.CompetitionRegistrations.AnyAsync(r => r.CompetitionId == competition.CompetitionId && r.UserId == actorId.Value && r.Status == "Approved", ct))
+            return true;
+        return await _db.CompetitionTeams.AnyAsync(t => t.CompetitionId == competition.CompetitionId && t.Status == "Active"
+            && (t.CaptainUserId == actorId.Value || t.TeamMembers.Any(member => member.UserId == actorId.Value)), ct);
     }
 
     public async Task<ApiResponse<object>> AssignJudgeAsync(int competitionId, int matchId, int actorId, int judgeUserId, CancellationToken ct = default)
@@ -209,8 +275,8 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
             .SingleOrDefaultAsync(m => m.CompetitionMatchId == matchId && m.CompetitionId == competitionId, ct);
         if (match == null) return ApiResponse<MatchReviewResponse>.FailureResponse("Match not found.", CompetitionErrorCodes.NotFound);
         var competition = await _db.Competitions.AsNoTracking().SingleAsync(c => c.CompetitionId == competitionId, ct);
-        if (actorId != competition.CreatedBy && actorId != match.AssignedJudgeUserId)
-            return ApiResponse<MatchReviewResponse>.FailureResponse("Only the creator or assigned judge may review this match.", CompetitionErrorCodes.Forbidden);
+        if (actorId != competition.CreatedBy)
+            return ApiResponse<MatchReviewResponse>.FailureResponse("Only the competition creator may review this match.", CompetitionErrorCodes.Forbidden);
         var ai = match.DebateSessionId.HasValue
             ? await _db.AIJudgements.AsNoTracking().Where(j => j.DebateSessionId == match.DebateSessionId)
                 .OrderByDescending(j => j.CreatedAt).FirstOrDefaultAsync(ct) : null;
@@ -230,7 +296,7 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
         var match = await _db.CompetitionMatches.Include(m => m.Participants)
             .SingleOrDefaultAsync(m => m.CompetitionMatchId == matchId && m.CompetitionId == competitionId, ct);
         if (match == null) return ApiResponse<object>.FailureResponse("Match not found.", CompetitionErrorCodes.NotFound);
-        if (match.AssignedJudgeUserId != actorId) return ApiResponse<object>.FailureResponse("Only the assigned judge may confirm the result.", CompetitionErrorCodes.Forbidden);
+        if (competition.CreatedBy != actorId) return ApiResponse<object>.FailureResponse("Only the competition creator may confirm the result.", CompetitionErrorCodes.Forbidden);
         if (competition.Status != "Ongoing" || match.Status != "Evaluating" || match.Participants.Count != 2 || !match.DebateSessionId.HasValue)
             return ApiResponse<object>.FailureResponse("Match is not ready for official review.", CompetitionErrorCodes.Conflict);
         if (await IsMatchParticipantAsync(competition, match, actorId, ct))

@@ -1340,13 +1340,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 if (linkedMatch != null)
                 {
                     bool isOrganizer = linkedMatch.Competition.CreatedBy == userId;
-                    bool isAssignedJudge = linkedMatch.AssignedJudgeUserId == userId;
 
-                    if (!isOrganizer && !isAssignedJudge)
+                    if (!isOrganizer)
                     {
                         await transaction.RollbackAsync(cancellationToken);
                         return ApiResponse<DebateSessionResponse>.FailureResponse(
-                            "Chỉ Ban tổ chức hoặc Trọng tài được phân công mới có quyền bắt đầu trận đấu giải đấu.");
+                            "Chỉ Ban tổ chức giải đấu mới có quyền bắt đầu trận đấu giải đấu.");
                     }
 
                     if (linkedMatch.Status != "Ready")
@@ -1494,7 +1493,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             bool isParticipant = session.Participants.Any(p => p.UserId == userId);
             bool isCreator = session.CreatedBy == userId;
             var linkedMatch = await _debateRepository.GetLinkedCompetitionMatchAsync(sessionId, cancellationToken);
-            bool isMatchJudge = linkedMatch != null && (linkedMatch.AssignedJudgeUserId == userId || linkedMatch.Competition?.CreatedBy == userId);
+            bool isMatchJudge = linkedMatch?.Competition?.CreatedBy == userId;
 
             if (!isParticipant && !isCreator && !isMatchJudge)
             {

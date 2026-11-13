@@ -420,7 +420,7 @@ namespace SystemService.BLL.Services.Competition.Implementations
             }
             else if (newStatus == "Ongoing")
             {
-                if (competition.Status != "RegistrationClosed" || now < competition.RegistrationEnd || now < competition.StartDate)
+                if (competition.Status != "RegistrationClosed" || now < competition.StartDate)
                     return ApiResponse<object>.FailureResponse("Competition can start only after registration closes and its start time arrives.", CompetitionErrorCodes.Conflict);
 
                 var rounds = await _competitionRepository.GetRoundsWithMatchesAsync(competitionId, cancellationToken);
@@ -505,7 +505,7 @@ namespace SystemService.BLL.Services.Competition.Implementations
             {
                 var teams = await _teamRepository.GetListByCompetitionAsync(competition.CompetitionId, cancellationToken);
                 var active = teams.Where(t => t.Status == "Active").ToList();
-                if (active.Count * 2 != entrantCount || (competition.MaxParticipants.HasValue && active.Count * 2 > competition.MaxParticipants.Value))
+                if (active.Count != entrantCount || (competition.MaxParticipants.HasValue && active.Count * 2 > competition.MaxParticipants.Value))
                     return false;
 
                 var users = new HashSet<int>();

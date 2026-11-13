@@ -102,7 +102,7 @@ public sealed class SqlServerCompetitionDebateTests
     }
 
     [SqlServerFact]
-    public async Task CompetitionStart_OrganizerAndJudgeRace_OnlyOneTransitionIsPersisted()
+    public async Task CompetitionStart_OnlyOrganizerCanStartAndOnlyOneTransitionIsPersisted()
     {
         await using var fixture = await SqlFixture.CreateAsync();
         var match = await fixture.CreateMatchAsync(team: false);
@@ -131,7 +131,8 @@ public sealed class SqlServerCompetitionDebateTests
         var results = await Task.WhenAll(organizerRequest, judgeRequest);
         Assert.Single(results, result => result.Success);
         Assert.Single(results, result => !result.Success);
-        Assert.Equal(SessionStatus.InProgress, results.Single(result => result.Success).Data!.Status);
+        Assert.Equal(SessionStatus.InProgress, organizerRequest.Result.Data!.Status);
+        Assert.Contains("Chỉ Ban tổ chức giải đấu", judgeRequest.Result.Message);
 
         await using var verify = fixture.CreateContext();
         var session = await verify.DebateSessions.AsNoTracking().SingleAsync(s => s.DebateSessionId == sessionId);
@@ -250,7 +251,7 @@ public sealed class SqlServerCompetitionDebateTests
         await using (var starterContext = fixture.CreateContext())
         {
             var start = await fixture.CreateDebateService(starterContext)
-                .StartDebateSessionAsync(fixture.JudgeId, sessionId);
+                .StartDebateSessionAsync(fixture.OrganizerId, sessionId);
             Assert.True(start.Success, start.Message);
         }
 
@@ -680,7 +681,7 @@ public sealed class SqlServerCompetitionDebateTests
             await using var context = fixture.CreateContext();
             ready.Signal();
             start.Wait();
-            return await new CompetitionTournamentService(context).FinalizeMatchAsync(competitionId, matchId, fixture.JudgeId, decision);
+            return await new CompetitionTournamentService(context).FinalizeMatchAsync(competitionId, matchId, fixture.OrganizerId, decision);
         })).ToArray();
         var bothReady = ready.Wait(TimeSpan.FromSeconds(20));
         start.Set();
@@ -695,7 +696,7 @@ public sealed class SqlServerCompetitionDebateTests
     }
 
     [SqlServerFact]
-    public async Task Tournament_OnlyCreatorAssignsJudgeAndOnlyAssignedJudgeFinalizes()
+    public async Task Tournament_OnlyCreatorFinalizes_WithoutAssignedJudge()
     {
         await using var fixture = await SqlFixture.CreateAsync();
         var competitionId = await fixture.CreateTournamentAsync(team: false, entrantCount: 2);
@@ -723,8 +724,11 @@ public sealed class SqlServerCompetitionDebateTests
         }
         await using (var context = fixture.CreateContext())
         {
-            var accepted = await new CompetitionTournamentService(context)
+            var assignedJudgeDenied = await new CompetitionTournamentService(context)
                 .FinalizeMatchAsync(competitionId, matchId, fixture.JudgeId, decision);
+            Assert.False(assignedJudgeDenied.Success);
+            var accepted = await new CompetitionTournamentService(context)
+                .FinalizeMatchAsync(competitionId, matchId, fixture.OrganizerId, decision);
             Assert.True(accepted.Success, accepted.Message);
         }
     }
@@ -1188,7 +1192,7 @@ SELECT
             }
             await using (var startContext = CreateContext())
             {
-                var started = await CreateDebateService(startContext).StartDebateSessionAsync(JudgeId, sessionId);
+                var started = await CreateDebateService(startContext).StartDebateSessionAsync(OrganizerId, sessionId);
                 Assert.True(started.Success, started.Message);
             }
             List<int> speakerOrder;
@@ -1246,7 +1250,7 @@ SELECT
                 else Assert.True(await scoreContext.AIJudgements.AnyAsync(j => j.DebateSessionId == sessionId),
                     "Live AI evaluator must persist an AIJudgement before human review.");
                 var tournament = new CompetitionTournamentService(scoreContext);
-                var review = await tournament.GetReviewAsync(competitionId, matchId, JudgeId);
+                var review = await tournament.GetReviewAsync(competitionId, matchId, OrganizerId);
                 Assert.True(review.Success, review.Message);
                 if (!liveAi) Assert.Equal("PRO", review.Data!.AiSuggestedWinnerSide);
                 var criteria = await scoreContext.DebateCriteria.AsNoTracking().Where(c => c.IsActive).ToListAsync();
@@ -1255,9 +1259,9 @@ SELECT
                 var winnerId = match.Participants.Single(p => p.Side == "PRO").MatchParticipantId;
                 var decision = new FinalizeMatchRequest(scores, winnerId, "fixture decision");
                 if (!finalize) return decision;
-                var finalized = await tournament.FinalizeMatchAsync(competitionId, matchId, JudgeId, decision);
+                var finalized = await tournament.FinalizeMatchAsync(competitionId, matchId, OrganizerId, decision);
                 Assert.True(finalized.Success, finalized.Message);
-                var duplicate = await tournament.FinalizeMatchAsync(competitionId, matchId, JudgeId,
+                var duplicate = await tournament.FinalizeMatchAsync(competitionId, matchId, OrganizerId,
                     new FinalizeMatchRequest(scores, winnerId, "duplicate"));
                 Assert.False(duplicate.Success);
                 return decision;

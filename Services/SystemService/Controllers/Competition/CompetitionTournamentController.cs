@@ -19,7 +19,14 @@ public sealed class CompetitionTournamentController : ControllerBase
     [HttpGet("bracket")]
     public async Task<IActionResult> GetBracket(int competitionId, CancellationToken ct)
     {
-        var result = await _service.GetBracketAsync(competitionId, ct);
+        var result = await _service.GetBracketAsync(competitionId, ct, ActorId);
+        return result.Success ? Ok(result) : CompetitionHttpErrors.Map(this, result);
+    }
+
+    [HttpGet("matches/{matchId:int}")]
+    public async Task<IActionResult> GetMatchDetail(int competitionId, int matchId, CancellationToken ct)
+    {
+        var result = await _service.GetMatchDetailAsync(competitionId, matchId, ActorId, ct);
         return result.Success ? Ok(result) : CompetitionHttpErrors.Map(this, result);
     }
 
