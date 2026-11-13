@@ -1,0 +1,168 @@
+id: /subscriptions/d1df876c-31f0-4ad8-b234-cf8be7f5037f/resourceGroups/rg-adpp-dev/providers/Microsoft.App/containerapps/adpp-ai-evaluator
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    ? /subscriptions/d1df876c-31f0-4ad8-b234-cf8be7f5037f/resourcegroups/rg-adpp-dev/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-adpp-acr-pull
+    : clientId: e5090911-513a-42f7-9188-1308661f1197
+      principalId: 8527dbf8-583a-4e08-b4b8-d71079a3f536
+location: Indonesia Central
+name: adpp-ai-evaluator
+properties:
+  configuration:
+    activeRevisionsMode: Single
+    dapr: null
+    identitySettings: []
+    ingress:
+      additionalPortMappings: null
+      allowInsecure: false
+      clientCertificateMode: null
+      corsPolicy: null
+      customDomains: null
+      exposedPort: 0
+      external: true
+      fqdn: adpp-ai-evaluator.greenstone-4d67d46a.indonesiacentral.azurecontainerapps.io
+      ipSecurityRestrictions: null
+      stickySessions: null
+      targetPort: 8000
+      traffic:
+      - latestRevision: true
+        weight: 100
+      transport: Auto
+    maxInactiveRevisions: 100
+    registries:
+    - identity: /subscriptions/d1df876c-31f0-4ad8-b234-cf8be7f5037f/resourcegroups/rg-adpp-dev/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-adpp-acr-pull
+      passwordSecretRef: ''
+      server: acradppdev066.azurecr.io
+      username: ''
+    runtime: null
+    service: null
+    secrets:
+    - name: groq-api-key
+    - name: rag-db-url
+  customDomainVerificationId: 85024B433B75F3F1778ECB7206E52BA336DC8602BD0AF98E78C410817C3B3E50
+  delegatedIdentities: []
+  environmentId: /subscriptions/d1df876c-31f0-4ad8-b234-cf8be7f5037f/resourceGroups/rg-adpp-dev/providers/Microsoft.App/managedEnvironments/env-adpp-standard
+  eventStreamEndpoint: https://indonesiacentral.azurecontainerapps.dev/subscriptions/d1df876c-31f0-4ad8-b234-cf8be7f5037f/resourceGroups/rg-adpp-dev/containerApps/adpp-ai-evaluator/eventstream
+  latestReadyRevisionName: adpp-ai-evaluator--0000003
+  latestRevisionFqdn: adpp-ai-evaluator--0000003.greenstone-4d67d46a.indonesiacentral.azurecontainerapps.io
+  latestRevisionName: adpp-ai-evaluator--0000003
+  managedEnvironmentId: /subscriptions/d1df876c-31f0-4ad8-b234-cf8be7f5037f/resourceGroups/rg-adpp-dev/providers/Microsoft.App/managedEnvironments/env-adpp-standard
+  outboundIpAddresses:
+  - 70.153.49.16
+  - 70.153.49.5
+  - 70.153.49.7
+  - 70.153.49.4
+  - 70.153.49.6
+  - 70.153.49.17
+  - 70.153.49.20
+  - 70.153.49.19
+  - 70.153.49.3
+  - 70.153.49.18
+  - 70.153.97.65
+  - 70.153.62.100
+  - 70.153.112.201
+  - 70.153.97.39
+  - 70.153.104.194
+  - 70.153.96.244
+  - 70.153.120.186
+  - 70.153.61.114
+  - 70.153.106.40
+  - 70.153.106.10
+  - 70.153.120.128
+  - 70.153.120.172
+  - 70.153.57.31
+  - 70.153.120.152
+  - 70.153.120.150
+  - 48.193.9.41
+  - 70.153.105.41
+  - 70.153.96.184
+  - 70.153.112.105
+  - 70.153.120.178
+  - 48.193.25.38
+  - 70.153.62.84
+  - 48.193.8.90
+  - 48.193.16.220
+  - 48.193.8.98
+  - 70.153.112.243
+  - 70.153.59.147
+  - 70.153.59.76
+  - 70.153.120.174
+  - 48.193.8.20
+  - 70.153.96.62
+  - 48.193.8.80
+  - 70.153.97.11
+  - 48.193.24.6
+  - 48.193.16.172
+  - 48.193.16.169
+  - 70.153.59.125
+  - 70.153.59.109
+  - 70.153.112.104
+  - 48.193.24.60
+  - 48.193.9.4
+  - 70.153.113.54
+  - 70.153.62.79
+  - 70.153.62.74
+  - 70.153.113.32
+  - 70.153.62.113
+  - 70.153.120.171
+  - 70.153.120.154
+  - 70.153.62.93
+  - 70.153.62.108
+  - 48.193.16.44
+  - 70.153.96.245
+  - 70.153.120.177
+  - 48.193.16.46
+  - 70.153.106.11
+  - 48.193.9.36
+  - 48.193.8.248
+  - 48.193.16.42
+  - 70.153.62.95
+  - 70.153.62.96
+  - 70.153.62.110
+  - 48.193.24.20
+  - 48.193.8.181
+  - 70.153.104.200
+  - 70.153.113.50
+  - 48.193.8.255
+  - 70.153.104.165
+  - 70.153.97.187
+  - 48.193.16.103
+  - 70.153.62.99
+  - 70.153.98.152
+  provisioningState: Succeeded
+  runningStatus: Running
+  template:
+    containers:
+    - env:
+      - name: GROQ_API_KEY
+        secretRef: groq-api-key
+        value: ''
+      - name: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      image: acradppdev066.azurecr.io/adpp-ai-evaluator:v1
+      name: adpp-ai-evaluator
+      resources:
+        cpu: 0.5
+        ephemeralStorage: 2Gi
+        memory: 1Gi
+    initContainers: null
+    revisionSuffix: ''
+    scale:
+      cooldownPeriod: 300
+      maxReplicas: 1
+      minReplicas: 0
+      pollingInterval: 30
+      rules: null
+    serviceBinds: null
+    terminationGracePeriodSeconds: null
+    volumes: null
+  workloadProfileName: Consumption
+resourceGroup: rg-adpp-dev
+systemData:
+  createdAt: '2026-10-26T08:48:14.0759265'
+  createdBy: duynguyen17122004@gmail.com
+  createdByType: User
+  lastModifiedAt: '2026-10-26T09:26:56.4078126'
+  lastModifiedBy: duynguyen17122004@gmail.com
+  lastModifiedByType: User
+type: Microsoft.App/containerApps

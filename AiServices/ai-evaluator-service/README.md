@@ -706,3 +706,34 @@ Container App `adpp-ai-evaluator` chạy image `Dockerfile.rag`; kho fact là Az
   giữ nguyên các env LLM cũ. Probe: startup + readiness `GET /health/ready` (503 trong lúc nạp model), liveness `GET /health`.
   Scale min 0 / max 1: request đầu sau khi về 0 phải chờ container khởi động + nạp model.
 - **Rollback:** `az containerapp update -n adpp-ai-evaluator -g <rg> --image <acr>/adpp-ai-evaluator:v1 --remove-env-vars RAG_ENABLED RAG_DATABASE_URL`.
+
+### Vận hành Container App `adpp-ai-evaluator` (PowerShell, từ thư mục `deploy/azure/`)
+
+Cấu hình đã áp dụng nằm trong `deploy/azure/aca_v2rag.yaml` (bản RAG) và `deploy/azure/aca_rollback_v1.yaml` (quay về `v1`).
+Hai file chỉ có **tên** secret (`groq-api-key`, `rag-db-url`), không có giá trị: `az containerapp update --yaml` tự lấy giá
+trị secret đang có trên app.
+
+```powershell
+# Đăng nhập: tài khoản có MFA, phải chỉ rõ tenant
+az login --tenant 607b78a0-e48a-4c66-b20b-dddf9ec00b95
+
+# Trước demo: giữ 1 replica (tạo revision mới, đợi ~1-2 phút đến khi Healthy); cold start từ 0 mất ~1-2 phút
+az containerapp update -n adpp-ai-evaluator -g rg-adpp-dev --min-replicas 1
+# Sau demo: về 0 để tiết kiệm credit
+az containerapp update -n adpp-ai-evaluator -g rg-adpp-dev --min-replicas 0
+
+# Cập nhật image: build local (ACR Tasks không có ở Indonesia Central), push tag mới, đổi image
+docker build -f Dockerfile.rag -t acradppdev066.azurecr.io/adpp-ai-evaluator:<tag> .
+az acr login -n acradppdev066
+docker push acradppdev066.azurecr.io/adpp-ai-evaluator:<tag>
+az containerapp update -n adpp-ai-evaluator -g rg-adpp-dev --image acradppdev066.azurecr.io/adpp-ai-evaluator:<tag>
+
+# Rollback về v1: dùng YAML (v1 không có /health/ready, chỉ đổi image thì probe mới sẽ fail mãi)
+az containerapp update -n adpp-ai-evaluator -g rg-adpp-dev --yaml aca_rollback_v1.yaml
+
+# Trạng thái và log (chcp 65001: tránh lỗi in tiếng Việt của az trên Windows)
+az containerapp revision list -n adpp-ai-evaluator -g rg-adpp-dev -o table
+cmd /c "chcp 65001 >nul & az containerapp logs show -n adpp-ai-evaluator -g rg-adpp-dev --type console --tail 100 --format json"
+```
+
+Startup probe: `/health/ready`, `initialDelaySeconds` 10, `periodSeconds` 30, `failureThreshold` 10 (tối đa ~310 s để nạp model).
