@@ -26,6 +26,11 @@ _LOCAL_DEEPFACE_REPO = r"D:\Emotion-Test\deepface"
 if os.path.isdir(_LOCAL_DEEPFACE_REPO) and _LOCAL_DEEPFACE_REPO not in sys.path:
     sys.path.insert(0, _LOCAL_DEEPFACE_REPO)
 
+from app.config import get_settings as _get_settings
+
+# DeepFace doc nguong YuNet tu bien moi truong o moi lan detect (xem Settings.yunet_score_threshold)
+os.environ["yunet_score_threshold"] = str(_get_settings().yunet_score_threshold)
+
 from deepface import DeepFace
 
 try:
