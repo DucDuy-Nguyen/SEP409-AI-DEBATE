@@ -35,18 +35,21 @@ namespace SystemService.BLL.Services.Debate.Implementations
         private readonly IAiEvaluatorClient? _aiEvaluatorClient;
         private readonly ILogger<DebateService>? _logger;
         private readonly DebateEvaluationCoordinator _evaluationCoordinator;
+        private readonly IDebateRealtimeNotifier? _realtimeNotifier;
 
         public DebateService(
             IDebateRepository debateRepository,
             IUserRepository userRepository,
             IAiEvaluatorClient? aiEvaluatorClient = null,
             ILogger<DebateService>? logger = null,
-            DebateEvaluationCoordinator? evaluationCoordinator = null)
+            DebateEvaluationCoordinator? evaluationCoordinator = null,
+            IDebateRealtimeNotifier? realtimeNotifier = null)
         {
             _debateRepository = debateRepository;
             _userRepository = userRepository;
             _aiEvaluatorClient = aiEvaluatorClient;
             _logger = logger;
+            _realtimeNotifier = realtimeNotifier;
             // The API registers one singleton; without it the per-session lock only covers this service's own calls
             if (evaluationCoordinator == null && aiEvaluatorClient != null)
             {
@@ -268,6 +271,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
             await transaction.CommitAsync(cancellationToken);
 
             var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (_realtimeNotifier != null)
+            {
+                _ = _realtimeNotifier.NotifyUserJoinedAsync(sessionId, userId, user.FullName, assignedSide.ToString(), CancellationToken.None);
+            }
             return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Joined P2P debate session successfully.");
         }
 
@@ -358,7 +365,31 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 }
 
                 var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
-                return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Argument submitted successfully.");
+                var mappedResponse = MapToSessionResponse(updatedSession!, userId);
+
+                if (_realtimeNotifier != null)
+                {
+                    var lastArgDto = new
+                    {
+                        ArgumentId = argument.ArgumentId,
+                        RoundNumber = nextTurn.RoundNumber,
+                        Side = participant.Side.ToString(),
+                        UserId = participant.UserId,
+                        SpeakerName = participant.ParticipantType == ParticipantType.AI ? "AI Opponent" : (participant.User?.FullName ?? "Thí sinh"),
+                        IsAI = participant.ParticipantType == ParticipantType.AI,
+                        Content = argument.Content,
+                        WordCount = argument.WordCount,
+                        DurationSeconds = argument.DurationSeconds,
+                        SubmittedAt = argument.SubmittedAt
+                    };
+                    _ = _realtimeNotifier.NotifyArgumentSubmittedAsync(sessionId, lastArgDto, mappedResponse.CurrentTurn, CancellationToken.None);
+                    if (isSessionCompleted)
+                    {
+                        _ = _realtimeNotifier.NotifySessionStatusChangedAsync(sessionId, "Completed", "All rounds completed", CancellationToken.None);
+                    }
+                }
+
+                return ApiResponse<DebateSessionResponse>.SuccessResponse(mappedResponse, "Argument submitted successfully.");
             }
             catch (DbUpdateException)
             {
@@ -520,6 +551,13 @@ namespace SystemService.BLL.Services.Debate.Implementations
             await _debateRepository.UpdateSessionAsync(session, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
+            if (_realtimeNotifier != null)
+            {
+                var leavingUser = await _userRepository.GetByIdAsync(userId, cancellationToken);
+                _ = _realtimeNotifier.NotifyUserLeftAsync(sessionId, userId, leavingUser?.FullName ?? "Thí sinh", CancellationToken.None);
+                _ = _realtimeNotifier.NotifySessionStatusChangedAsync(sessionId, "Cancelled", "A participant left the session.", CancellationToken.None);
+            }
+
             return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Left the debate session. It has been cancelled.");
         }
 
@@ -618,7 +656,31 @@ namespace SystemService.BLL.Services.Debate.Implementations
             }
 
             var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
-            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Argument submitted successfully.");
+            var mappedResponse = MapToSessionResponse(updatedSession!, userId);
+
+            if (_realtimeNotifier != null)
+            {
+                var lastArgDto = new
+                {
+                    ArgumentId = argument.ArgumentId,
+                    RoundNumber = currentRound.RoundNumber,
+                    Side = participant.Side.ToString(),
+                    UserId = participant.UserId,
+                    SpeakerName = participant.ParticipantType == ParticipantType.AI ? "AI Opponent" : (participant.User?.FullName ?? "Thí sinh"),
+                    IsAI = participant.ParticipantType == ParticipantType.AI,
+                    Content = argument.Content,
+                    WordCount = argument.WordCount,
+                    DurationSeconds = argument.DurationSeconds,
+                    SubmittedAt = argument.SubmittedAt
+                };
+                _ = _realtimeNotifier.NotifyArgumentSubmittedAsync(sessionId, lastArgDto, mappedResponse.CurrentTurn, CancellationToken.None);
+                if (isSessionCompleted)
+                {
+                    _ = _realtimeNotifier.NotifySessionStatusChangedAsync(sessionId, "Completed", "All rounds completed", CancellationToken.None);
+                }
+            }
+
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(mappedResponse, "Argument submitted successfully.");
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> Create2v2SessionAsync(
@@ -1453,7 +1515,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 // ExecuteUpdate bypasses the change tracker, so reload a consistent response.
                 _debateRepository.ClearChangeTracker();
                 var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
-                return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Bắt đầu cuộc tranh biện thành công.");
+                var mapped = MapToSessionResponse(updatedSession!, userId);
+                if (_realtimeNotifier != null)
+                {
+                    _ = _realtimeNotifier.NotifySessionStartedAsync(sessionId, mapped, CancellationToken.None);
+                }
+                return ApiResponse<DebateSessionResponse>.SuccessResponse(mapped, "Bắt đầu cuộc tranh biện thành công.");
             }
             catch (DbUpdateConcurrencyException)
             {
