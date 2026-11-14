@@ -1,0 +1,56 @@
+# Deploy AI Evaluator CO RAG len VM: evaluator + Postgres/pgvector (kho fact).
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Bien lay tu .env cung thu muc (xem .env.prod.example). Postgres KHONG mo port ra ngoai: chi evaluator noi qua mang noi bo.
+name: adpp-evaluator
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: adpp
+      POSTGRES_DB: ai_evaluation
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Can POSTGRES_PASSWORD trong .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Schema chi chay khi volume con trong (lan dau); du lieu fact dua vao bang pg_restore
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adpp -d ai_evaluation"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  evaluator:
+    build:
+      context: .
+      dockerfile: Dockerfile.rag
+    image: adpp-ai-evaluator-rag:latest
+    env_file: .env
+    environment:
+      RAG_ENABLED: "true"
+      # Mat khau chi gom chu + so (sinh ngau nhien) nen khong can ma hoa URL
+      RAG_DATABASE_URL: postgresql://adpp:${POSTGRES_PASSWORD}@postgres:5432/ai_evaluation
+    ports:
+      - "8000:8000"
+    volumes:
+      # Cache bge-m3 (~2,3 GB): tai 1 lan, giu qua cac lan tao lai container.
+      # app/rag/embedder.py luu model vao /app/.hf_cache (gan cung), nen gan cung 1 volume vao ca 2 duong dan.
+      - models:/models
+      - models:/app/.hf_cache
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Image khong co curl; /health/ready tra 503 trong luc nap model -> urlopen loi -> exit 1
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 600s   # lan dau tai bge-m3 co the mat vai phut
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  models:
