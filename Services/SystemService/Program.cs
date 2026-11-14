@@ -1,4 +1,6 @@
 using SystemService.HostedServices;
+using SystemService.Hubs;
+using SystemService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -104,6 +106,8 @@ builder.Services.AddScoped<IRewardService, RewardService>();
 
 // Singleton: one evaluation per debate session at a time, shared by every request (DebateService is scoped)
 builder.Services.AddSingleton<DebateEvaluationCoordinator>();
+builder.Services.AddSignalR();
+builder.Services.AddScoped<IDebateRealtimeNotifier, DebateRealtimeNotifier>();
 builder.Services.AddScoped<IDebateService, DebateService>();
 builder.Services.AddScoped<IDebateChallengeService, DebateChallengeService>();
 builder.Services.AddScoped<ITopicService, TopicService>();
@@ -157,6 +161,19 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtAudience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
         ClockSkew = TimeSpan.Zero
+    };
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -216,5 +233,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<DebateHub>("/hubs/debate");
 
 app.Run();

@@ -428,10 +428,12 @@ namespace SystemService.IntegrationTests
             await context.SaveChangesAsync();
 
             var fakeClient = new FakeAiEvaluatorClient();
+            var coordinator = new DebateEvaluationCoordinator();
             var service = new DebateService(
                 new DebateRepository(context),
                 new UserRepository(context),
-                fakeClient
+                fakeClient,
+                evaluationCoordinator: coordinator
             );
 
             // CON submits final argument for round 1 (which is the only round)
@@ -444,11 +446,19 @@ namespace SystemService.IntegrationTests
             Assert.True(submitResult.Success);
             Assert.Equal(SessionStatus.Completed, submitResult.Data!.Status);
 
-            var evalResult = await service.GetSessionEvaluationAsync(userPro.UserId, session.DebateSessionId);
+            // Use a separate DbContext for the subsequent GET /evaluation call so it does not contend with the background task's DbContext.
+            using var evalContext = new SystemDbContext(_options);
+            var evalService = new DebateService(
+                new DebateRepository(evalContext),
+                new UserRepository(evalContext),
+                fakeClient,
+                evaluationCoordinator: coordinator
+            );
+            var evalResult = await evalService.GetSessionEvaluationAsync(userPro.UserId, session.DebateSessionId);
             Assert.True(evalResult.Success);
 
             // Verify auto-evaluation stored AIJudgement
-            var storedJudgement = await context.AIJudgements
+            var storedJudgement = await evalContext.AIJudgements
                 .FirstOrDefaultAsync(j => j.DebateSessionId == session.DebateSessionId);
             Assert.NotNull(storedJudgement);
             Assert.True(fakeClient.EvaluateRoundCallCount > 0);
