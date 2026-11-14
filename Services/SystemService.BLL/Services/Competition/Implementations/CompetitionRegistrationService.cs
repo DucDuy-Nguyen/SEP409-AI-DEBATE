@@ -113,8 +113,7 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Competition not found.", CompetitionErrorCodes.NotFound);
             if (competition.CreatedBy != reviewerUserId)
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Only the competition creator may review registrations.", CompetitionErrorCodes.Forbidden);
-            if (DateTime.UtcNow >= competition.RegistrationEnd
-                || (competition.Status != "OpenRegistration" && competition.Status != "RegistrationClosed"))
+            if (DateTime.UtcNow >= competition.RegistrationEnd || competition.Status != "OpenRegistration")
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration approvals are closed.", CompetitionErrorCodes.Conflict);
             if ((await _competitionRepository.GetRoundsWithMatchesAsync(competitionId, cancellationToken)).Count > 0)
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registrations cannot change after bracket creation.", CompetitionErrorCodes.Conflict);
@@ -159,8 +158,7 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Competition not found.", CompetitionErrorCodes.NotFound);
             if (competition.CreatedBy != reviewerUserId)
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Only the competition creator may review registrations.", CompetitionErrorCodes.Forbidden);
-            if (DateTime.UtcNow >= competition.RegistrationEnd
-                || (competition.Status != "OpenRegistration" && competition.Status != "RegistrationClosed"))
+            if (DateTime.UtcNow >= competition.RegistrationEnd || competition.Status != "OpenRegistration")
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registration review is closed.", CompetitionErrorCodes.Conflict);
             if ((await _competitionRepository.GetRoundsWithMatchesAsync(competitionId, cancellationToken)).Count > 0)
                 return ApiResponse<CompetitionRegistrationResponse>.FailureResponse("Registrations cannot change after bracket creation.", CompetitionErrorCodes.Conflict);

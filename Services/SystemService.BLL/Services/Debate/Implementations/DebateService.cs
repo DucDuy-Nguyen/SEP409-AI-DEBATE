@@ -350,6 +350,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 bool isSessionCompleted = session.Status == SessionStatus.Completed;
                 await transaction.CommitAsync(cancellationToken);
 
+                var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+                var response = ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Argument submitted successfully.");
+
                 // The debate is over: it is graded in the background (own DI scope), the response does not wait for it.
                 // GET /evaluation awaits that same evaluation, or starts a new one if it failed.
                 if (isSessionCompleted && _aiEvaluatorClient != null)
@@ -357,8 +360,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     StartBackgroundEvaluation(sessionId);
                 }
 
-                var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
-                return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Argument submitted successfully.");
+                return response;
             }
             catch (DbUpdateException)
             {
@@ -464,6 +466,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 bool isSessionCompleted = session.Status == SessionStatus.Completed;
                 await transaction.CommitAsync(cancellationToken);
 
+                var round = session.DebateRounds.First(r => r.RoundNumber == turn.RoundNumber);
+                var response = await AiArgumentSuccessAsync(userId, sessionId, turn.TurnIndex, argument, round, aiParticipant,
+                    alreadyRecorded: false, "AI argument recorded successfully.", cancellationToken);
+
                 // The debate is over: it is graded in the background (own DI scope), the response does not wait for it.
                 // GET /evaluation awaits that same evaluation, or starts a new one if it failed.
                 if (isSessionCompleted && _aiEvaluatorClient != null)
@@ -471,9 +477,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     StartBackgroundEvaluation(sessionId);
                 }
 
-                var round = session.DebateRounds.First(r => r.RoundNumber == turn.RoundNumber);
-                return await AiArgumentSuccessAsync(userId, sessionId, turn.TurnIndex, argument, round, aiParticipant,
-                    alreadyRecorded: false, "AI argument recorded successfully.", cancellationToken);
+                return response;
             }
             catch (DbUpdateException)
             {
@@ -610,6 +614,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
             bool isSessionCompleted = session.Status == SessionStatus.Completed;
             await transaction.CommitAsync(cancellationToken);
 
+            var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            var response = ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Argument submitted successfully.");
+
             // The debate is over: it is graded in the background (own DI scope), the response does not wait for it.
             // GET /evaluation awaits that same evaluation, or starts a new one if it failed.
             if (isSessionCompleted && _aiEvaluatorClient != null)
@@ -617,8 +624,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 StartBackgroundEvaluation(sessionId);
             }
 
-            var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
-            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(updatedSession!, userId), "Argument submitted successfully.");
+            return response;
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> Create2v2SessionAsync(
@@ -1342,13 +1348,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 if (linkedMatch != null)
                 {
                     bool isOrganizer = linkedMatch.Competition.CreatedBy == userId;
-                    bool isAssignedJudge = linkedMatch.AssignedJudgeUserId == userId;
 
-                    if (!isOrganizer && !isAssignedJudge)
+                    if (!isOrganizer)
                     {
                         await transaction.RollbackAsync(cancellationToken);
                         return ApiResponse<DebateSessionResponse>.FailureResponse(
-                            "Chỉ Ban tổ chức hoặc Trọng tài được phân công mới có quyền bắt đầu trận đấu giải đấu.");
+                            "Chỉ Ban tổ chức giải đấu mới có quyền bắt đầu trận đấu giải đấu.");
                     }
 
                     if (linkedMatch.Status != "Ready")
@@ -1496,7 +1501,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             bool isParticipant = session.Participants.Any(p => p.UserId == userId);
             bool isCreator = session.CreatedBy == userId;
             var linkedMatch = await _debateRepository.GetLinkedCompetitionMatchAsync(sessionId, cancellationToken);
-            bool isMatchJudge = linkedMatch != null && (linkedMatch.AssignedJudgeUserId == userId || linkedMatch.Competition?.CreatedBy == userId);
+            bool isMatchJudge = linkedMatch?.Competition?.CreatedBy == userId;
 
             if (!isParticipant && !isCreator && !isMatchJudge)
             {

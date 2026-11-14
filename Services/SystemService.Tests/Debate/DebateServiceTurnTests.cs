@@ -84,12 +84,14 @@ namespace SystemService.Tests.Debate
         }
 
         [Fact]
-        public async Task UserSubmit_EmptyContent_IsRejected()
+        public async Task UserSubmit_EmptyContent_RecordsSkipTurnPlaceholder()
         {
             int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO);
 
-            ApiResponseAssert.FailsWith(await _harness.UserSubmitsAsync(UserA, sessionId, "   "), DebateErrorCodes.InvalidRequest);
-            Assert.Equal(0, _harness.ArgumentCount(sessionId));
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId, "   "));
+            Assert.Equal(1, _harness.ArgumentCount(sessionId));
+            var transcript = ApiResponseAssert.Succeeds(await _harness.NewService().GetTranscriptAsync(UserA, sessionId));
+            Assert.Equal("(Thí sinh không đưa ra phát biểu - Hết thời gian)", Assert.Single(transcript.Arguments).Content);
         }
 
         [Fact]

@@ -47,11 +47,11 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("Trận đấu không tồn tại.");
             }
 
-            // Authorization: Only Competition Organizer or Assigned Judge
-            if (matchCheck.Competition.CreatedBy != userId && matchCheck.AssignedJudgeUserId != userId)
+            // The competition creator is the only official who may prepare a competition match.
+            if (matchCheck.Competition.CreatedBy != userId)
             {
                 return ApiResponse<DebateSessionResponse>.FailureResponse(
-                    "Chỉ Ban tổ chức hoặc Trọng tài được phân công mới có quyền chuẩn bị phiên tranh biện cho trận đấu.");
+                    "Chỉ Ban tổ chức giải đấu mới có quyền chuẩn bị phiên tranh biện cho trận đấu.");
             }
 
             if (matchCheck.DebateSessionId.HasValue)

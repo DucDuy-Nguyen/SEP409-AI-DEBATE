@@ -190,7 +190,8 @@ namespace SystemService.IntegrationTests
                 FormatId = f2v2,
                 RegistrationStart = DateTime.UtcNow.AddDays(-5),
                 RegistrationEnd = DateTime.UtcNow.AddDays(-1),
-                StartDate = DateTime.UtcNow
+                StartDate = DateTime.UtcNow,
+                IsPublic = false
             };
             context.Competitions.Add(competition);
 
@@ -227,7 +228,7 @@ namespace SystemService.IntegrationTests
             var bridge = new CompetitionDebateBridgeService(context, debateRepo, teamRepo);
 
             // Act
-            var result = await bridge.PrepareMatchDebateAsync(judgeId, match.CompetitionMatchId, topicId);
+            var result = await bridge.PrepareMatchDebateAsync(orgId, match.CompetitionMatchId, topicId);
 
             // Assert
             Assert.True(result.Success);
@@ -240,6 +241,26 @@ namespace SystemService.IntegrationTests
             Assert.Contains(p3.UserId, proParticipants);
             Assert.Contains(p2Id, conParticipants);
             Assert.Contains(p4.UserId, conParticipants);
+
+            var tournament = new CompetitionTournamentService(context);
+            var detail = await tournament.GetMatchDetailAsync(competition.CompetitionId, match.CompetitionMatchId, orgId);
+            Assert.True(detail.Success, detail.Message);
+            Assert.Equal(result.Data.SessionId, detail.Data!.DebateSession!.DebateSessionId);
+            Assert.Equal("Waiting", detail.Data.DebateSession.Status);
+            Assert.Equal(topicId, detail.Data.Topic!.TopicId);
+            Assert.Equal(teamA.TeamId, detail.Data.ProSide!.TeamId);
+            Assert.Equal(teamB.TeamId, detail.Data.ConSide!.TeamId);
+            Assert.Equal(2, detail.Data.ProSide.Members.Count);
+            Assert.Equal(2, detail.Data.ConSide.Members.Count);
+
+            var denied = await tournament.GetMatchDetailAsync(competition.CompetitionId, match.CompetitionMatchId, judgeId);
+            Assert.False(denied.Success);
+
+            var bracket = await tournament.GetBracketAsync(competition.CompetitionId, actorId: orgId);
+            Assert.True(bracket.Success, bracket.Message);
+            var bracketMatch = Assert.Single(Assert.Single(bracket.Data!.Rounds).Matches);
+            Assert.Equal(result.Data.SessionId, bracketMatch.DebateSessionId);
+            Assert.Equal("Waiting", bracketMatch.DebateSessionStatus);
         }
 
         [Fact]
@@ -339,7 +360,7 @@ namespace SystemService.IntegrationTests
         }
 
         [Fact]
-        public async Task Test6_Start_OrganizerAndJudgeCanStart()
+        public async Task Test6_Start_OnlyOrganizerCanStart()
         {
             using var context = CreateContext();
             var (orgId, judgeId, p1Id, p2Id, topicId, f1v1, _) = await SeedTestDataAsync(context);
@@ -359,8 +380,13 @@ namespace SystemService.IntegrationTests
 
             var debateService = new DebateService(new DebateRepository(context), new UserRepository(context));
 
-            // Act: Judge starts
+            // An assigned judge is no longer an official for competition matches.
             var startRes = await debateService.StartDebateSessionAsync(judgeId, sessionId);
+
+            Assert.False(startRes.Success);
+            Assert.Contains("Chỉ Ban tổ chức giải đấu", startRes.Message);
+
+            startRes = await debateService.StartDebateSessionAsync(orgId, sessionId);
 
             // Assert
             Assert.True(startRes.Success);
@@ -395,7 +421,7 @@ namespace SystemService.IntegrationTests
             // Competitor p1 tries to start
             var startResPlayer = await debateService.StartDebateSessionAsync(p1Id, sessionId);
             Assert.False(startResPlayer.Success);
-            Assert.Contains("Chỉ Ban tổ chức hoặc Trọng tài", startResPlayer.Message);
+            Assert.Contains("Chỉ Ban tổ chức giải đấu", startResPlayer.Message);
 
             // Random user tries to start
             var randomUser = new User { FullName = "Random", Email = "rnd@test.com", PasswordHash = "h" };
@@ -404,7 +430,7 @@ namespace SystemService.IntegrationTests
 
             var startResRnd = await debateService.StartDebateSessionAsync(randomUser.UserId, sessionId);
             Assert.False(startResRnd.Success);
-            Assert.Contains("Chỉ Ban tổ chức hoặc Trọng tài", startResRnd.Message);
+            Assert.Contains("Chỉ Ban tổ chức giải đấu", startResRnd.Message);
         }
 
         [Fact]

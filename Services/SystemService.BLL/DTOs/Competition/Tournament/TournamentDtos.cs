@@ -5,7 +5,24 @@ namespace SystemService.BLL.DTOs.Competition.Tournament;
 
 public sealed record BracketResponse(int CompetitionId, IReadOnlyList<RoundResponse> Rounds, int? ChampionUserId, int? ChampionTeamId);
 public sealed record RoundResponse(int RoundNumber, string Status, IReadOnlyList<MatchResponse> Matches);
-public sealed record MatchResponse(int MatchId, int BracketPosition, int? NextMatchId, string Status, int? ProUserId, int? ProTeamId, int? ConUserId, int? ConTeamId, int? WinnerUserId, int? WinnerTeamId);
+public sealed record MatchResponse(int MatchId, int BracketPosition, int? NextMatchId, string Status, int? ProUserId, int? ProTeamId, int? ConUserId, int? ConTeamId, int? WinnerUserId, int? WinnerTeamId, int? DebateSessionId = null, string? DebateSessionStatus = null);
+public sealed record MatchDetailResponse(
+    int MatchId,
+    int RoundId,
+    int RoundNumber,
+    int BracketPosition,
+    int? NextMatchId,
+    string Status,
+    MatchTopicResponse? Topic,
+    MatchDebateSessionResponse? DebateSession,
+    MatchSideResponse? ProSide,
+    MatchSideResponse? ConSide,
+    int? WinnerUserId,
+    int? WinnerTeamId);
+public sealed record MatchTopicResponse(int TopicId, string Title);
+public sealed record MatchDebateSessionResponse(int DebateSessionId, string Status);
+public sealed record MatchSideResponse(string Side, int? UserId, string? DisplayName, int? TeamId, string? TeamName, IReadOnlyList<MatchMemberResponse> Members);
+public sealed record MatchMemberResponse(int UserId, string DisplayName);
 public sealed record ScoreInput(long MatchParticipantId, int CriteriaId, decimal Score, string? Feedback);
 public sealed record AssignJudgeRequest(int JudgeUserId);
 public sealed record FinalizeMatchRequest(IReadOnlyList<ScoreInput> Scores, long WinnerMatchParticipantId, string? DecisionReason);

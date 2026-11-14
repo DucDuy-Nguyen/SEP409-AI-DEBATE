@@ -444,6 +444,9 @@ namespace SystemService.IntegrationTests
             Assert.True(submitResult.Success);
             Assert.Equal(SessionStatus.Completed, submitResult.Data!.Status);
 
+            var evalResult = await service.GetSessionEvaluationAsync(userPro.UserId, session.DebateSessionId);
+            Assert.True(evalResult.Success);
+
             // Verify auto-evaluation stored AIJudgement
             var storedJudgement = await context.AIJudgements
                 .FirstOrDefaultAsync(j => j.DebateSessionId == session.DebateSessionId);
