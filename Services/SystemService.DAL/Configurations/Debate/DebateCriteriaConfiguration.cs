@@ -8,7 +8,7 @@ namespace SystemService.DAL.Configurations.Debate
     {
         public void Configure(EntityTypeBuilder<DebateCriteria> builder)
         {
-            builder.ToTable("DebateCriteria");
+            builder.ToTable("DebateScoreWeight");
             builder.HasKey(e => e.CriteriaId);
 
             builder.HasIndex(e => e.CriteriaName)

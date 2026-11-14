@@ -5,8 +5,7 @@ namespace SystemService.BLL.DTOs.Debate
 {
     public class SubmitArgumentRequest
     {
-        [Required]
-        public string Content { get; set; } = null!;
+        public string? Content { get; set; }
 
         public int? DurationSeconds { get; set; }
 

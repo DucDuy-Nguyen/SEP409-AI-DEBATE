@@ -336,7 +336,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 string trimmedContent = request.Content?.Trim() ?? string.Empty;
                 if (trimmedContent.Length == 0)
                 {
-                    return ApiResponse<DebateSessionResponse>.FailureResponse("Argument content must not be empty.", new ApiErrorDetail(DebateErrorCodes.InvalidRequest));
+                    trimmedContent = "(Thí sinh không đưa ra phát biểu - Hết thời gian)";
                 }
 
                 var argument = await AddTurnArgumentAsync(
@@ -559,7 +559,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("You have already submitted an argument for this round.");
             }
 
-            string trimmedContent = request.Content.Trim();
+            string trimmedContent = string.IsNullOrWhiteSpace(request.Content)
+                ? "(Thí sinh không đưa ra phát biểu - Hết thời gian)"
+                : request.Content.Trim();
             int wordCount = trimmedContent.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries).Length;
 
             int durationSeconds = request.DurationSeconds is > 0 ? request.DurationSeconds.Value : 30;
