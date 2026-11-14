@@ -73,10 +73,32 @@ namespace SystemService.BLL.Services.Payment.Implementations
             };
 
             await _paymentRepository.CreateAsync(payment, cancellationToken);
+var allowedOrigins = new HashSet<string>(
+    StringComparer.OrdinalIgnoreCase
+)
+{
+    "http://localhost:5173",
+    "http://localhost:5174"
+};
 
-            var returnUrl = _configuration["PayOS:ReturnUrl"] ?? "http://localhost:3000/payment/success";
-            var cancelUrl = _configuration["PayOS:CancelUrl"] ?? "http://localhost:3000/payment/cancel";
+var frontendOrigin = request.FrontendOrigin?.Trim().TrimEnd('/');
 
+if (string.IsNullOrWhiteSpace(frontendOrigin))
+{
+    frontendOrigin = _configuration["PayOS:FrontendOrigin"]?
+        .Trim().TrimEnd('/');
+}
+
+if (string.IsNullOrWhiteSpace(frontendOrigin) ||
+    !allowedOrigins.Contains(frontendOrigin))
+{
+    return ApiResponse<PaymentLinkResponse>.FailureResponse(
+        "Invalid frontend origin."
+    );
+}
+
+var returnUrl = $"{frontendOrigin}/payment/success";
+var cancelUrl = $"{frontendOrigin}/payment/cancel";
             var gatewayResult = await _paymentGateway.CreatePaymentLinkAsync(new PaymentLinkArgs
             {
                 OrderCode = orderCode,

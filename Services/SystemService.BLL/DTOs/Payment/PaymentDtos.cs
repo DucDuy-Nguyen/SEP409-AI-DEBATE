@@ -133,12 +133,12 @@ namespace SystemService.BLL.DTOs.Payment
             !_hasBonusCredit &&
             !_hasIsActive;
     }
+public class TopUpRequest
+{
+    public int PackageId { get; set; }
 
-    public class TopUpRequest
-    {
-        public int PackageId { get; set; }
-    }
-
+    public string? FrontendOrigin { get; set; }
+}
     public class PaymentLinkResponse
     {
         public long PaymentId { get; set; }
