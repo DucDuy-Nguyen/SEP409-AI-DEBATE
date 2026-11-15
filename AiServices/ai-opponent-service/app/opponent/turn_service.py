@@ -204,10 +204,13 @@ def _sum(values: list[int | None]) -> int | None:
 
 
 async def _run_generator(
-    context: TurnContext, mode: TurnMode, client: LLMClient, settings: Settings, reviewer_client: LLMClient | None = None
+    context: TurnContext, mode: TurnMode, client: LLMClient, settings: Settings, reviewer_client: LLMClient | None = None,
+    generator_version: str | None = None, on_event=None,
 ) -> TurnResult:
     """Chay bo sinh trong TURN_TOTAL_BUDGET_SECONDS. Het budget -> TurnResult that bai (failure budget_exceeded)."""
-    generator = get_turn_generator(settings, client, reviewer_client)
+    generator = get_turn_generator(settings, client, reviewer_client, version=generator_version)
+    if on_event is not None:
+        generator.on_event = on_event
     try:
         return await asyncio.wait_for(generator.generate(mode, context), timeout=settings.turn_total_budget_seconds)
     except TimeoutError:
@@ -232,8 +235,11 @@ async def generate_turn(
     client_factory: Callable[[], LLMClient],
     settings: Settings,
     reviewer_factory: Callable[[], LLMClient | None] | None = None,
+    generator_version: str | None = None,
+    on_event=None,
 ) -> tuple[TurnOutcome, bool]:
-    """Tra ve (ket qua, created). created=False: luot da co (idempotent) hoac request khac vua sinh xong truoc."""
+    """Tra ve (ket qua, created). created=False: luot da co (idempotent) hoac request khac vua sinh xong truoc.
+    generator_version: ghi de TURN_GENERATOR_VERSION (endpoint stream). on_event: su kien cua bo sinh (stream)."""
     session = await get_session_by_external_id(db, external_session_id)  # SessionNotFoundError -> 404
     if session.status != SessionStatus.READY:
         raise TurnConflictError(f"Session chua san sang (status={session.status.value}), can Case Planning xong truoc")
@@ -257,7 +263,7 @@ async def generate_turn(
     # Lay LLM client TRUOC khi ghi DB: thieu key -> 503, khong de lai bai learner mo coi. Stance Reviewer chi cho
     # turn_full_v* (baseline giu ngay tho: KHONG review, muc 2.11); factory tra None neu STANCE_REVIEW_ENABLED=false.
     client = client_factory()
-    reviews = settings.turn_generator_version != BASELINE_V1 and reviewer_factory is not None
+    reviews = (generator_version or settings.turn_generator_version) != BASELINE_V1 and reviewer_factory is not None
     reviewer_client = reviewer_factory() if reviews else None
 
     new = [sp for sp in req.new_learner_speeches if sp.turn_index not in stored]
@@ -291,7 +297,7 @@ async def generate_turn(
         ledger=await build_ledger(db, session.id, req.turn_index),
     )
     session_id = session.id  # doc truoc: sau rollback, doi tuong ORM co the bi expire
-    result = await _run_generator(context, mode, client, settings, reviewer_client)
+    result = await _run_generator(context, mode, client, settings, reviewer_client, generator_version, on_event)
     logger.info("Luot %d (%s): tong cho 429 %.1fs", req.turn_index, "ok" if result.text else result.failure_kind,
                 result.rate_limit_wait_ms / 1000)
 

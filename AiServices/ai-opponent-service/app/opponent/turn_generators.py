@@ -41,6 +41,7 @@ BASELINE_V1 = "turn_baseline_v1"
 FULL_V1 = "turn_full_v1"
 FULL_V2 = "turn_full_v2"
 FULL_V3 = "turn_full_v3"
+FULL_V4_STREAM = "turn_full_v4_stream"
 # Baseline GIU NGUYEN hanh vi 3a de so sanh: khong doc TURN_MAX_TOKENS / TURN_MAX_ATTEMPTS (3b doi mac dinh 2 bien nay
 # cho turn_full_v1 len 4000 / 3).
 BASELINE_MAX_TOKENS = 3000
@@ -216,6 +217,39 @@ class LLMCaller:
             ),
         )
 
+    async def complete_stream(
+        self, system_prompt: str, user_prompt: str, *, temperature: float, max_tokens: int, prompt_version: str,
+        on_delta, purpose: LLMCallPurpose = LLMCallPurpose.TURN,
+    ) -> TurnCall:
+        """
+        Nhu complete() nhung van ban thuan, stream: on_delta(request_no, text) chay tren event loop cho tung doan noi
+        dung. request_no tang moi HTTP request — _call thu lai (429 / loi mang giua chung) thi doan da day cua request
+        truoc phai bi bo (nguoi nhan tu reset khi thay request_no moi).
+        """
+        effort = self._effort()
+        loop = asyncio.get_running_loop()
+        state = {"request_no": 0}
+
+        def send():
+            state["request_no"] += 1
+            request_no = state["request_no"]
+            return self.client.generate_stream(
+                system_prompt, user_prompt,
+                lambda text: loop.call_soon_threadsafe(on_delta, request_no, text),
+                temperature=temperature, max_tokens=max_tokens, **effort,
+            )
+
+        call = await self._call(system_prompt, user_prompt, prompt_version, temperature, purpose, send)
+        # Delta cuoi duoc xep hang bang call_soon_threadsafe TRUOC khi thread tra ve -> nhuong 1 vong de chung chay xong
+        await asyncio.sleep(0)
+        if call.success and (call.finish_reason == "length" or not (call.raw_output or "").strip()):
+            call.success, call.truncated, call.failure_kind = False, True, TurnFailure.TRUNCATED
+            call.error = (
+                f"{TurnFailure.TRUNCATED}: output {'rong' if not (call.raw_output or '').strip() else 'bi cat'} "
+                f"(finish_reason={call.finish_reason}, tokens_out={call.tokens_out}/{max_tokens})"
+            )
+        return call
+
     def _effort(self) -> dict:
         effort = self.settings.turn_reasoning_effort if self._send_effort else None
         return {"reasoning_effort": effort} if effort else {}
@@ -380,17 +414,25 @@ class BaselineTurnGenerator:
 
 
 def generators() -> dict[str, type]:
-    from app.opponent.turn_full import FullTurnGenerator, FullTurnGeneratorV2, FullTurnGeneratorV3  # import muon
+    from app.opponent.turn_full import (  # import muon
+        FullTurnGenerator,
+        FullTurnGeneratorV2,
+        FullTurnGeneratorV3,
+        FullTurnGeneratorV4Stream,
+    )
 
     return {
         BASELINE_V1: BaselineTurnGenerator, FULL_V1: FullTurnGenerator, FULL_V2: FullTurnGeneratorV2,
-        FULL_V3: FullTurnGeneratorV3,
+        FULL_V3: FullTurnGeneratorV3, FULL_V4_STREAM: FullTurnGeneratorV4Stream,
     }
 
 
-def get_turn_generator(settings: Settings, client: LLMClient, reviewer_client: LLMClient | None = None) -> TurnGenerator:
-    """reviewer_client: Stance Reviewer cho turn_full_v* (None = khong review). Baseline bo qua."""
-    cls = generators()[settings.turn_generator_version]
+def get_turn_generator(
+    settings: Settings, client: LLMClient, reviewer_client: LLMClient | None = None, version: str | None = None
+) -> TurnGenerator:
+    """reviewer_client: Stance Reviewer cho turn_full_v* (None = khong review). Baseline bo qua.
+    version: ghi de TURN_GENERATOR_VERSION (endpoint stream luon dung turn_full_v4_stream)."""
+    cls = generators()[version or settings.turn_generator_version]
     if cls is BaselineTurnGenerator:
         return cls(client, settings)
     return cls(client, settings, reviewer_client)

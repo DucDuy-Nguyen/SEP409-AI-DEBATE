@@ -78,6 +78,28 @@ class LLMClient(ABC):
         """
         raise NotImplementedError(f"{type(self).__name__} chua ho tro generate_chat")
 
+    def generate_stream(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        on_delta,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+    ) -> str:
+        """
+        Van ban thuan (KHONG ep JSON), goi on_delta(text) cho tung doan NOI DUNG moi (khong gom token suy luan), trong
+        thread cua nguoi goi. Tra ve toan bo noi dung ("" neu rong — nguoi goi danh dau truncated).
+        Mac dinh (provider chua stream that): goi generate_chat roi day ca bai 1 lan.
+        """
+        text = self.generate_chat(
+            system_prompt, [{"role": "user", "content": user_prompt}], temperature=temperature,
+            max_tokens=max_tokens, reasoning_effort=reasoning_effort,
+        )
+        if text:
+            on_delta(text)
+        return text
+
 
 def _chat_messages(system_prompt: str, messages: list[dict]) -> list[dict]:
     """Dinh dang chat.completions (OpenAI / Groq)."""
@@ -360,6 +382,39 @@ class GroqClient(LLMClient):
         if content is None:
             raise RuntimeError(f"Groq tra ve noi dung rong (finish_reason={self.last_finish_reason})")
         return content
+
+    def generate_stream(
+        self, system_prompt, user_prompt, on_delta, temperature=None, max_tokens=None, reasoning_effort=None
+    ) -> str:
+        """
+        Stream van ban thuan tu Groq. KHONG dung response_format: Groq tu choi stream voi json_schema (json_validate_failed)
+        va voi json_object thi gom ca output roi moi gui 1 lan (do 2026-11-16). gpt-oss tra suy luan o delta.reasoning,
+        noi dung o delta.content -> chi day content.
+        """
+        self.last_usage, self.last_finish_reason = None, None
+        stream = self._client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+            temperature=self._temperature if temperature is None else temperature,
+            max_tokens=max_tokens or self._max_tokens,
+            stream=True,
+            stream_options={"include_usage": True},
+            **_effort(reasoning_effort),
+        )
+        parts: list[str] = []
+        for chunk in stream:
+            if getattr(chunk, "usage", None) is not None:
+                self.last_usage = _openai_usage(chunk)
+            if not chunk.choices:
+                continue
+            choice = chunk.choices[0]
+            piece = getattr(choice.delta, "content", None)
+            if piece:
+                parts.append(piece)
+                on_delta(piece)
+            if choice.finish_reason:
+                self.last_finish_reason = choice.finish_reason
+        return "".join(parts)
 
 
 def schema_rejected_output(e: Exception) -> str | None:

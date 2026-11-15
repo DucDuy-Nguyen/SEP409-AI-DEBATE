@@ -111,7 +111,10 @@ class Settings(BaseSettings):
     # turn_full_v2 (muc 2.10) = v1 + rang buoc "khong doc thuat ngu phan tich".
     # turn_full_v1: 1 loi goi JSON (phan tich -> dan y -> bai noi) + case file + ledger + validator (muc 2.9).
     # turn_baseline_v1: chatbot ngay tho, GIU NGUYEN de so sanh.
-    turn_generator_version: Literal["turn_baseline_v1", "turn_full_v1", "turn_full_v2", "turn_full_v3"] = "turn_full_v3"
+    # turn_full_v4_stream: CHI endpoint POST .../turns/stream dung (khong qua bien nay), xem turn_full.py.
+    turn_generator_version: Literal[
+        "turn_baseline_v1", "turn_full_v1", "turn_full_v2", "turn_full_v3", "turn_full_v4_stream"
+    ] = "turn_full_v3"
     turn_temperature: float = 0.5
     # CHI turn_full_v* (baseline co dinh 3000 / 2 lan — xem turn_generators.BASELINE_*): JSON + bai noi + token suy luan.
     # 6000 (truoc: 4000): tran 2026-09-30 15:11 co luot 4 tokens_out 3274/4000 va 1 lan output RONG (Groq 400,
@@ -119,6 +122,9 @@ class Settings(BaseSettings):
     turn_max_tokens: int = 6000
     # Nhu CASE_PLAN_REASONING_EFFORT, cho loi goi sinh bai noi (turn_full_v* va baseline; KHONG ap dung Stance Reviewer).
     turn_reasoning_effort: Literal["low", "medium", "high"] | None = "medium"
+    # Rieng turn_full_v4_stream (endpoint .../turns/stream). Do 2026-11-16 (gpt-oss-120b, cung prompt): medium -> chu
+    # dau tien sau 8.3-9.7 s (3.8k-4.4k token suy luan), low -> 0.5-0.8 s. Chat luong low CHUA do: giu medium.
+    turn_stream_reasoning_effort: Literal["low", "medium", "high"] | None = "medium"
     # So lan thu khi output khong hop le (full: JSON / schema / bi cat / bang chung HIGH / lat phe; do dai la loi MEM:
     # toi da 1 lan thu lai). Loi 429 KHONG tinh: luot noi cho bao nhieu lan cung duoc trong TURN_TOTAL_BUDGET_SECONDS
     # (thoi gian cho mac dinh khi provider khong noi: CASE_PLAN_RATE_LIMIT_WAIT_SECONDS).

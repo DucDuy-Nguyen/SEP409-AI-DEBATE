@@ -44,6 +44,7 @@ from app.opponent.turn_generators import (
     FULL_V1,
     FULL_V2,
     FULL_V3,
+    FULL_V4_STREAM,
     ROUND_LABEL,
     SIDE_LABEL,
     LLMCaller,
@@ -505,6 +506,9 @@ class FullTurnGenerator:
     version = FULL_V1
 
     def __init__(self, client: LLMClient, settings: Settings, reviewer_client: LLMClient | None = None):
+        # on_event(dict): turn_service gan cho endpoint stream. {"type": "attempt", "attempt", "previous_failure"} o dau
+        # moi lan thu (lan thu sau thay bai cua lan truoc); turn_full_v4_stream them {"type": "delta", "text"}.
+        self.on_event = None
         self.settings = settings
         self.temperature = settings.turn_temperature
         self.caller = LLMCaller(client, settings)
@@ -528,14 +532,17 @@ class FullTurnGenerator:
         feedback = None
         length_retries = 0
         candidates: list[tuple[int, int, TurnOutput, object]] = []  # (khoang cach, thu tu, output, call) — sai do dai
+        previous_failure = None
         for attempt_no in range(1, settings.turn_max_attempts + 1):
             last = attempt_no == settings.turn_max_attempts
-            system, user = build_full_prompt(mode, context, feedback, self.version)
-            try:
-                call = await self.caller.complete(
-                    system, user, temperature=self.temperature, max_tokens=settings.turn_max_tokens,
-                    prompt_version=self.version, json_schema=schema,
+            if attempt_no > 1:
+                previous_failure = next(  # lan goi SINH gan nhat (reviewer ghi sau no trong cung danh sach)
+                    (c.failure_kind for c in reversed(self.caller.calls) if c.purpose == LLMCallPurpose.TURN), None
                 )
+            self._emit({"type": "attempt", "attempt": attempt_no, "previous_failure": previous_failure})
+            system, user = self._prompt(mode, context, feedback)
+            try:
+                call = await self._complete(system, user, schema)
             except TurnLLMError as e:
                 result.error, result.failure_kind = str(e), TurnFailure.PROVIDER_ERROR
                 return result
@@ -548,7 +555,7 @@ class FullTurnGenerator:
                     logger.info("Luot %d: %s, khong goi lai LLM: %s", context.turn_index,
                                 call.key_repairs.get("event"), call.key_repairs)
                 else:
-                    out = parse_turn_output(call.raw_output, mode, context.target_words)
+                    out = self._parse(call.raw_output, mode, context.target_words)
             except _Invalid as e:
                 call.success, call.error, call.failure_kind = False, e.error[:4000], e.kind
                 _log_speech(call, e.speech)
@@ -597,6 +604,22 @@ class FullTurnGenerator:
             call.retry_feedback = feedback.strip()
             logger.info("Luot %d: do dai %d tu ngoai [%d, %d], thu lai (loi mem)", context.turn_index, n, lo, hi)
         raise AssertionError("unreachable")  # pragma: no cover
+
+    def _emit(self, event: dict) -> None:
+        if self.on_event is not None:
+            self.on_event(event)
+
+    def _prompt(self, mode: TurnMode, context: TurnContext, feedback: str | None) -> tuple[str, str]:
+        return build_full_prompt(mode, context, feedback, self.version)
+
+    async def _complete(self, system: str, user: str, schema: dict | None):
+        return await self.caller.complete(
+            system, user, temperature=self.temperature, max_tokens=self.settings.turn_max_tokens,
+            prompt_version=self.version, json_schema=schema,
+        )
+
+    def _parse(self, raw: str | None, mode: TurnMode, target_words: int) -> TurnOutput:
+        return parse_turn_output(raw, mode, target_words)
 
     async def _review(self, out: TurnOutput, context: TurnContext) -> tuple[ReviewerVerdict, dict]:
         """
@@ -676,3 +699,143 @@ class FullTurnGeneratorV3(FullTurnGenerator):
     """v2 + rang buoc NO_RULE_ECHO_RULE (muc 2.12). Moi thu khac giong v1 / v2."""
 
     version = FULL_V3
+
+
+# ---------------- turn_full_v4_stream ----------------
+
+SPEECH_DELIMITER = "===BÀI NÓI==="
+# Dong phan cach (chap nhan khoang trang / so dau "=" khac, khong phan biet hoa thuong; so tren chuoi da NFC)
+# Ca dang dung san (À, Ó) lan dang tach dau (A + U+0300, O + U+0301): stream tach tren chu GOC, khong NFC
+_DELIMITER_LINE = re.compile(
+    "^[ \t]*=+[ \t]*B(?:\u00c0|A\u0300)I N(?:\u00d3|O\u0301)I[ \t]*=+[ \t]*$", re.MULTILINE | re.IGNORECASE
+)
+MISSING_DELIMITER_ISSUE = (
+    f"Output thiếu dòng {SPEECH_DELIMITER}. Viết đúng 3 phần: JSON phân tích, một dòng {SPEECH_DELIMITER}, rồi bài nói."
+)
+_JSON_TASK_HEAD = "\n\nTrả về JSON, ĐÚNG thứ tự trường sau (phân tích trước, lập dàn ý, rồi mới viết bài):"
+_JSON_TASK_SPEECH = "\n- speech_text: bài nói hoàn chỉnh, viết theo dàn ý ai_points."
+_JSON_ONLY_RULE = "- Chỉ trả về JSON hợp lệ."
+_LENGTH_RULE_FIELD = "- Độ dài speech_text:"
+
+
+def build_stream_prompt(mode: TurnMode, context: TurnContext, feedback: str | None = None) -> tuple[str, str]:
+    """
+    Prompt v3, chi doi DINH DANG output: JSON 4 truong phan tich (bo speech_text) -> dong SPEECH_DELIMITER -> bai noi
+    van ban thuan. Ly do: Groq khong stream duoc khi ep JSON (client.GroqClient.generate_stream), con bai noi o CUOI
+    van giu thu tu "phan tich -> dan y -> moi viet".
+    """
+    system, user = build_full_prompt(mode, context, feedback, FULL_V3)
+    for marker in (_JSON_TASK_HEAD, _JSON_TASK_SPEECH, _JSON_ONLY_RULE, _LENGTH_RULE_FIELD):
+        if user.count(marker) != 1:
+            raise AssertionError(f"prompt v3 da doi, can sua build_stream_prompt: {marker!r}")
+    user = (
+        user.replace(
+            _JSON_TASK_HEAD,
+            "\n\nTrả lời ĐÚNG 3 phần theo thứ tự (phân tích trước, lập dàn ý, rồi mới viết bài):"
+            "\n1. Một JSON object gồm đúng 4 trường theo thứ tự:",
+        )
+        .replace(
+            _JSON_TASK_SPEECH,
+            f"\n2. Một dòng chỉ gồm {SPEECH_DELIMITER}"
+            "\n3. Bài nói hoàn chỉnh (speech_text), viết theo dàn ý ai_points, dạng văn bản thường — không đặt trong "
+            "JSON, không ngoặc kép bao quanh.",
+        )
+        .replace(_JSON_ONLY_RULE, f"- Chỉ trả về JSON, dòng {SPEECH_DELIMITER} và bài nói; không thêm gì khác.")
+        .replace(_LENGTH_RULE_FIELD, "- Độ dài bài nói (speech_text):")
+    )
+    return system, user
+
+
+def split_stream_output(raw: str) -> tuple[str, str | None]:
+    """(phan truoc dong phan cach, bai noi). Khong co dong phan cach -> (raw, None)."""
+    text = unicodedata.normalize("NFC", raw or "")
+    m = _DELIMITER_LINE.search(text)
+    if m is None:
+        return text, None
+    return text[: m.start()], text[m.end():].strip()
+
+
+def parse_stream_output(raw: str | None, mode: TurnMode, target_words: int) -> TurnOutput:
+    head, speech = split_stream_output(raw or "")
+    try:
+        data = extract_json(head)
+    except LLMOutputParseError as e:
+        issue = MISSING_DELIMITER_ISSUE if speech is None else (
+            f"Phần trước dòng {SPEECH_DELIMITER} không phải một JSON object hợp lệ."
+        )
+        raise _Invalid(TurnFailure.INVALID_JSON, str(e), [issue]) from e
+    if not isinstance(data, dict):
+        raise _Invalid(TurnFailure.INVALID_JSON, "phan phan tich khong phai JSON object", [MISSING_DELIMITER_ISSUE])
+    if speech is not None:
+        data["speech_text"] = speech
+    elif not isinstance(data.get("speech_text"), str):  # model viet kieu v3 (speech_text trong JSON) van nhan
+        raise _Invalid(TurnFailure.INVALID_JSON, "thieu dong phan cach bai noi", [MISSING_DELIMITER_ISSUE])
+    return validate_turn_data(data, mode, target_words)
+
+
+class SpeechStreamExtractor:
+    """
+    Nhan tung doan output stream, tra phan BAI NOI moi (sau dong phan cach). Dong phan cach co the bi cat giua 2 doan:
+    tim tren buffer da gom, va chi chot khi da co ky tu sau dong do. Khoang trang dau bai bi bo (giong strip() khi parse).
+    Lam tren chu GOC (khong NFC): NFC tren buffer dang lon co the gop dau vao chu da gui, lam lech vi tri da gui. Ban
+    chinh thuc (su kien done) van la ban da NFC + strip cua parse_stream_output.
+    """
+
+    def __init__(self) -> None:
+        self.buffer = ""
+        self.speech_start: int | None = None
+        self.emitted = 0
+
+    def feed(self, piece: str) -> str:
+        self.buffer += piece
+        if self.speech_start is None:
+            m = _DELIMITER_LINE.search(self.buffer)
+            if m is None or len(self.buffer) <= m.end():
+                return ""
+            rest = self.buffer[m.end():]
+            if not rest.strip():  # chua co chu nao cua bai noi: cho them de bo khoang trang dau bai
+                return ""
+            self.speech_start = m.end() + (len(rest) - len(rest.lstrip()))
+        new = self.buffer[self.speech_start + self.emitted:]
+        self.emitted += len(new)
+        return new
+
+
+class FullTurnGeneratorV4Stream(FullTurnGeneratorV3):
+    """
+    v3 (prompt, validator, Stance Reviewer, retry) nhung output van ban thuan va STREAM bai noi qua on_event
+    {"type": "delta", "text"}. Bai noi hien TRUOC khi reviewer xong: lan thu bi loai -> lan sau mo dau bang su kien
+    "attempt" va nguoi nghe thay bai. Muc suy luan rieng: TURN_STREAM_REASONING_EFFORT.
+    """
+
+    version = FULL_V4_STREAM
+
+    def __init__(self, client: LLMClient, settings: Settings, reviewer_client: LLMClient | None = None):
+        super().__init__(
+            client, settings.model_copy(update={"turn_reasoning_effort": settings.turn_stream_reasoning_effort}),
+            reviewer_client,
+        )
+
+    def _prompt(self, mode: TurnMode, context: TurnContext, feedback: str | None) -> tuple[str, str]:
+        return build_stream_prompt(mode, context, feedback)
+
+    async def _complete(self, system: str, user: str, schema: dict | None):
+        state = {"request_no": None, "extractor": SpeechStreamExtractor()}
+
+        def on_delta(request_no: int, piece: str) -> None:
+            if state["request_no"] != request_no:
+                # _call thu lai HTTP request (loi mang giua chung): bo phan bai noi da day cua request truoc
+                if state["request_no"] is not None and state["extractor"].emitted:
+                    self._emit({"type": "attempt", "attempt": None, "previous_failure": TurnFailure.TRANSIENT_ERROR})
+                state["request_no"], state["extractor"] = request_no, SpeechStreamExtractor()
+            new = state["extractor"].feed(piece)
+            if new:
+                self._emit({"type": "delta", "text": new})
+
+        return await self.caller.complete_stream(
+            system, user, temperature=self.temperature, max_tokens=self.settings.turn_max_tokens,
+            prompt_version=self.version, on_delta=on_delta,
+        )
+
+    def _parse(self, raw: str | None, mode: TurnMode, target_words: int) -> TurnOutput:
+        return parse_stream_output(raw, mode, target_words)

@@ -167,6 +167,40 @@ class FakeLLMClient(LLMClient):
         self._finish()
         return item
 
+    def generate_stream(
+        self, system_prompt, user_prompt, on_delta, temperature=None, max_tokens=None, reasoning_effort=None
+    ) -> str:
+        """Stream (turn_full_v4_stream): dung chung hang doi `responses`, day tung doan STREAM_CHUNK ky tu; ghi
+        {"system", "user", "stream": True, ...}."""
+        self.last_usage, self.last_finish_reason = None, None
+        self.calls.append(
+            {"system": system_prompt, "user": user_prompt, "temperature": temperature, "max_tokens": max_tokens,
+             "stream": True, "reasoning_effort": reasoning_effort}
+        )
+        if self.delay_seconds:
+            time.sleep(self.delay_seconds)
+        if not self.responses:
+            raise RuntimeError("FakeLLMClient: het response da chuan bi san")
+        item = self.responses.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        if isinstance(item, PartialThenError):
+            on_delta(item.partial)
+            raise item.error
+        for i in range(0, len(item), self.STREAM_CHUNK):
+            on_delta(item[i:i + self.STREAM_CHUNK])
+        self._finish()
+        return item
+
+    STREAM_CHUNK = 9
+
+
+class PartialThenError:
+    """FakeLLMClient.generate_stream: day `partial` roi nem `error` (mat mang giua chung)."""
+
+    def __init__(self, partial: str, error: Exception):
+        self.partial, self.error = partial, error
+
 
 class FakeStanceReviewer(LLMClient):
     """

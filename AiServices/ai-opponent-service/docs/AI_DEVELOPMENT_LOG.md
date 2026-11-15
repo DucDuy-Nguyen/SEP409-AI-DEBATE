@@ -1099,6 +1099,35 @@ vẫn dừng ngay.
 
 ---
 
+### 2.13. Stream lượt nói `turn_full_v4_stream` + endpoint `.../turns/stream` (2026-11-16)
+
+**Vấn đề.** Learner chờ cả lượt AI rồi mới thấy chữ. 6 lượt trong `ai_opponent_local.db` (2026-11-12): 7,4–15,5 s
+sinh + kiểm tra phe, chưa kể chờ 429 (14,9 s và 44,8 s ở 2 lượt).
+
+**Thử Groq (gpt-oss-120b, 2026-11-16).**
+- `json_schema` strict + `stream=True`: 400 `json_validate_failed` → Groq không stream được khi ép schema.
+- `json_object` + stream: toàn bộ nội dung về **một lần** ở giây 4,46 (Groq gom để kiểm tra) → không có chữ dần.
+- Văn bản thường + stream: chạy; suy luận nằm ở `delta.reasoning`, nội dung ở `delta.content`.
+
+**Cách làm (người dùng chọn: 1 lần gọi, tách bằng dòng phân cách).** `turn_full_v4_stream` kế thừa v3: chỉ đổi định dạng
+output (JSON 4 trường phân tích → dòng `===BÀI NÓI===` → bài nói văn bản thường), parse lại về đúng `TurnOutput` rồi
+qua **cùng** validator / Stance Reviewer / thử lại. Bài nói hiện TRƯỚC khi reviewer xong; lần thử bị loại → sự kiện
+`attempt` kế tiếp thay bài. v3 + `POST .../turns` giữ nguyên (377 test cũ pass); FE bật/tắt bằng `VITE_AI_TURN_STREAM`.
+
+**Đo** (`scripts/run_stream_turn_eval.py`, `experiments/stream_eval/20261116-010210.jsonl`): fixture M01 (AI pro + AI
+con) × 3 lượt AI, CÙNG case file cho cả 3 cấu hình, độ khó medium, không có 429 trong đợt này.
+
+| Cấu hình | Chữ đầu tiên (trung vị / max) | Bài chính thức (trung vị / max) | Token suy luận / lần sinh (trung vị) | Lần bị loại |
+|---|---|---|---|---|
+| v3, medium | 9,5 / 36,5 s | 9,5 / 36,5 s | 2.765 | 4 (3 side_flip, 1 word_count) |
+| v4 stream, medium | 3,1 / 9,4 s | 6,6 / 16,9 s | 697 | 1 (word_count) |
+| v4 stream, low | 1,3 / 2,0 s | 5,9 / 11,8 s | 79 | 5 (2 side_flip, 3 word_count) |
+
+**Cách đọc.** n = 6 lượt / cấu hình, chưa đủ kết luận thống kê. Bỏ ép schema làm model suy luận ít hơn ~4 lần ngay ở
+`medium`. `low` nhanh thêm ~2 s nhưng bị loại nhiều hơn và có lượt rebuttal chỉ 145 từ (mục tiêu 320, nhận theo luật độ
+dài mềm). Đọc tay 1 lượt rebuttal mỗi cấu hình: v3 / v4-medium cùng mức, đều bám luận điểm của learner.
+**Quyết định:** `TURN_STREAM_REASONING_EFFORT` mặc định `medium`; `low` để lựa chọn sau khi có thêm dữ liệu.
+
 ## 3. Vấn đề đã gặp
 
 - Docker CLI trong Git Bash báo `docker-credential-desktop not found` khi pull image → chạy
@@ -1281,3 +1310,7 @@ vẫn dừng ngay.
   log `array_repaired`, hồi quy bằng nguyên văn 2 ca); `turn_full_v3` (mặc định, không nhắc lại chỉ dẫn); retry lỗi mạng
   / 5xx thoáng qua (`LLM_TRANSIENT_RETRIES` = 2, cả Case Planning); việc còn treo: motion_reading phe Đề xuất không trùng
   phương án phe Phản đối. CHƯA chạy LLM thật. 370 test pass.
+- 2026-11-16: Mục 2.13: `turn_full_v4_stream` + `POST .../turns/stream` (SSE), `LLMClient.generate_stream` (Groq stream
+  thật, provider khác gửi cả bài 1 lần), `LLMCaller.complete_stream`, hook `_prompt` / `_complete` / `_parse` + sự kiện
+  `attempt` trong `FullTurnGenerator` (v3 không đổi hành vi), `TURN_STREAM_REASONING_EFFORT`, script đo
+  `run_stream_turn_eval`. 377 test cũ + 11 test mới pass.

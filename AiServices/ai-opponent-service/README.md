@@ -101,6 +101,7 @@ Mọi route dùng `external_session_id` (id session bên Main Flow) trong path, 
 | GET | `/opponent/sessions/{external_session_id}` | Debug: phiên + case file |
 | GET | `/opponent/sessions/{external_session_id}/case-plan` | Debug: case file |
 | POST | `/opponent/sessions/{external_session_id}/turns` | Sinh bài nói của AI cho 1 lượt (xem **Lượt tranh luận** bên dưới) |
+| POST | `/opponent/sessions/{external_session_id}/turns/stream` | Như trên nhưng **stream** bài nói (SSE, `turn_full_v4_stream`) — xem **Stream lượt nói** |
 
 Body `POST /opponent/sessions`: `external_session_id`, `motion`, `learner_side` / `ai_side` (`pro`/`con`,
 phải khác nhau), `difficulty` (`easy`=2 luận điểm, `medium`=3, `hard`=3), `language` (hiện chỉ `vi`).
@@ -173,6 +174,26 @@ Bộ sinh (`TURN_GENERATOR_VERSION`):
 
 ```bash
 curl -X POST http://localhost:8002/opponent/sessions/main-123/turns -H "Content-Type: application/json" \
+  -d '{"turn_index": 2, "new_learner_speeches": [{"turn_index": 1, "round_type": "opening", "text": "..."}]}'
+```
+
+### Stream lượt nói (`turn_full_v4_stream`)
+
+`POST .../turns/stream` nhận cùng body, lưu DB y như `POST .../turns`, nhưng trả bài nói dần dần
+(Server-Sent Events) để FE hiện chữ và đọc to ngay. Dev log mục 2.13.
+
+- Bộ sinh `turn_full_v4_stream` = v3 (prompt, validator, Stance Reviewer, thử lại) nhưng output là **văn bản
+  thường**: JSON 4 trường phân tích → dòng `===BÀI NÓI===` → bài nói. Lý do: Groq từ chối stream khi ép
+  `json_schema`, còn `json_object` thì gom cả output rồi mới gửi.
+- Sự kiện: `attempt` (`attempt`, `previous_failure`; lần thử sau **thay** bài của lần trước), `delta` (`text`),
+  `done` (`status` 201 / 200, `turn` = `TurnResponse`), `error` (`status`, `detail`, có thể có `code`; cùng mã với
+  `POST .../turns`: 504 hết budget, 502 bài không hợp lệ...).
+- Lỗi trước khi sinh (404 / 400 / 409 / 503) và lượt đã có (idempotent) trả **JSON thường**, không stream.
+- Mức suy luận riêng: `TURN_STREAM_REASONING_EFFORT` (mặc định `medium`).
+- Đo lại: `python -m scripts.run_stream_turn_eval` (LLM thật, cần DB đã migrate) → `experiments/stream_eval/`.
+
+```bash
+curl -N -X POST http://localhost:8002/opponent/sessions/main-123/turns/stream -H "Content-Type: application/json" \
   -d '{"turn_index": 2, "new_learner_speeches": [{"turn_index": 1, "round_type": "opening", "text": "..."}]}'
 ```
 
