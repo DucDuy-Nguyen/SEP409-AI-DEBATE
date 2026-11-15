@@ -197,3 +197,58 @@ def test_realtime_stt_config_endpoint_and_missing_key_ws():
         msg = ws.receive_json()
         assert msg["type"] == "error"
         assert msg["code"] == "DEEPGRAM_API_KEY_MISSING"
+
+
+class _FakeWhisper:
+    def __init__(self):
+        self.calls = []
+
+    def transcribe(self, path, **kwargs):
+        self.calls.append(kwargs)
+
+        class _Info:
+            duration = 3.0
+
+        class _Seg:
+            text = "xin chào ban giám khảo"
+
+        return [_Seg()], _Info()
+
+
+def test_whisper_uses_the_configured_beam_size(monkeypatch):
+    from app.config import get_settings
+    from app.services import analyzer
+
+    fake = _FakeWhisper()
+    monkeypatch.setattr(analyzer, "_whisper_model", fake)
+    monkeypatch.setattr(analyzer, "ensure_models_loaded", lambda load_whisper=True: {})
+
+    text, duration = analyzer.transcribe_audio_bytes(b"not-really-audio", ".webm")
+
+    assert text == "xin chào ban giám khảo" and duration == 3.0
+    assert fake.calls[0]["beam_size"] == get_settings().whisper_beam_size == 1
+
+
+def test_turn_without_audio_uses_the_live_transcript_and_skips_whisper(monkeypatch):
+    # Luong nhanh cua FE: da co chu realtime (Deepgram) thi gui analyze-turn KHONG kem audio
+    from app.services import analyzer
+
+    def _no_whisper(*args, **kwargs):
+        raise AssertionError("Whisper khong duoc goi khi khong co audio")
+
+    monkeypatch.setattr(analyzer, "transcribe_audio_bytes", _no_whisper)
+    client = TestClient(app)
+    resp = client.post("/multimodal/analyze-turn", json={
+        "audio_base64": None,
+        "emotion_timeline": [],
+        "total_frames_captured": 0,
+        "duration_seconds": 15,
+        "transcript_override": " ".join(["lập_luận"] * 28 + ["ờ", "ừm"]),
+        "include_report_chart": False,
+    })
+
+    assert resp.status_code == 200
+    voice = resp.json()["voice"]
+    assert voice["word_count"] == 30
+    assert voice["wpm"] == 120.0
+    assert voice["filler_count"] == 2
