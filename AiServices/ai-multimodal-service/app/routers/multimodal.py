@@ -3,7 +3,7 @@ import logging
 import os
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, WebSocket
 
 from app.config import get_settings
 from app.schemas import (
@@ -20,6 +20,7 @@ from app.services.analyzer import (
     analyze_single_frame,
     decode_base64_image,
 )
+from app.services.deepgram_live import get_realtime_stt_preset, proxy_deepgram_live
 
 logger = logging.getLogger(__name__)
 
@@ -216,3 +217,21 @@ def run_demo_sample_audio() -> MultimodalTurnResult:
         include_report_chart=True,
     )
     return analyze_multimodal_turn(req)
+
+
+@router.get("/realtime-stt/config")
+def get_realtime_stt_config() -> dict:
+    """
+    Tra ve cau hinh mac dinh cho Realtime STT (Preset Chuan Deepgram Web):
+    WebM/Opus, Raw Voice, endpointing 300ms, smart_format OFF, model nova-2, language vi.
+    """
+    return get_realtime_stt_preset(get_settings())
+
+
+@router.websocket("/ws/transcribe")
+async def realtime_stt_websocket(websocket: WebSocket) -> None:
+    """
+    WebSocket proxy cho Deepgram Live STT (truyen audio chunk -> nhan interim/final text realtime).
+    Route qua YARP Gateway: ws://<gateway>/api/multimodal/ws/transcribe
+    """
+    await proxy_deepgram_live(websocket, get_settings())

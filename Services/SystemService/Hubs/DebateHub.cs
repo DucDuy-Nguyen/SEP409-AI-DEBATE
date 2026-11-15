@@ -71,6 +71,30 @@ namespace SystemService.Hubs
             });
         }
 
+        public async Task SendLiveTranscript(int sessionId, string text, bool isFinal, bool speechFinal = false, int sequence = 0)
+        {
+            if (string.IsNullOrWhiteSpace(text) && !isFinal)
+            {
+                return;
+            }
+
+            var groupName = GetGroupName(sessionId);
+            var userId = GetUserId();
+            var fullName = GetUserFullName();
+
+            await Clients.OthersInGroup(groupName).SendAsync("LiveTranscriptUpdated", new
+            {
+                SessionId = sessionId,
+                UserId = userId,
+                FullName = fullName,
+                Text = text,
+                IsFinal = isFinal,
+                SpeechFinal = speechFinal,
+                Sequence = sequence,
+                Timestamp = DateTime.UtcNow
+            });
+        }
+
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             var userId = GetUserId();

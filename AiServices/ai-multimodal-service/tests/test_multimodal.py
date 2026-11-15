@@ -139,3 +139,61 @@ def test_evaluate_speech_and_demo_sample_endpoints(monkeypatch):
     assert len(eval_data["content_evaluation"]["criteria"]) == 5
     assert eval_data["content_evaluation"]["overall_score"] == 8.0
     assert eval_data["content_evaluation"]["delivery_analytics"]["composure_score"] == 100.0
+
+
+def test_realtime_stt_preset_and_ws_helpers():
+    from app.config import Settings
+    from app.services.deepgram_live import (
+        build_deepgram_ws_url,
+        diagnose_deepgram_error,
+        resolve_stream_options,
+        sanitize_error_text,
+    )
+
+    s = Settings(deepgram_api_key="")
+    options = resolve_stream_options(s)
+    assert options["model"] == "nova-2"
+    assert options["language"] == "vi"
+    assert options["endpointing"] == 300
+    assert options["smart_format"] is False
+    assert options["punctuate"] is True
+    assert options["encoding"] == "webm"
+
+    url_webm = build_deepgram_ws_url(options)
+    assert "model=nova-2" in url_webm
+    assert "language=vi" in url_webm
+    assert "endpointing=300" in url_webm
+    assert "smart_format=false" in url_webm
+    assert "encoding=linear16" not in url_webm
+
+    pcm_opts = resolve_stream_options(s, model="nova-3", mode="multi", encoding="linear16", endpointing="500")
+    url_pcm = build_deepgram_ws_url(pcm_opts)
+    assert "model=nova-3" in url_pcm
+    assert "language=multi" in url_pcm
+    assert "encoding=linear16" in url_pcm
+    assert "sample_rate=16000" in url_pcm
+
+    assert sanitize_error_text("Bearer Token secret123", "secret123") == "Bearer Token [REDACTED]"
+    code, _ = diagnose_deepgram_error("HTTP 402 Payment Required")
+    assert code == "DEEPGRAM_QUOTA_EXCEEDED"
+
+
+def test_realtime_stt_config_endpoint_and_missing_key_ws():
+    client = TestClient(app)
+
+    cfg_resp = client.get("/multimodal/realtime-stt/config")
+    assert cfg_resp.status_code == 200
+    cfg = cfg_resp.json()
+    assert cfg["preset_name"] == "Preset Chuẩn Deepgram Web"
+    assert cfg["defaults"]["transport"] == "webm_opus"
+    assert cfg["defaults"]["encoding"] == "webm"
+    assert cfg["defaults"]["webrtc_filter"] == "raw_voice"
+    assert cfg["defaults"]["endpointing"] == 300
+    assert cfg["defaults"]["smart_format"] is False
+    assert cfg["defaults"]["model"] == "nova-2"
+    assert cfg["defaults"]["language"] == "vi"
+
+    with client.websocket_connect("/multimodal/ws/transcribe") as ws:
+        msg = ws.receive_json()
+        assert msg["type"] == "error"
+        assert msg["code"] == "DEEPGRAM_API_KEY_MISSING"

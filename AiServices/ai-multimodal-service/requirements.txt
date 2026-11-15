@@ -11,4 +11,5 @@ matplotlib>=3.7.0
 faster-whisper>=1.0.0
 deepface>=0.0.93
 pytest>=8.3.0
+websockets>=12.0
 
