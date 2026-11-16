@@ -43,5 +43,12 @@ namespace SystemService.DAL.Repositories.Debate.Interfaces
 
         Task AddAIJudgementAsync(AIJudgement judgement, CancellationToken cancellationToken = default);
         Task<AIJudgement?> GetLatestAIJudgementAsync(int debateSessionId, CancellationToken cancellationToken = default);
+
+        Task<List<DebateCriteria>> GetActiveCriteriaAsync(CancellationToken cancellationToken = default);
+        Task AddJudgeScoresAsync(IEnumerable<JudgeScore> scores, CancellationToken cancellationToken = default);
+        Task DeleteAiJudgeScoresAsync(int matchId, CancellationToken cancellationToken = default);
+        Task DeleteAIJudgementsBySessionIdAsync(int sessionId, CancellationToken cancellationToken = default);
+        Task UpdateMatchEvaluationStartedAsync(int matchId, DateTime startedAt, CancellationToken cancellationToken = default);
+        Task UpdateMatchEvaluationStatusAsync(int matchId, string status, string? error = null, CancellationToken cancellationToken = default);
     }
 }

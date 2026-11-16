@@ -19,6 +19,12 @@ namespace SystemService.DAL.Entities.Competition
         public DateTime? StartedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
         public string Status { get; set; } = "Scheduled";
+        public string EvaluationStatus { get; set; } = "Pending";
+        public string? EvaluationError { get; set; }
+        public DateTime? EvaluationStartedAt { get; set; }
+        public string? DecisionType { get; set; }
+        public string? DecisionReason { get; set; }
+        public int? FinalizedByUserId { get; set; }
         public int? WinnerUserId { get; set; }
         public int? WinnerTeamId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -33,6 +39,7 @@ namespace SystemService.DAL.Entities.Competition
         public CompetitionTeam? WinnerTeam { get; set; }
         public CompetitionMatch? NextMatch { get; set; }
         public User? AssignedJudgeUser { get; set; }
+        public User? FinalizedByUser { get; set; }
 
         public ICollection<MatchParticipant> Participants { get; set; } = new List<MatchParticipant>();
         public ICollection<JudgeScore> JudgeScores { get; set; } = new List<JudgeScore>();

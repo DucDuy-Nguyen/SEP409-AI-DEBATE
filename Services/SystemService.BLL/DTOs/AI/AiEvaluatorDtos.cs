@@ -29,7 +29,8 @@ namespace SystemService.BLL.DTOs.AI
     public record CriterionScoreDto(
         [property: JsonPropertyName("name")] string Name,
         [property: JsonPropertyName("score")] int Score,
-        [property: JsonPropertyName("reasoning")] string Reasoning
+        [property: JsonPropertyName("reasoning")] string Reasoning,
+        [property: JsonPropertyName("code")] string? Code = null
     );
 
     public record EvaluateArgumentResponse(

@@ -22,6 +22,11 @@ namespace SystemService.DAL.Configurations.Competition
             builder.Property(e => e.MatchNumber).IsRequired();
             builder.Property(e => e.BracketPosition).HasDefaultValue(1).IsRequired();
             builder.Property(e => e.Status).HasMaxLength(30).HasDefaultValue("Scheduled").IsRequired();
+            builder.Property(e => e.EvaluationStatus).HasMaxLength(50).HasDefaultValue("Pending").IsRequired();
+            builder.Property(e => e.EvaluationError);
+            builder.Property(e => e.EvaluationStartedAt);
+            builder.Property(e => e.DecisionType).HasMaxLength(50);
+            builder.Property(e => e.DecisionReason).HasMaxLength(2000);
             builder.Property(e => e.CreatedAt).HasDefaultValueSql("GETDATE()");
             builder.Property(e => e.RowVersion).IsRowVersion();
 
@@ -58,6 +63,11 @@ namespace SystemService.DAL.Configurations.Competition
             builder.HasOne(e => e.AssignedJudgeUser)
                 .WithMany()
                 .HasForeignKey(e => e.AssignedJudgeUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(e => e.FinalizedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.FinalizedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

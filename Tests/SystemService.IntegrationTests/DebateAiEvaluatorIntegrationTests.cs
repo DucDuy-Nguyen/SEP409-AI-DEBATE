@@ -444,9 +444,15 @@ namespace SystemService.IntegrationTests
             Assert.True(submitResult.Success);
             Assert.Equal(SessionStatus.Completed, submitResult.Data!.Status);
 
-            // Verify auto-evaluation stored AIJudgement
-            var storedJudgement = await context.AIJudgements
-                .FirstOrDefaultAsync(j => j.DebateSessionId == session.DebateSessionId);
+            // Verify auto-evaluation stored AIJudgement (background task)
+            AIJudgement? storedJudgement = null;
+            for (int i = 0; i < 30; i++)
+            {
+                storedJudgement = await context.AIJudgements
+                    .FirstOrDefaultAsync(j => j.DebateSessionId == session.DebateSessionId);
+                if (storedJudgement != null) break;
+                await Task.Delay(100);
+            }
             Assert.NotNull(storedJudgement);
             Assert.True(fakeClient.EvaluateRoundCallCount > 0);
         }
