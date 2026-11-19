@@ -4,6 +4,8 @@ import os
 
 import httpx
 from fastapi import APIRouter, HTTPException, WebSocket
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.schemas import (
@@ -20,6 +22,7 @@ from app.services.analyzer import (
     analyze_single_frame,
     decode_base64_image,
 )
+from app.services import azure_tts
 from app.services.deepgram_live import get_realtime_stt_preset, proxy_deepgram_live
 
 logger = logging.getLogger(__name__)
@@ -235,3 +238,38 @@ async def realtime_stt_websocket(websocket: WebSocket) -> None:
     Route qua YARP Gateway: ws://<gateway>/api/multimodal/ws/transcribe
     """
     await proxy_deepgram_live(websocket, get_settings())
+
+
+class TtsRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=azure_tts.MAX_TEXT_CHARS)
+    voice: str | None = None
+
+
+@router.get("/tts/config")
+def get_tts_config() -> dict:
+    """FE: co doc bang Azure duoc khong (khong co key -> dung giong cua trinh duyet), giong mac dinh, giong cho phep."""
+    settings = get_settings()
+    return {
+        "configured": azure_tts.is_configured(settings),
+        "voice": azure_tts.resolve_voice(settings, None),
+        "voices": azure_tts.allowed_voices(settings),
+        "max_chars": azure_tts.MAX_TEXT_CHARS,
+    }
+
+
+@router.post("/tts")
+async def text_to_speech(req: TtsRequest) -> StreamingResponse:
+    """
+    Doc 1 cau (toi da MAX_TEXT_CHARS ky tu) bang Azure AI Speech, tra MP3 stream. 503 chua cau hinh key; 429 Azure
+    gioi han / het han muc Free; 502 loi khac -> FE chuyen sang giong cua trinh duyet.
+    """
+    if not req.text.strip():
+        raise HTTPException(status_code=422, detail="Văn bản rỗng")
+    try:
+        body = await azure_tts.synthesize_stream(get_settings(), req.text, req.voice)
+    except azure_tts.TtsNotConfigured:
+        raise HTTPException(status_code=503, detail="Chưa cấu hình AZURE_SPEECH_KEY / AZURE_SPEECH_REGION")
+    except azure_tts.TtsUpstreamError as e:
+        raise HTTPException(status_code=e.status, detail=e.message)
+    return StreamingResponse(body, media_type=azure_tts.MEDIA_TYPE, headers={"Cache-Control": "no-store"})
+
