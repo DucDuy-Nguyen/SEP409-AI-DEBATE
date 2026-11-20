@@ -318,7 +318,7 @@ def transcribe_audio_bytes(audio_bytes: bytes, file_suffix: str = ".wav") -> tup
         segments, info = _whisper_model.transcribe(
             tmp_path,
             language="vi",
-            beam_size=5,
+            beam_size=get_settings().whisper_beam_size,
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=500),
             initial_prompt="Kính thưa ban giám khảo, tôi xin trình bày luận điểm tranh biện:",

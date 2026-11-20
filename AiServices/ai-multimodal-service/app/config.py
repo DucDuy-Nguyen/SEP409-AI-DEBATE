@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     whisper_model_size: str = "small"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
+    # 1 = greedy. Do tren CPU (small, int8): 72.5 s am thanh 45.7 s voi beam 5 -> 29.9 s voi beam 1, transcript giong het.
+    whisper_beam_size: int = 1
     prewarm_models: bool = True
     evaluator_service_url: str = (
         "https://adpp-ai-evaluator.greenstone-4d67d46a.indonesiacentral.azurecontainerapps.io"
