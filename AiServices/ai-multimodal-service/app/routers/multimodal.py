@@ -252,7 +252,7 @@ def get_tts_config() -> dict:
     return {
         "configured": azure_tts.is_configured(settings),
         "voice": azure_tts.resolve_voice(settings, None),
-        "voices": azure_tts.allowed_voices(settings),
+        "voices": azure_tts.voice_options(settings),
         "max_chars": azure_tts.MAX_TEXT_CHARS,
     }
 

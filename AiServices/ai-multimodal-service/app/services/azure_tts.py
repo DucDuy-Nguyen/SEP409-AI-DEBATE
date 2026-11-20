@@ -43,8 +43,28 @@ def is_configured(settings: Settings) -> bool:
     return bool(settings.azure_speech_key.strip() and settings.azure_speech_region.strip())
 
 
+# Ten hien thi cho FE. Do 2026-11-20 (japaneast, 1 cau, ket noi giu san): Neural / MAI Flash ~0.8-1.0 s toi am thanh
+# dau tien, MAI HD 1.25-1.4 s.
+VOICE_CATALOG: dict[str, dict] = {
+    "vi-VN-NamMinhNeural": {"label": "Nam Minh", "gender": "male", "tier": "neural"},
+    "vi-VN-HoaiMyNeural": {"label": "Hoài My", "gender": "female", "tier": "neural"},
+    "vi-VN-Grant:MAI-Voice-2.1-Flash": {"label": "Grant", "gender": "male", "tier": "flash"},
+    "vi-VN-Harper:MAI-Voice-2.1-Flash": {"label": "Harper", "gender": "female", "tier": "flash"},
+    "vi-VN-Grant:MAI-Voice-2.1": {"label": "Grant HD", "gender": "male", "tier": "hd"},
+    "vi-VN-Harper:MAI-Voice-2.1": {"label": "Harper HD", "gender": "female", "tier": "hd"},
+}
+
+
 def allowed_voices(settings: Settings) -> list[str]:
     return [v.strip() for v in settings.azure_tts_voices.split(",") if v.strip()]
+
+
+def voice_options(settings: Settings) -> list[dict]:
+    """[{id, label, gender, tier}] theo thu tu AZURE_TTS_VOICES; giong ngoai catalog: label = id."""
+    return [
+        {"id": v, **VOICE_CATALOG.get(v, {"label": v, "gender": "unknown", "tier": "other"})}
+        for v in allowed_voices(settings)
+    ]
 
 
 def resolve_voice(settings: Settings, voice: str | None) -> str:

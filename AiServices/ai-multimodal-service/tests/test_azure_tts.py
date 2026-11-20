@@ -67,3 +67,20 @@ def test_text_too_long_or_blank_is_rejected(azure):
     assert client.post("/multimodal/tts", json={"text": "x" * (azure_tts.MAX_TEXT_CHARS + 1)}).status_code == 422
     assert client.post("/multimodal/tts", json={"text": "   "}).status_code == 422
     assert azure[0] == []  # khong goi Azure
+
+
+def test_config_lists_the_six_vietnamese_voices_with_labels(monkeypatch):
+    monkeypatch.setattr(multimodal, "get_settings", lambda: SETTINGS)
+    cfg = TestClient(app).get("/multimodal/tts/config").json()
+    assert cfg["configured"] is True and cfg["voice"] == "vi-VN-NamMinhNeural"
+    assert [v["id"] for v in cfg["voices"]] == list(azure_tts.VOICE_CATALOG)
+    assert cfg["voices"][1] == {"id": "vi-VN-HoaiMyNeural", "label": "Hoài My", "gender": "female", "tier": "neural"}
+
+
+def test_each_listed_voice_can_be_chosen(azure):
+    seen, _ = azure
+    client = TestClient(app)
+    for voice in azure_tts.VOICE_CATALOG:
+        assert client.post("/multimodal/tts", json={"text": "Xin chào", "voice": voice}).status_code == 200
+    assert [r.content.decode("utf-8").split('<voice name="')[1].split('"')[0] for r in seen] == list(azure_tts.VOICE_CATALOG)
+
