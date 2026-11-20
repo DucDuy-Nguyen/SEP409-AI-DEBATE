@@ -197,3 +197,36 @@ def test_realtime_stt_config_endpoint_and_missing_key_ws():
         msg = ws.receive_json()
         assert msg["type"] == "error"
         assert msg["code"] == "DEEPGRAM_API_KEY_MISSING"
+
+
+def test_yunet_threshold_is_applied_and_an_empty_frame_has_no_face():
+    import os
+    from app.config import get_settings
+    from app.services.analyzer import analyze_single_frame
+
+    assert os.environ["yunet_score_threshold"] == str(get_settings().yunet_score_threshold)
+    assert analyze_single_frame(np.full((480, 640, 3), 90, np.uint8), detector_backend="yunet").face_detected is False
+
+
+def test_analyze_frame_detects_a_webcam_sized_face():
+    """Mat ~100px giua khung 640x480: voi nguong YuNet mac dinh 0.9 cua DeepFace se bi loai (diem ~0.87).
+
+    Repo khong kem anh mat nguoi that: dat 1 anh chan dung vao bien MULTIMODAL_TEST_FACE de chay test nay.
+    """
+    import os
+    import pytest
+    from app.services.analyzer import analyze_single_frame
+
+    path = os.environ.get("MULTIMODAL_TEST_FACE", "")
+    face = cv2.imread(path) if path and os.path.exists(path) else None
+    if face is None:
+        pytest.skip("MULTIMODAL_TEST_FACE chua tro toi anh chan dung")
+    small = cv2.resize(face, None, fx=200 / max(face.shape[:2]), fy=200 / max(face.shape[:2]))
+    frame = np.full((480, 640, 3), 90, np.uint8)
+    h, w = small.shape[:2]
+    y0, x0 = (480 - h) // 2, (640 - w) // 2
+    frame[y0:y0 + h, x0:x0 + w] = small
+
+    res = analyze_single_frame(frame, detector_backend="yunet")
+    assert res.face_detected is True
+    assert res.region is not None and res.region.w >= 40

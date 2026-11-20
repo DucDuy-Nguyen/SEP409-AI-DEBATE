@@ -6,6 +6,9 @@ class Settings(BaseSettings):
     app_name: str = "ADPP AI Multimodal Service (DeepFace + Whisper)"
     detector_backend: str = "yunet"
     fallback_detector_backend: str = "opencv"
+    # Nguong diem YuNet cua DeepFace (mac dinh thu vien 0.9). DeepFace them vien 50% roi thu anh ve 640px truoc khi
+    # detect, mat webcam nho lai va diem tut xuong ~0.76-0.87 -> bi loai het. analyze_single_frame van loc them conf >= 0.45.
+    yunet_score_threshold: float = 0.6
     whisper_model_size: str = "small"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
