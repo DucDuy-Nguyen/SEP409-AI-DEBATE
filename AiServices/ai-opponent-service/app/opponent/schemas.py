@@ -156,18 +156,39 @@ def normalize_learner_speech(text: str) -> str:
     return unicodedata.normalize("NFC", text.replace("\r\n", "\n")).strip()
 
 
+# Luot learner BO (het gio khong noi / bam bo luot): luu dung chuoi nay, bo sinh nhan ra bang is_skipped_speech().
+SKIPPED_SPEECH_TEXT = "(Người học bỏ lượt, không phát biểu)"
+# Chuoi giu cho FE cu gui thay cho luot bo (truoc khi co truong skipped): van coi la bo luot
+LEGACY_SKIPPED_TEXTS = frozenset(
+    normalize_learner_speech(t)
+    for t in ("(Thí sinh không đưa ra phát biểu - Hết thời gian)", "(Thí sinh chủ động bỏ lượt)")
+)
+
+
+def is_skipped_speech(text: str) -> bool:
+    t = normalize_learner_speech(text)
+    return t == SKIPPED_SPEECH_TEXT or t in LEGACY_SKIPPED_TEXTS
+
+
 class LearnerSpeechIn(BaseModel):
     turn_index: int
     round_type: RoundType
-    text: str = Field(..., max_length=20000)
+    text: str = Field("", max_length=20000)
+    # true: learner khong phat bieu luot nay (het gio / bo luot); text bo qua, luu SKIPPED_SPEECH_TEXT
+    skipped: bool = False
 
     @field_validator("text")
     @classmethod
-    def normalized_not_blank(cls, v: str) -> str:
-        v = normalize_learner_speech(v)
-        if not v:
-            raise ValueError("khong duoc de trong")
-        return v
+    def normalized(cls, v: str) -> str:
+        return normalize_learner_speech(v)
+
+    @model_validator(mode="after")
+    def skipped_or_not_blank(self) -> "LearnerSpeechIn":
+        if self.skipped or is_skipped_speech(self.text):
+            self.skipped, self.text = True, SKIPPED_SPEECH_TEXT
+        elif not self.text:
+            raise ValueError("text khong duoc de trong (luot bo: gui skipped=true)")
+        return self
 
 
 class CreateTurnRequest(BaseModel):

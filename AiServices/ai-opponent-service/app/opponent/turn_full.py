@@ -38,6 +38,7 @@ from app.llm.json_utils import LLMOutputParseError, extract_json
 from app.opponent import stance_reviewer, vague_detector
 from app.opponent.json_repair import ARRAY_REPAIRED, repair_split_array
 from app.opponent.match_format import Speaker, TurnMode, word_count
+from app.opponent.schemas import is_skipped_speech
 from app.opponent.models import LLMCallPurpose, OpponentDifficulty, ReviewerVerdict
 from app.opponent.service import _JSONSCHEMA_DETAIL, _match_renames, build_retry_feedback
 from app.opponent.turn_generators import (
@@ -65,6 +66,13 @@ ANALYSIS_COERCED = "analysis_coerced"  # speech_checks: model tra phan tich khon
 # Reviewer cho luot noi: CO DINH v1 (chi doc tung y — ai_points khong co "reasoning" rieng cho v2 / v3), muc 2.11.
 TURN_REVIEW_VERSION = stance_reviewer.PROMPT_VERSION
 NO_NEW_SPEECH = "Không có bài nói mới của người học kể từ lượt trước của bạn."
+# Learner bo luot (het gio / bam bo luot): khong co gi de phan bac, KHONG duoc gan cho ho loi chua noi
+SKIPPED_SPEECH_NOTE = "Đội {learner} đã bỏ lượt {round} (không phát biểu)."
+SKIPPED_TASK = (
+    "Đội {learner} không phát biểu ở lượt vừa rồi. Nói ngắn gọn (một câu) rằng đối phương đã không phản biện, rồi "
+    "củng cố và bảo vệ các luận điểm trong case của bạn. KHÔNG gán cho đội {learner} bất kỳ lập luận nào ở lượt này, "
+    "KHÔNG phản bác lại như thể họ vừa nói."
+)
 # v2: tran 15:11 — bai noi doc ra nhan phan tich ("tiền đề ngầm"...) vi JSON co truong premises / target_premise.
 NATURAL_SPEECH_RULE = (
     "- Nói tự nhiên như một người tranh luận; KHÔNG đọc ra các thuật ngữ phân tích như 'tiền đề', 'tiền đề ngầm' "
@@ -100,6 +108,11 @@ assert tuple(TurnOutput.model_fields) == FIELD_ORDER  # thu tu khai bao = thu tu
 def needs_target(mode: TurnMode) -> bool:
     """Chi opening_reply / rebuttal chon tien de de tan cong; opening_first va closing: target_premise = null."""
     return mode in (TurnMode.OPENING_REPLY, TurnMode.REBUTTAL)
+
+
+def attacks_premise(mode: TurnMode, has_new_speech: bool = True) -> bool:
+    """Chon target_premise: mode can VA co bai learner moi that (learner bo luot -> khong co gi de tan cong)."""
+    return needs_target(mode) and has_new_speech
 
 
 def word_range(target_words: int) -> tuple[int, int]:
@@ -153,7 +166,7 @@ def build_response_schema(mode: TurnMode, has_new_speech: bool = True) -> dict:
                 "required": ["explicit", "implicit"],
                 "additionalProperties": False,
             },
-            "target_premise": {"type": "string"} if needs_target(mode) else {"type": "null"},
+            "target_premise": {"type": "string"} if attacks_premise(mode, has_new_speech) else {"type": "null"},
             "ai_points": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 4},
             "speech_text": {"type": "string"},
         },
@@ -192,12 +205,22 @@ def _bullets(items: list[str]) -> str:
     return "\n".join(f"- {x}" for x in items)
 
 
-def new_learner_speeches(context: TurnContext):
-    """Bai learner KE TU luot AI gan nhat (moi luot AI truoc do da 'doc' cac bai cu -> nam trong ledger)."""
+def _since_last_ai(context: TurnContext):
     ai_turns = [s.turn_index for s in context.history if s.speaker == Speaker.AI]
     last_ai = max(ai_turns, default=0)
     return [s for s in sorted(context.history, key=lambda s: s.turn_index)
             if s.speaker == Speaker.LEARNER and s.turn_index > last_ai]
+
+
+def new_learner_speeches(context: TurnContext):
+    """Bai learner KE TU luot AI gan nhat (moi luot AI truoc do da 'doc' cac bai cu -> nam trong ledger). Luot learner
+    BO (is_skipped_speech) khong phai bai noi: xem skipped_learner_turns."""
+    return [s for s in _since_last_ai(context) if not is_skipped_speech(s.text)]
+
+
+def skipped_learner_turns(context: TurnContext):
+    """Luot learner bo (het gio / bo luot) ke tu luot AI gan nhat."""
+    return [s for s in _since_last_ai(context) if is_skipped_speech(s.text)]
 
 
 def constraints_block(context: TurnContext, version: str = FULL_V1) -> str:
@@ -252,13 +275,22 @@ def build_full_prompt(
     if ledger.attacked_premises:
         parts.append("Các tiền đề bạn đã tấn công:\n" + _bullets(ledger.attacked_premises))
     new = new_learner_speeches(context)
+    skipped = skipped_learner_turns(context)
     for s in new:
         parts.append(f"Đội {learner} vừa phát biểu ({ROUND_LABEL[s.round_type]}):\n«{s.text}»")
-    if not new:
+    for s in skipped:
+        parts.append(SKIPPED_SPEECH_NOTE.format(learner=learner, round=ROUND_LABEL[s.round_type].lower()))
+    if not new and not skipped:
         parts.append(NO_NEW_SPEECH)
+    attacks = attacks_premise(mode, bool(new))
 
-    task = "Nhiệm vụ lượt này: " + MODE_TASK[mode].format(learner=learner)
-    if needs_target(mode):
+    if skipped and not new and needs_target(mode):
+        task = "Nhiệm vụ lượt này: " + SKIPPED_TASK.format(learner=learner)
+    else:
+        task = "Nhiệm vụ lượt này: " + MODE_TASK[mode].format(learner=learner)
+        if skipped and not new:
+            task += "\n" + SKIPPED_TASK.format(learner=learner)
+    if attacks:
         task += (
             f"\nChọn target_premise (tiền đề của đội {learner} để tấn công): {TARGET_RULE[context.difficulty]}"
             "\nKhông tấn công lại tiền đề đã tấn công, trừ khi người học chưa đáp lại nó."
@@ -276,7 +308,7 @@ def build_full_prompt(
         else "[] (không có bài nói mới)"
     )
     target_rule = (
-        "tiền đề bạn chọn để tấn công (một câu, lấy từ premises)" if needs_target(mode)
+        "tiền đề bạn chọn để tấn công (một câu, lấy từ premises)" if attacks
         else "null (lượt này không chọn tiền đề để tấn công)"
     )
     task += (
@@ -356,8 +388,9 @@ def _validation_issues(e: ValidationError, data: object) -> list[str]:
     return issues + (_key_issues(data) if isinstance(data, dict) else [])
 
 
-def validate_turn_data(data: object, mode: TurnMode, target_words: int) -> TurnOutput:
-    """Nem _Invalid (kem phan hoi tieng Viet) neu khong hop le."""
+def validate_turn_data(data: object, mode: TurnMode, target_words: int, has_new_speech: bool = True) -> TurnOutput:
+    """Nem _Invalid (kem phan hoi tieng Viet) neu khong hop le. has_new_speech=False (learner bo luot): khong doi
+    target_premise."""
     try:
         out = TurnOutput.model_validate(data)
     except ValidationError as e:
@@ -365,7 +398,7 @@ def validate_turn_data(data: object, mode: TurnMode, target_words: int) -> TurnO
         raise _Invalid(TurnFailure.SCHEMA_VALIDATION, str(e)[:4000], _validation_issues(e, data), speech) from e
     if mode == TurnMode.OPENING_FIRST:  # chua co bai learner: bo moi phan tich (schema Groq da ep rong)
         out.learner_claims, out.premises = [], Premises(explicit=[], implicit=[])
-    if not needs_target(mode):
+    if not attacks_premise(mode, has_new_speech):
         out.target_premise = None
     elif not (out.target_premise or "").strip():
         raise _Invalid(
@@ -394,7 +427,7 @@ def validate_turn_data(data: object, mode: TurnMode, target_words: int) -> TurnO
     return out
 
 
-def parse_turn_output(raw: str | None, mode: TurnMode, target_words: int) -> TurnOutput:
+def parse_turn_output(raw: str | None, mode: TurnMode, target_words: int, has_new_speech: bool = True) -> TurnOutput:
     try:
         data = extract_json(raw or "")
     except LLMOutputParseError as e:
@@ -402,10 +435,10 @@ def parse_turn_output(raw: str | None, mode: TurnMode, target_words: int) -> Tur
             TurnFailure.INVALID_JSON, str(e),
             ["Output không phải một JSON object hợp lệ (có thể bị cắt ngắn, hoặc có text / markdown thừa ngoài JSON)."],
         ) from e
-    return validate_turn_data(data, mode, target_words)
+    return validate_turn_data(data, mode, target_words, has_new_speech)
 
 
-def _repair_rejected(call, mode: TurnMode, target_words: int) -> TurnOutput:
+def _repair_rejected(call, mode: TurnMode, target_words: int, has_new_speech: bool = True) -> TurnOutput:
     """
     Groq tu choi schema -> sua TAT DINH roi validate CUC BO (khong goi lai LLM). Khong duoc -> _Invalid schema_rejected.
     1. "Mang tach" (json_repair, muc 2.12): dung lai object; khong qua schema cuc bo -> xu ly nhu schema_rejected; qua
@@ -424,7 +457,7 @@ def _repair_rejected(call, mode: TurnMode, target_words: int) -> TurnOutput:
         if _key_diffs(data):
             raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + _key_issues(data))
         try:
-            out = validate_turn_data(data, mode, target_words)
+            out = validate_turn_data(data, mode, target_words, has_new_speech)
         except _Invalid as e:
             if e.kind == TurnFailure.SCHEMA_VALIDATION:
                 raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + e.issues, e.speech) from None
@@ -440,7 +473,7 @@ def _repair_rejected(call, mode: TurnMode, target_words: int) -> TurnOutput:
     renames = repair_keys(data)
     if not renames or _key_diffs(data):
         raise _Invalid(TurnFailure.SCHEMA_REJECTED, call.error or "", issues + _key_issues(data))
-    out = validate_turn_data(data, mode, target_words)  # co the nem _Invalid khac (HIGH...) -> retry nhu thuong
+    out = validate_turn_data(data, mode, target_words, has_new_speech)  # co the nem _Invalid khac -> retry
     call.key_repairs = {"event": "key_repaired", "renames": renames, "provider_error": (call.error or "")[:1000]}
     return out
 
@@ -480,7 +513,7 @@ def coerce_analysis(out: TurnOutput, mode: TurnMode, has_new_speech: bool) -> di
     if not analyzes_premises(mode, has_new_speech) and (out.premises.explicit or out.premises.implicit):
         dropped["premises"] = len(out.premises.explicit) + len(out.premises.implicit)
         out.premises = Premises(explicit=[], implicit=[])
-    if not needs_target(mode):
+    if not attacks_premise(mode, has_new_speech):
         out.target_premise = None  # validate_turn_data da ep; giu o day cho ro
     return dropped
 
@@ -550,12 +583,12 @@ class FullTurnGenerator:
                 if call.truncated:
                     raise _Invalid(TurnFailure.TRUNCATED, call.error or TurnFailure.TRUNCATED, [TRUNCATED_ISSUE])
                 if call.schema_rejected:
-                    out = _repair_rejected(call, mode, context.target_words)
+                    out = _repair_rejected(call, mode, context.target_words, has_new)
                     call.success, call.error, call.failure_kind = True, None, None
                     logger.info("Luot %d: %s, khong goi lai LLM: %s", context.turn_index,
                                 call.key_repairs.get("event"), call.key_repairs)
                 else:
-                    out = self._parse(call.raw_output, mode, context.target_words)
+                    out = self._parse(call.raw_output, mode, context.target_words, has_new)
             except _Invalid as e:
                 call.success, call.error, call.failure_kind = False, e.error[:4000], e.kind
                 _log_speech(call, e.speech)
@@ -618,8 +651,8 @@ class FullTurnGenerator:
             prompt_version=self.version, json_schema=schema,
         )
 
-    def _parse(self, raw: str | None, mode: TurnMode, target_words: int) -> TurnOutput:
-        return parse_turn_output(raw, mode, target_words)
+    def _parse(self, raw: str | None, mode: TurnMode, target_words: int, has_new_speech: bool) -> TurnOutput:
+        return parse_turn_output(raw, mode, target_words, has_new_speech)
 
     async def _review(self, out: TurnOutput, context: TurnContext) -> tuple[ReviewerVerdict, dict]:
         """
@@ -755,7 +788,7 @@ def split_stream_output(raw: str) -> tuple[str, str | None]:
     return text[: m.start()], text[m.end():].strip()
 
 
-def parse_stream_output(raw: str | None, mode: TurnMode, target_words: int) -> TurnOutput:
+def parse_stream_output(raw: str | None, mode: TurnMode, target_words: int, has_new_speech: bool = True) -> TurnOutput:
     head, speech = split_stream_output(raw or "")
     try:
         data = extract_json(head)
@@ -770,7 +803,7 @@ def parse_stream_output(raw: str | None, mode: TurnMode, target_words: int) -> T
         data["speech_text"] = speech
     elif not isinstance(data.get("speech_text"), str):  # model viet kieu v3 (speech_text trong JSON) van nhan
         raise _Invalid(TurnFailure.INVALID_JSON, "thieu dong phan cach bai noi", [MISSING_DELIMITER_ISSUE])
-    return validate_turn_data(data, mode, target_words)
+    return validate_turn_data(data, mode, target_words, has_new_speech)
 
 
 class SpeechStreamExtractor:
@@ -837,5 +870,5 @@ class FullTurnGeneratorV4Stream(FullTurnGeneratorV3):
             prompt_version=self.version, on_delta=on_delta,
         )
 
-    def _parse(self, raw: str | None, mode: TurnMode, target_words: int) -> TurnOutput:
-        return parse_stream_output(raw, mode, target_words)
+    def _parse(self, raw: str | None, mode: TurnMode, target_words: int, has_new_speech: bool) -> TurnOutput:
+        return parse_stream_output(raw, mode, target_words, has_new_speech)
