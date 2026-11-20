@@ -27,6 +27,19 @@ class Settings(BaseSettings):
     deepgram_utterance_end_ms: int = 1000
     deepgram_keepalive_interval_s: float = 8.0
 
+    # Azure AI Speech TTS (AI doi thu doc to, POST /multimodal/tts). Free F0: 0.5M ky tu neural / thang.
+    # Region phai nam trong vung subscription cho phep (Azure for Students: japaneast / japanwest / centralindia).
+    azure_speech_key: str = ""
+    azure_speech_region: str = ""
+    azure_tts_voice: str = "vi-VN-NamMinhNeural"
+    # Danh sach giong duoc phep chon (endpoint khong phai proxy tu do toi key Speech)
+    # Mac dinh: 6 giong tieng Viet goc co tren japaneast (2026-11-20), xem azure_tts.VOICE_CATALOG
+    azure_tts_voices: str = (
+        "vi-VN-NamMinhNeural,vi-VN-HoaiMyNeural,vi-VN-Grant:MAI-Voice-2.1-Flash,vi-VN-Harper:MAI-Voice-2.1-Flash,"
+        "vi-VN-Grant:MAI-Voice-2.1,vi-VN-Harper:MAI-Voice-2.1"
+    )
+    azure_tts_rate: str = "+5%"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

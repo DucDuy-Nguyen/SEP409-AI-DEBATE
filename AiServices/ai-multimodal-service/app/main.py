@@ -7,6 +7,7 @@ from app.config import get_settings
 from app.demo_page import DEMO_HTML
 from app.routers import multimodal
 from app.services.analyzer import ensure_models_loaded, get_model_status
+from app.services import azure_tts
 
 settings = get_settings()
 
@@ -16,6 +17,7 @@ async def lifespan(app: FastAPI):
     if settings.prewarm_models:
         ensure_models_loaded(load_whisper=True)
     yield
+    await azure_tts.close_client()
 
 
 app = FastAPI(
