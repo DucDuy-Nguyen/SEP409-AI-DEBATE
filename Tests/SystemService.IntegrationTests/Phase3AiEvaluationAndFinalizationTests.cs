@@ -69,11 +69,11 @@ namespace SystemService.IntegrationTests
             if (context.DebateCriteria.Any()) return;
 
             context.DebateCriteria.AddRange(
-                new DebateCriteria { CriteriaId = 1, CriterionCode = "LOGIC", CriteriaName = "Logic", MaxScore = 10.0m, Weight = 1.0m, IsActive = true },
-                new DebateCriteria { CriteriaId = 2, CriterionCode = "EVIDENCE", CriteriaName = "Evidence", MaxScore = 10.0m, Weight = 1.0m, IsActive = true },
-                new DebateCriteria { CriteriaId = 3, CriterionCode = "RELEVANCE", CriteriaName = "Relevance", MaxScore = 10.0m, Weight = 1.0m, IsActive = true },
-                new DebateCriteria { CriteriaId = 4, CriterionCode = "STRUCTURE", CriteriaName = "Structure", MaxScore = 10.0m, Weight = 1.0m, IsActive = true },
-                new DebateCriteria { CriteriaId = 5, CriterionCode = "PERSUASIVENESS", CriteriaName = "Persuasiveness", MaxScore = 10.0m, Weight = 1.0m, IsActive = true }
+                new DebateCriteria { CriteriaId = 1, CriterionCode = "LOGIC", CriteriaName = "Logic", MaxScore = 5.0m, Weight = 1.0m, IsActive = true },
+                new DebateCriteria { CriteriaId = 2, CriterionCode = "EVIDENCE", CriteriaName = "Evidence", MaxScore = 5.0m, Weight = 1.0m, IsActive = true },
+                new DebateCriteria { CriteriaId = 3, CriterionCode = "RELEVANCE", CriteriaName = "Relevance", MaxScore = 5.0m, Weight = 1.0m, IsActive = true },
+                new DebateCriteria { CriteriaId = 4, CriterionCode = "STRUCTURE", CriteriaName = "Structure", MaxScore = 5.0m, Weight = 1.0m, IsActive = true },
+                new DebateCriteria { CriteriaId = 5, CriterionCode = "PERSUASIVENESS", CriteriaName = "Persuasiveness", MaxScore = 5.0m, Weight = 1.0m, IsActive = true }
             );
             context.SaveChanges();
         }
@@ -92,10 +92,10 @@ namespace SystemService.IntegrationTests
                 if (ExceptionToThrow != null) throw ExceptionToThrow;
                 if (RoundEvaluator != null) return Task.FromResult(RoundEvaluator(req));
 
-                int baseScore = req.Side == "pro" ? 8 : 6;
+                int baseScore = req.Side == "pro" ? 4 : 3;
                 var res = new EvaluateRoundResponse(
                     Stage: req.Stage,
-                    RoundScore: baseScore,
+                    RoundScore: req.Side == "pro" ? 8.0m : 6.0m,
                     Criteria: new List<CriterionScoreDto>
                     {
                         new("Logic", baseScore, "Logic note", "LOGIC"),
@@ -325,9 +325,9 @@ namespace SystemService.IntegrationTests
                     Criteria: new List<CriterionScoreDto>
                     {
                         // Only 3 criteria returned instead of 5
-                        new("Logic", 7, "note", "LOGIC"),
-                        new("Evidence", 7, "note", "EVIDENCE"),
-                        new("Relevance", 7, "note", "RELEVANCE")
+                        new("Logic", 4, "note", "LOGIC"),
+                        new("Evidence", 4, "note", "EVIDENCE"),
+                        new("Relevance", 4, "note", "RELEVANCE")
                     },
                     ConsistencyNote: "ok",
                     Strengths: new List<string>(),
@@ -364,11 +364,11 @@ namespace SystemService.IntegrationTests
                     RoundScore: 7.0m,
                     Criteria: new List<CriterionScoreDto>
                     {
-                        new("Logic", 7, "note", "LOGIC"),
-                        new("Evidence", 7, "note", "EVIDENCE"),
-                        new("Relevance", 7, "note", "RELEVANCE"),
-                        new("Structure", 7, "note", "STRUCTURE"),
-                        new("Humor", 7, "note", "HUMOR") // Unknown criterion!
+                        new("Logic", 4, "note", "LOGIC"),
+                        new("Evidence", 4, "note", "EVIDENCE"),
+                        new("Relevance", 4, "note", "RELEVANCE"),
+                        new("Structure", 4, "note", "STRUCTURE"),
+                        new("Humor", 4, "note", "HUMOR") // Unknown criterion!
                     },
                     ConsistencyNote: "ok",
                     Strengths: new List<string>(),
@@ -398,14 +398,14 @@ namespace SystemService.IntegrationTests
             {
                 RoundEvaluator = req => new EvaluateRoundResponse(
                     Stage: req.Stage,
-                    RoundScore: 15.0m,
+                    RoundScore: 8.0m,
                     Criteria: new List<CriterionScoreDto>
                     {
-                        new("Logic", 15, "note", "LOGIC"), // > 10!
-                        new("Evidence", 7, "note", "EVIDENCE"),
-                        new("Relevance", 7, "note", "RELEVANCE"),
-                        new("Structure", 7, "note", "STRUCTURE"),
-                        new("Persuasiveness", 7, "note", "PERSUASIVENESS")
+                        new("Logic", 6, "note", "LOGIC"), // > 5!
+                        new("Evidence", 4, "note", "EVIDENCE"),
+                        new("Relevance", 4, "note", "RELEVANCE"),
+                        new("Structure", 4, "note", "STRUCTURE"),
+                        new("Persuasiveness", 4, "note", "PERSUASIVENESS")
                     },
                     ConsistencyNote: "ok",
                     Strengths: new List<string>(),
@@ -422,7 +422,7 @@ namespace SystemService.IntegrationTests
 
             var match = await context.CompetitionMatches.FindAsync(matchId);
             Assert.Equal("Failed", match!.EvaluationStatus);
-            Assert.Contains("Score must be between 1 and 10", match.EvaluationError);
+            Assert.Contains("Score must be between 1 and 5", match.EvaluationError);
         }
 
         [Fact]
@@ -544,14 +544,14 @@ namespace SystemService.IntegrationTests
             var criteria = await context.DebateCriteria.Where(c => c.IsActive).ToListAsync();
             var rounds = await context.DebateRounds.Where(r => r.DebateSessionId == sessionId).ToListAsync();
 
-            // BTC overrides: scores CON higher (10 for CON, 5 for PRO in every round)
+            // BTC overrides: scores CON higher (5 for CON, 2 for PRO in every round)
             var judgeScoresInput = new List<RoundScoreInput>();
             foreach (var r in rounds)
             {
                 foreach (var c in criteria)
                 {
-                    judgeScoresInput.Add(new RoundScoreInput(r.RoundId, proId, c.CriteriaId, 5.0m, "PRO round note"));
-                    judgeScoresInput.Add(new RoundScoreInput(r.RoundId, conId, c.CriteriaId, 10.0m, "CON stronger rebuttal"));
+                    judgeScoresInput.Add(new RoundScoreInput(r.RoundId, proId, c.CriteriaId, 2.0m, "PRO round note"));
+                    judgeScoresInput.Add(new RoundScoreInput(r.RoundId, conId, c.CriteriaId, 5.0m, "CON stronger rebuttal"));
                 }
             }
 
@@ -595,14 +595,14 @@ namespace SystemService.IntegrationTests
             var criteria = await context.DebateCriteria.Where(c => c.IsActive).ToListAsync();
             var rounds = await context.DebateRounds.Where(r => r.DebateSessionId == sessionId).ToListAsync();
 
-            // Tie scores: exactly 7.0 for both sides
+            // Tie scores: exactly 3.0 for both sides
             var tieScores = new List<RoundScoreInput>();
             foreach (var r in rounds)
             {
                 foreach (var c in criteria)
                 {
-                    tieScores.Add(new RoundScoreInput(r.RoundId, proId, c.CriteriaId, 7.0m));
-                    tieScores.Add(new RoundScoreInput(r.RoundId, conId, c.CriteriaId, 7.0m));
+                    tieScores.Add(new RoundScoreInput(r.RoundId, proId, c.CriteriaId, 3.0m));
+                    tieScores.Add(new RoundScoreInput(r.RoundId, conId, c.CriteriaId, 3.0m));
                 }
             }
 
@@ -619,6 +619,99 @@ namespace SystemService.IntegrationTests
             // Match remains Evaluating, next match does NOT advance
             var match = await context.CompetitionMatches.FindAsync(matchId);
             Assert.Equal("Evaluating", match!.Status);
+            var nextMatch = await context.CompetitionMatches.Include(m => m.Participants).SingleAsync(m => m.CompetitionMatchId == match.NextMatchId);
+            Assert.Empty(nextMatch.Participants);
+        }
+
+        [Fact]
+        public async Task Finalize_OVERRIDE_IncompleteUnequalRubric_IsRejectedBeforeAnyWrite()
+        {
+            using var context = CreateContext();
+            var (orgId, p1Id, _, compId, matchId, sessionId) = await SetupCompletedDebateMatchAsync(context);
+            await new DebateService(new DebateRepository(context), new UserRepository(context), new MockAiClient()).EvaluateSessionAsync(p1Id, sessionId);
+            var request = await BuildOverrideRequestAsync(context, matchId, sessionId, "OVERRIDE");
+            request = new FinalizeMatchRequest("OVERRIDE", request.DecisionReason, request.Scores!.Skip(1).ToList());
+
+            var result = await new CompetitionTournamentService(context).FinalizeMatchAsync(compId, matchId, orgId, request);
+
+            Assert.False(result.Success);
+            Assert.Equal(CompetitionErrorCodes.BadRequest, result.Errors);
+            Assert.Contains("incomplete", result.Message, StringComparison.OrdinalIgnoreCase);
+            await AssertFinalizeWasNotChangedAsync(context, matchId);
+        }
+
+        [Fact]
+        public async Task Finalize_OVERRIDE_DuplicateRubric_IsRejectedBeforeAnyWrite()
+        {
+            using var context = CreateContext();
+            var (orgId, p1Id, _, compId, matchId, sessionId) = await SetupCompletedDebateMatchAsync(context);
+            await new DebateService(new DebateRepository(context), new UserRepository(context), new MockAiClient()).EvaluateSessionAsync(p1Id, sessionId);
+            var request = await BuildOverrideRequestAsync(context, matchId, sessionId, "OVERRIDE");
+            var completeScores = request.Scores!;
+            request = new FinalizeMatchRequest("OVERRIDE", request.DecisionReason, completeScores.Append(completeScores[0]).ToList());
+
+            var result = await new CompetitionTournamentService(context).FinalizeMatchAsync(compId, matchId, orgId, request);
+
+            Assert.False(result.Success);
+            Assert.Equal(CompetitionErrorCodes.BadRequest, result.Errors);
+            Assert.Contains("duplicate", result.Message, StringComparison.OrdinalIgnoreCase);
+            await AssertFinalizeWasNotChangedAsync(context, matchId);
+        }
+
+        [Theory]
+        [InlineData("round")]
+        [InlineData("participant")]
+        [InlineData("criterion")]
+        public async Task Finalize_OVERRIDE_InvalidRubricId_IsRejectedBeforeAnyWrite(string invalidId)
+        {
+            using var context = CreateContext();
+            var (orgId, p1Id, _, compId, matchId, sessionId) = await SetupCompletedDebateMatchAsync(context);
+            await new DebateService(new DebateRepository(context), new UserRepository(context), new MockAiClient()).EvaluateSessionAsync(p1Id, sessionId);
+            var request = await BuildOverrideRequestAsync(context, matchId, sessionId, "OVERRIDE");
+            var alteredScores = request.Scores!.ToList();
+            alteredScores[0] = invalidId switch
+            {
+                "round" => alteredScores[0] with { RoundId = int.MaxValue },
+                "participant" => alteredScores[0] with { MatchParticipantId = long.MaxValue },
+                _ => alteredScores[0] with { CriteriaId = int.MaxValue }
+            };
+            request = new FinalizeMatchRequest("OVERRIDE", request.DecisionReason, alteredScores);
+
+            var result = await new CompetitionTournamentService(context).FinalizeMatchAsync(compId, matchId, orgId, request);
+
+            Assert.False(result.Success);
+            Assert.Equal(CompetitionErrorCodes.BadRequest, result.Errors);
+            Assert.Contains(invalidId == "round" ? "round" : "participant", result.Message, StringComparison.OrdinalIgnoreCase);
+            await AssertFinalizeWasNotChangedAsync(context, matchId);
+        }
+
+        private static async Task<FinalizeMatchRequest> BuildOverrideRequestAsync(
+            SystemDbContext context, int matchId, int sessionId, string decisionType)
+        {
+            var participants = await context.MatchParticipants.Where(p => p.CompetitionMatchId == matchId).ToListAsync();
+            var proId = participants.Single(p => p.Side == "PRO").MatchParticipantId;
+            var conId = participants.Single(p => p.Side == "CON").MatchParticipantId;
+            var criteria = await context.DebateCriteria.Where(c => c.IsActive).ToListAsync();
+            var rounds = await context.DebateRounds.Where(r => r.DebateSessionId == sessionId).ToListAsync();
+            var scores = new List<RoundScoreInput>();
+            foreach (var round in rounds)
+            foreach (var criterion in criteria)
+            {
+                scores.Add(new RoundScoreInput(round.RoundId, proId, criterion.CriteriaId, 4.0m));
+                scores.Add(new RoundScoreInput(round.RoundId, conId, criterion.CriteriaId, 3.0m));
+            }
+            return new FinalizeMatchRequest(decisionType, "Regression test rubric", scores);
+        }
+
+        private static async Task AssertFinalizeWasNotChangedAsync(SystemDbContext context, int matchId)
+        {
+            Assert.Equal(0, await context.JudgeScores.CountAsync(s => s.CompetitionMatchId == matchId && s.ScoreSource == "JUDGE"));
+            var match = await context.CompetitionMatches.SingleAsync(m => m.CompetitionMatchId == matchId);
+            Assert.Equal("Evaluating", match.Status);
+            Assert.Null(match.WinnerUserId);
+            Assert.Null(match.WinnerTeamId);
+            var participants = await context.MatchParticipants.Where(p => p.CompetitionMatchId == matchId).ToListAsync();
+            Assert.All(participants, p => { Assert.Null(p.FinalScore); Assert.False(p.IsWinner); });
             var nextMatch = await context.CompetitionMatches.Include(m => m.Participants).SingleAsync(m => m.CompetitionMatchId == match.NextMatchId);
             Assert.Empty(nextMatch.Participants);
         }
@@ -644,8 +737,8 @@ namespace SystemService.IntegrationTests
             {
                 foreach (var c in criteria)
                 {
-                    scores.Add(new RoundScoreInput(r.RoundId, proId, c.CriteriaId, 8.0m));
-                    scores.Add(new RoundScoreInput(r.RoundId, conId, c.CriteriaId, 6.0m));
+                    scores.Add(new RoundScoreInput(r.RoundId, proId, c.CriteriaId, 4.0m));
+                    scores.Add(new RoundScoreInput(r.RoundId, conId, c.CriteriaId, 3.0m));
                 }
             }
 
@@ -684,8 +777,8 @@ namespace SystemService.IntegrationTests
             {
                 foreach (var c in criteria)
                 {
-                    scores.Add(new RoundScoreInput(r.RoundId, proId, c.CriteriaId, 9.0m));
-                    scores.Add(new RoundScoreInput(r.RoundId, conId, c.CriteriaId, 6.0m));
+                    scores.Add(new RoundScoreInput(r.RoundId, proId, c.CriteriaId, 5.0m));
+                    scores.Add(new RoundScoreInput(r.RoundId, conId, c.CriteriaId, 3.0m));
                 }
             }
 
@@ -771,6 +864,322 @@ namespace SystemService.IntegrationTests
 
             var comp = await context.Competitions.FindAsync(compId);
             Assert.Equal("Completed", comp!.Status);
+        }
+
+        [Fact]
+        public async Task Test18_Finalize_DuplicateFinalize_RejectsWithConflict()
+        {
+            using var context = CreateContext();
+            var (orgId, p1Id, _, compId, matchId, sessionId) = await SetupCompletedDebateMatchAsync(context);
+
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context), new MockAiClient());
+            await debateService.EvaluateSessionAsync(p1Id, sessionId);
+
+            var tournamentService = new CompetitionTournamentService(context);
+            var first = await tournamentService.FinalizeMatchAsync(compId, matchId, orgId, new FinalizeMatchRequest(decisionType: "ACCEPT"));
+            Assert.True(first.Success, first.Message);
+
+            var second = await tournamentService.FinalizeMatchAsync(compId, matchId, orgId, new FinalizeMatchRequest(decisionType: "ACCEPT"));
+            Assert.False(second.Success);
+            Assert.Equal(CompetitionErrorCodes.Conflict, second.Errors as string);
+        }
+
+        [Fact]
+        public async Task Test19_Finalize_ACCEPT_WhenTie_RejectsWithBadRequest_DoesNotAdvanceBracket()
+        {
+            using var context = CreateContext();
+            var (orgId, p1Id, _, compId, matchId, sessionId) = await SetupCompletedDebateMatchAsync(context);
+
+            var tieClient = new MockAiClient
+            {
+                RoundEvaluator = req => new EvaluateRoundResponse(
+                    Stage: req.Stage,
+                    RoundScore: 6.0m,
+                    Criteria: new List<CriterionScoreDto>
+                    {
+                        new("Logic", 3, "note", "LOGIC"),
+                        new("Evidence", 3, "note", "EVIDENCE"),
+                        new("Relevance", 3, "note", "RELEVANCE"),
+                        new("Structure", 3, "note", "STRUCTURE"),
+                        new("Persuasiveness", 3, "note", "PERSUASIVENESS")
+                    },
+                    ConsistencyNote: "Equal",
+                    Strengths: new List<string>(),
+                    Weaknesses: new List<string>(),
+                    Suggestions: new List<string>()
+                ),
+                SessionEvaluator = req => new EvaluateSessionResponse(
+                    OverallScore: 7.0m,
+                    StageBreakdown: new Dictionary<string, decimal> { { "opening", 7.0m }, { "rebuttal", 7.0m }, { "closing", 7.0m } },
+                    ProgressTrend: "Tie",
+                    OverallStrengths: new List<string>(),
+                    OverallWeaknesses: new List<string>(),
+                    OverallSuggestions: new List<string>()
+                )
+            };
+
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context), tieClient);
+            var evalRes = await debateService.EvaluateSessionAsync(p1Id, sessionId);
+            Assert.True(evalRes.Success);
+            Assert.Equal("TIE", evalRes.Data!.SuggestedWinnerSide);
+
+            var tournamentService = new CompetitionTournamentService(context);
+            var result = await tournamentService.FinalizeMatchAsync(compId, matchId, orgId, new FinalizeMatchRequest(decisionType: "ACCEPT"));
+            Assert.False(result.Success);
+            Assert.Equal(CompetitionErrorCodes.BadRequest, result.Errors as string);
+            Assert.Contains("tie", result.Message, StringComparison.OrdinalIgnoreCase);
+
+            var match = await context.CompetitionMatches.FindAsync(matchId);
+            Assert.Equal("Evaluating", match!.Status);
+            Assert.Null(match.WinnerUserId);
+            var nextMatch = await context.CompetitionMatches.Include(m => m.Participants).SingleAsync(m => m.CompetitionMatchId == match.NextMatchId);
+            Assert.Empty(nextMatch.Participants);
+        }
+
+        [Fact]
+        public async Task Test20_Phase3_Team2v2_FullWorkflow_EvaluateReviewAcceptAdvanceAndChampion()
+        {
+            using var context = CreateContext();
+
+            var org = new User { FullName = "Organizer", Email = $"org2v2_{Guid.NewGuid():N}@test.com", PasswordHash = "h" };
+            var u1 = new User { FullName = "TeamA Cap", Email = $"u1_{Guid.NewGuid():N}@test.com", PasswordHash = "h" };
+            var u2 = new User { FullName = "TeamA Mem", Email = $"u2_{Guid.NewGuid():N}@test.com", PasswordHash = "h" };
+            var u3 = new User { FullName = "TeamB Cap", Email = $"u3_{Guid.NewGuid():N}@test.com", PasswordHash = "h" };
+            var u4 = new User { FullName = "TeamB Mem", Email = $"u4_{Guid.NewGuid():N}@test.com", PasswordHash = "h" };
+            var u5 = new User { FullName = "TeamC Cap", Email = $"u5_{Guid.NewGuid():N}@test.com", PasswordHash = "h" };
+            var u6 = new User { FullName = "TeamC Mem", Email = $"u6_{Guid.NewGuid():N}@test.com", PasswordHash = "h" };
+            context.Users.AddRange(org, u1, u2, u3, u4, u5, u6);
+
+            var format2v2 = new DebateFormat { FormatName = "2 vs 2", MaxParticipants = 4, TotalRounds = 3, RoundDurationSeconds = 180, IsActive = true };
+            context.DebateFormats.Add(format2v2);
+            await context.SaveChangesAsync();
+
+            var competition = new Competition
+            {
+                Title = "2v2 Championship",
+                CompetitionType = "TEAM",
+                CreatedBy = org.UserId,
+                FormatId = format2v2.FormatId,
+                Status = "Ongoing",
+                StartDate = DateTime.UtcNow
+            };
+            context.Competitions.Add(competition);
+            await context.SaveChangesAsync();
+
+            var teamA = new CompetitionTeam { CompetitionId = competition.CompetitionId, TeamName = "Alpha", CaptainUserId = u1.UserId, Status = "Active" };
+            var teamB = new CompetitionTeam { CompetitionId = competition.CompetitionId, TeamName = "Beta", CaptainUserId = u3.UserId, Status = "Active" };
+            var teamC = new CompetitionTeam { CompetitionId = competition.CompetitionId, TeamName = "Gamma", CaptainUserId = u5.UserId, Status = "Active" };
+            context.CompetitionTeams.AddRange(teamA, teamB, teamC);
+            await context.SaveChangesAsync();
+
+            context.CompetitionTeamMembers.AddRange(
+                new CompetitionTeamMember { TeamId = teamA.TeamId, UserId = u2.UserId },
+                new CompetitionTeamMember { TeamId = teamB.TeamId, UserId = u4.UserId },
+                new CompetitionTeamMember { TeamId = teamC.TeamId, UserId = u6.UserId }
+            );
+
+            var round1 = new CompetitionRound { CompetitionId = competition.CompetitionId, RoundNumber = 1, RoundName = "Semifinal", Status = "Ongoing" };
+            var round2 = new CompetitionRound { CompetitionId = competition.CompetitionId, RoundNumber = 2, RoundName = "Final", Status = "Pending" };
+            context.CompetitionRounds.AddRange(round1, round2);
+            await context.SaveChangesAsync();
+
+            var finalMatch = new CompetitionMatch
+            {
+                CompetitionId = competition.CompetitionId,
+                CompetitionRoundId = round2.CompetitionRoundId,
+                MatchNumber = 1,
+                BracketPosition = 1,
+                Status = "Scheduled"
+            };
+            context.CompetitionMatches.Add(finalMatch);
+            await context.SaveChangesAsync();
+
+            // Team C already advanced to CON slot of final via BYE
+            context.MatchParticipants.Add(new MatchParticipant { CompetitionMatchId = finalMatch.CompetitionMatchId, TeamId = teamC.TeamId, Side = "CON", SeedNumber = 2 });
+
+            var semiMatch = new CompetitionMatch
+            {
+                CompetitionId = competition.CompetitionId,
+                CompetitionRoundId = round1.CompetitionRoundId,
+                MatchNumber = 1,
+                BracketPosition = 1,
+                NextMatchId = finalMatch.CompetitionMatchId,
+                Status = "Evaluating",
+                EvaluationStatus = "Pending"
+            };
+            context.CompetitionMatches.Add(semiMatch);
+            await context.SaveChangesAsync();
+
+            context.MatchParticipants.AddRange(
+                new MatchParticipant { CompetitionMatchId = semiMatch.CompetitionMatchId, TeamId = teamA.TeamId, Side = "PRO", SeedNumber = 1 },
+                new MatchParticipant { CompetitionMatchId = semiMatch.CompetitionMatchId, TeamId = teamB.TeamId, Side = "CON", SeedNumber = 4 }
+            );
+
+            var topic = new Topic { Title = "2v2 AI Topic", Description = "2v2 motion", Difficulty = "Medium" };
+            context.Topics.Add(topic);
+            await context.SaveChangesAsync();
+
+            var semiSession = new DebateSession
+            {
+                TopicId = topic.TopicId,
+                FormatId = format2v2.FormatId,
+                CreatedBy = org.UserId,
+                Status = SessionStatus.Completed,
+                StartTime = DateTime.UtcNow.AddMinutes(-30),
+                EndTime = DateTime.UtcNow
+            };
+            context.DebateSessions.Add(semiSession);
+            await context.SaveChangesAsync();
+
+            semiMatch.DebateSessionId = semiSession.DebateSessionId;
+
+            var dpA1 = new DebateParticipant { DebateSessionId = semiSession.DebateSessionId, UserId = u1.UserId, Side = DebateSide.PRO };
+            var dpA2 = new DebateParticipant { DebateSessionId = semiSession.DebateSessionId, UserId = u2.UserId, Side = DebateSide.PRO };
+            var dpB1 = new DebateParticipant { DebateSessionId = semiSession.DebateSessionId, UserId = u3.UserId, Side = DebateSide.CON };
+            var dpB2 = new DebateParticipant { DebateSessionId = semiSession.DebateSessionId, UserId = u4.UserId, Side = DebateSide.CON };
+            context.DebateParticipants.AddRange(dpA1, dpA2, dpB1, dpB2);
+
+            for (int r = 1; r <= 3; r++)
+            {
+                var dr = new DebateRound
+                {
+                    DebateSessionId = semiSession.DebateSessionId,
+                    RoundNumber = r,
+                    RoundType = r == 1 ? RoundType.OPENING : (r == 2 ? RoundType.REBUTTAL : RoundType.CLOSING),
+                    StartTime = DateTime.UtcNow.AddMinutes(-20 + r * 5),
+                    EndTime = DateTime.UtcNow.AddMinutes(-15 + r * 5)
+                };
+                context.DebateRounds.Add(dr);
+                await context.SaveChangesAsync();
+
+                context.Arguments.AddRange(
+                    new Argument { RoundId = dr.RoundId, ParticipantId = dpA1.ParticipantId, Content = $"TeamA cap r{r}" },
+                    new Argument { RoundId = dr.RoundId, ParticipantId = dpB1.ParticipantId, Content = $"TeamB cap r{r}" },
+                    new Argument { RoundId = dr.RoundId, ParticipantId = dpA2.ParticipantId, Content = $"TeamA mem r{r}" },
+                    new Argument { RoundId = dr.RoundId, ParticipantId = dpB2.ParticipantId, Content = $"TeamB mem r{r}" }
+                );
+            }
+            await context.SaveChangesAsync();
+
+            // 1. AI Evaluation for 2v2 semifinal
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context), new MockAiClient());
+            var evalRes = await debateService.EvaluateSessionAsync(u1.UserId, semiSession.DebateSessionId);
+            Assert.True(evalRes.Success, evalRes.Message);
+            Assert.Equal("PRO", evalRes.Data!.SuggestedWinnerSide);
+
+            // 2. BTC Review
+            var tournamentService = new CompetitionTournamentService(context);
+            var reviewRes = await tournamentService.GetReviewAsync(competition.CompetitionId, semiMatch.CompetitionMatchId, org.UserId);
+            Assert.True(reviewRes.Success, reviewRes.Message);
+            Assert.Equal("Completed", reviewRes.Data!.EvaluationStatus);
+            Assert.Equal(30, reviewRes.Data.RoundRubrics!.Count);
+
+            // 3. Finalize ACCEPT -> TeamA wins and advances to Final PRO slot (Ready)
+            var finalizeSemi = await tournamentService.FinalizeMatchAsync(competition.CompetitionId, semiMatch.CompetitionMatchId, org.UserId, new FinalizeMatchRequest(decisionType: "ACCEPT"));
+            Assert.True(finalizeSemi.Success, finalizeSemi.Message);
+
+            var updatedSemi = await context.CompetitionMatches.FindAsync(semiMatch.CompetitionMatchId);
+            Assert.Equal("Completed", updatedSemi!.Status);
+            Assert.Equal(teamA.TeamId, updatedSemi.WinnerTeamId);
+            Assert.Null(updatedSemi.WinnerUserId);
+
+            var updatedFinal = await context.CompetitionMatches.Include(m => m.Participants).SingleAsync(m => m.CompetitionMatchId == finalMatch.CompetitionMatchId);
+            Assert.Equal("Ready", updatedFinal.Status);
+            Assert.Equal(2, updatedFinal.Participants.Count);
+            Assert.Contains(updatedFinal.Participants, p => p.Side == "PRO" && p.TeamId == teamA.TeamId);
+
+            // 4. Complete Final match and finalize -> ChampionTeamId = teamA
+            var finalSession = new DebateSession
+            {
+                TopicId = topic.TopicId,
+                FormatId = format2v2.FormatId,
+                CreatedBy = org.UserId,
+                Status = SessionStatus.Completed,
+                StartTime = DateTime.UtcNow.AddMinutes(-30),
+                EndTime = DateTime.UtcNow
+            };
+            context.DebateSessions.Add(finalSession);
+            await context.SaveChangesAsync();
+
+            updatedFinal.DebateSessionId = finalSession.DebateSessionId;
+            updatedFinal.Status = "Evaluating";
+            await context.SaveChangesAsync();
+
+            var fdpA1 = new DebateParticipant { DebateSessionId = finalSession.DebateSessionId, UserId = u1.UserId, Side = DebateSide.PRO };
+            var fdpC1 = new DebateParticipant { DebateSessionId = finalSession.DebateSessionId, UserId = u5.UserId, Side = DebateSide.CON };
+            context.DebateParticipants.AddRange(fdpA1, fdpC1);
+            for (int r = 1; r <= 3; r++)
+            {
+                var dr = new DebateRound
+                {
+                    DebateSessionId = finalSession.DebateSessionId,
+                    RoundNumber = r,
+                    RoundType = r == 1 ? RoundType.OPENING : (r == 2 ? RoundType.REBUTTAL : RoundType.CLOSING),
+                    StartTime = DateTime.UtcNow.AddMinutes(-10),
+                    EndTime = DateTime.UtcNow
+                };
+                context.DebateRounds.Add(dr);
+                await context.SaveChangesAsync();
+                context.Arguments.AddRange(
+                    new Argument { RoundId = dr.RoundId, ParticipantId = fdpA1.ParticipantId, Content = $"Final PRO r{r}" },
+                    new Argument { RoundId = dr.RoundId, ParticipantId = fdpC1.ParticipantId, Content = $"Final CON r{r}" }
+                );
+            }
+            await context.SaveChangesAsync();
+
+            var finalEval = await debateService.EvaluateSessionAsync(u1.UserId, finalSession.DebateSessionId);
+            Assert.True(finalEval.Success, finalEval.Message);
+
+            var finalizeFinal = await tournamentService.FinalizeMatchAsync(competition.CompetitionId, finalMatch.CompetitionMatchId, org.UserId, new FinalizeMatchRequest(decisionType: "ACCEPT"));
+            Assert.True(finalizeFinal.Success, finalizeFinal.Message);
+
+            var bracketRes = await tournamentService.GetBracketAsync(competition.CompetitionId, CancellationToken.None, org.UserId);
+            Assert.True(bracketRes.Success);
+            Assert.Equal(teamA.TeamId, bracketRes.Data!.ChampionTeamId);
+            Assert.Null(bracketRes.Data.ChampionUserId);
+
+            var completedComp = await context.Competitions.FindAsync(competition.CompetitionId);
+            Assert.Equal("Completed", completedComp!.Status);
+        }
+
+        [Fact]
+        public async Task Test21_Finalize_OVERRIDE_ScoreOutOfRange_RejectsWithBadRequest()
+        {
+            using var context = CreateContext();
+            var (orgId, p1Id, _, compId, matchId, sessionId) = await SetupCompletedDebateMatchAsync(context);
+
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context), new MockAiClient());
+            await debateService.EvaluateSessionAsync(p1Id, sessionId);
+
+            var tournamentService = new CompetitionTournamentService(context);
+            var participants = await context.MatchParticipants.Where(p => p.CompetitionMatchId == matchId).ToListAsync();
+            var proId = participants.Single(p => p.Side == "PRO").MatchParticipantId;
+            var conId = participants.Single(p => p.Side == "CON").MatchParticipantId;
+            var criteria = await context.DebateCriteria.Where(c => c.IsActive).ToListAsync();
+            var rounds = await context.DebateRounds.Where(r => r.DebateSessionId == sessionId).ToListAsync();
+
+            var outOfRangeScores = new List<RoundScoreInput>();
+            foreach (var r in rounds)
+            {
+                foreach (var c in criteria)
+                {
+                    outOfRangeScores.Add(new RoundScoreInput(r.RoundId, proId, c.CriteriaId, 6.0m)); // > 5
+                    outOfRangeScores.Add(new RoundScoreInput(r.RoundId, conId, c.CriteriaId, 0.0m)); // < 1
+                }
+            }
+
+            var req = new FinalizeMatchRequest(
+                decisionType: "OVERRIDE",
+                decisionReason: "Invalid score range check",
+                scores: outOfRangeScores
+            );
+
+            var result = await tournamentService.FinalizeMatchAsync(compId, matchId, orgId, req);
+            Assert.False(result.Success);
+            Assert.Contains("[1, 5]", result.Message);
+
+            var match = await context.CompetitionMatches.FindAsync(matchId);
+            Assert.Equal("Evaluating", match!.Status);
         }
     }
 }

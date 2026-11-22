@@ -133,6 +133,18 @@ namespace SystemService.Tests.Debate
                 StartDate = DateTime.UtcNow.AddDays(-1),
             };
             var round = new CompetitionRound { Competition = competition, RoundNumber = 1, RoundName = "Vòng 1", Status = "Ongoing" };
+            if (!context.DebateCriteria.Any())
+            {
+                context.DebateCriteria.Add(new SystemService.DAL.Entities.Debate.DebateCriteria
+                {
+                    CriterionCode = "EVIDENCE",
+                    CriteriaName = "Evidence",
+                    MaxScore = 5.0m,
+                    Weight = 1.0m,
+                    IsActive = true
+                });
+            }
+
             var match = new CompetitionMatch
             {
                 Competition = competition,
@@ -144,6 +156,10 @@ namespace SystemService.Tests.Debate
                 RowVersion = new byte[8],
             };
             context.CompetitionMatches.Add(match);
+            context.MatchParticipants.AddRange(
+                new MatchParticipant { Match = match, UserId = UserA, Side = "PRO" },
+                new MatchParticipant { Match = match, UserId = UserB, Side = "CON" }
+            );
             context.SaveChanges();
             return match.CompetitionMatchId;
         }

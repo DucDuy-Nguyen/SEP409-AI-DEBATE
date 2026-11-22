@@ -65,7 +65,7 @@ namespace SystemService.DAL.Migrations
                 principalColumn: "UserId",
                 onDelete: ReferentialAction.Restrict);
 
-            // 2. DebateScoreWeight (DebateCriteria): Add CriterionCode, update MaxScore = 10.00
+            // 2. DebateScoreWeight (DebateCriteria): Add CriterionCode, update MaxScore = 5.00
             migrationBuilder.AddColumn<string>(
                 name: "CriterionCode",
                 table: "DebateScoreWeight",
@@ -80,7 +80,7 @@ namespace SystemService.DAL.Migrations
                 UPDATE [dbo].[DebateScoreWeight] SET [CriterionCode] = 'STRUCTURE' WHERE [CriteriaName] = 'Structure';
                 UPDATE [dbo].[DebateScoreWeight] SET [CriterionCode] = 'PERSUASIVENESS' WHERE [CriteriaName] = 'Persuasiveness';
                 UPDATE [dbo].[DebateScoreWeight] SET [CriterionCode] = UPPER(REPLACE([CriteriaName], ' ', '_')) WHERE [CriterionCode] IS NULL;
-                UPDATE [dbo].[DebateScoreWeight] SET [MaxScore] = 10.00;
+                UPDATE [dbo].[DebateScoreWeight] SET [MaxScore] = 5.00;
             ");
 
             migrationBuilder.AlterColumn<string>(

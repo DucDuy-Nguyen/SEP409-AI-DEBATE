@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.AI;
 using SystemService.BLL.DTOs.Debate;
@@ -391,70 +392,96 @@ namespace SystemService.IntegrationTests
         [Fact]
         public async Task SubmitArgument_OnFinalTurn_AutomaticallyTriggersEvaluation()
         {
-            using var context = new SystemDbContext(_options);
-            var userPro = new User { FullName = "Host Pro", Email = "host@debate.com", PasswordHash = "hash" };
-            var userCon = new User { FullName = "Opponent Con", Email = "opp@debate.com", PasswordHash = "hash" };
-            context.Users.AddRange(userPro, userCon);
-
-            var topic = new Topic { Title = "Test Motion", Difficulty = "Easy", IsActive = true };
-            var format = new DebateFormat { FormatName = "1 vs 1", MaxParticipants = 2, TotalRounds = 1, RoundDurationSeconds = 180 };
-            context.Topics.Add(topic);
-            context.DebateFormats.Add(format);
-            await context.SaveChangesAsync();
-
-            var session = new DebateSession
+            var dbPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"adpp_autoeval_{Guid.NewGuid():N}.db");
+            try
             {
-                TopicId = topic.TopicId,
-                FormatId = format.FormatId,
-                CreatedBy = userPro.UserId,
-                Status = SessionStatus.InProgress,
-                StartTime = DateTime.UtcNow
-            };
-            var pPro = new DebateParticipant { UserId = userPro.UserId, ParticipantType = ParticipantType.USER, Side = DebateSide.PRO };
-            var pCon = new DebateParticipant { UserId = userCon.UserId, ParticipantType = ParticipantType.USER, Side = DebateSide.CON };
-            session.Participants.Add(pPro);
-            session.Participants.Add(pCon);
+                var fakeClient = new FakeAiEvaluatorClient();
+                var services = new ServiceCollection();
+                services.AddDbContext<SystemDbContext>(opt => opt.UseSqlite($"Data Source={dbPath}"));
+                services.AddScoped<SystemService.DAL.Repositories.Debate.Interfaces.IDebateRepository, DebateRepository>();
+                services.AddScoped<SystemService.DAL.Repositories.Identity.Interfaces.IUserRepository, UserRepository>();
+                services.AddSingleton<IAiEvaluatorClient>(fakeClient);
+                services.AddSingleton<DebateEvaluationCoordinator>();
+                services.AddScoped<SystemService.BLL.Services.Debate.Interfaces.IDebateService, DebateService>();
 
-            var round1 = new DebateRound { RoundNumber = 1, RoundType = RoundType.OPENING, StartTime = DateTime.UtcNow };
-            round1.Arguments.Add(new Argument
-            {
-                Participant = pPro,
-                Content = "Opening PRO speech.",
-                SubmittedAt = DateTime.UtcNow.AddSeconds(-10)
-            });
-            session.DebateRounds.Add(round1);
+                await using var sp = services.BuildServiceProvider();
+                int sessionId;
+                int userConId;
+                using (var seedScope = sp.CreateScope())
+                {
+                    var seedCtx = seedScope.ServiceProvider.GetRequiredService<SystemDbContext>();
+                    await seedCtx.Database.EnsureCreatedAsync();
 
-            context.DebateSessions.Add(session);
-            await context.SaveChangesAsync();
+                    var userPro = new User { FullName = "Host Pro", Email = "host@debate.com", PasswordHash = "hash" };
+                    var userCon = new User { FullName = "Opponent Con", Email = "opp@debate.com", PasswordHash = "hash" };
+                    seedCtx.Users.AddRange(userPro, userCon);
 
-            var fakeClient = new FakeAiEvaluatorClient();
-            var service = new DebateService(
-                new DebateRepository(context),
-                new UserRepository(context),
-                fakeClient
-            );
+                    var topic = new Topic { Title = "Test Motion", Difficulty = "Easy", IsActive = true };
+                    var format = new DebateFormat { FormatName = "1 vs 1", MaxParticipants = 2, TotalRounds = 1, RoundDurationSeconds = 180 };
+                    seedCtx.Topics.Add(topic);
+                    seedCtx.DebateFormats.Add(format);
+                    await seedCtx.SaveChangesAsync();
 
-            // CON submits final argument for round 1 (which is the only round)
-            var submitResult = await service.SubmitArgumentAsync(userCon.UserId, session.DebateSessionId, new SubmitArgumentRequest
-            {
-                Content = "Opening CON speech concluding the debate."
-            });
+                    var session = new DebateSession
+                    {
+                        TopicId = topic.TopicId,
+                        FormatId = format.FormatId,
+                        CreatedBy = userPro.UserId,
+                        Status = SessionStatus.InProgress,
+                        StartTime = DateTime.UtcNow
+                    };
+                    var pPro = new DebateParticipant { UserId = userPro.UserId, ParticipantType = ParticipantType.USER, Side = DebateSide.PRO };
+                    var pCon = new DebateParticipant { UserId = userCon.UserId, ParticipantType = ParticipantType.USER, Side = DebateSide.CON };
+                    session.Participants.Add(pPro);
+                    session.Participants.Add(pCon);
 
-            // Assert
-            Assert.True(submitResult.Success);
-            Assert.Equal(SessionStatus.Completed, submitResult.Data!.Status);
+                    var round1 = new DebateRound { RoundNumber = 1, RoundType = RoundType.OPENING, StartTime = DateTime.UtcNow };
+                    round1.Arguments.Add(new Argument
+                    {
+                        Participant = pPro,
+                        Content = "Opening PRO speech.",
+                        SubmittedAt = DateTime.UtcNow.AddSeconds(-10)
+                    });
+                    session.DebateRounds.Add(round1);
 
-            // Verify auto-evaluation stored AIJudgement (background task)
-            AIJudgement? storedJudgement = null;
-            for (int i = 0; i < 30; i++)
-            {
-                storedJudgement = await context.AIJudgements
-                    .FirstOrDefaultAsync(j => j.DebateSessionId == session.DebateSessionId);
-                if (storedJudgement != null) break;
-                await Task.Delay(100);
+                    seedCtx.DebateSessions.Add(session);
+                    await seedCtx.SaveChangesAsync();
+                    sessionId = session.DebateSessionId;
+                    userConId = userCon.UserId;
+                }
+
+                var coordinator = sp.GetRequiredService<DebateEvaluationCoordinator>();
+                using var scope = sp.CreateScope();
+                var service = (DebateService)scope.ServiceProvider.GetRequiredService<SystemService.BLL.Services.Debate.Interfaces.IDebateService>();
+
+                // CON submits final argument for round 1 (which is the only round)
+                var submitResult = await service.SubmitArgumentAsync(userConId, sessionId, new SubmitArgumentRequest
+                {
+                    Content = "Opening CON speech concluding the debate."
+                });
+
+                // Assert
+                Assert.True(submitResult.Success);
+                Assert.Equal(SessionStatus.Completed, submitResult.Data!.Status);
+
+                // Wait for background evaluation (running in its own DI scope) to finish
+                for (int i = 0; i < 60 && coordinator.HasRunningEvaluations; i++)
+                {
+                    await Task.Delay(50);
+                }
+
+                using var verifyScope = sp.CreateScope();
+                var verifyCtx = verifyScope.ServiceProvider.GetRequiredService<SystemDbContext>();
+                var storedJudgement = await verifyCtx.AIJudgements
+                    .FirstOrDefaultAsync(j => j.DebateSessionId == sessionId);
+                Assert.NotNull(storedJudgement);
+                Assert.True(fakeClient.EvaluateRoundCallCount > 0);
             }
-            Assert.NotNull(storedJudgement);
-            Assert.True(fakeClient.EvaluateRoundCallCount > 0);
+            finally
+            {
+                SqliteConnection.ClearAllPools();
+                if (System.IO.File.Exists(dbPath)) System.IO.File.Delete(dbPath);
+            }
         }
     }
 }

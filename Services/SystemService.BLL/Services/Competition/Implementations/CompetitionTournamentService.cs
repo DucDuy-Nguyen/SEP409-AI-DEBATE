@@ -407,6 +407,12 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
             }
             else
             {
+                if (aiScores.Any(s => s.Score < 1 || s.Score > 5
+                    || !criteria.Any(c => c.CriteriaId == s.CriteriaId && s.Score <= c.MaxScore)))
+                {
+                    return ApiResponse<object>.FailureResponse("AI rubric scores must be within allowed range [1, 5].");
+                }
+
                 totals = match.Participants.ToDictionary(
                     p => p.MatchParticipantId,
                     p => Math.Round(aiScores
@@ -427,8 +433,9 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
                 return ApiResponse<object>.FailureResponse("DecisionReason is required for OVERRIDE.");
             }
 
-            totals = ValidateAndInsertJudgeScores(matchId, actorId, match, criteria, request!, out var failureResponse);
-            if (failureResponse != null) return failureResponse;
+            var validated = await ValidateAndInsertJudgeScoresAsync(matchId, actorId, match, criteria, request!, ct);
+            if (validated.failure != null) return validated.failure;
+            totals = validated.scores;
         }
         else // MANUAL_FINALIZE
         {
@@ -442,8 +449,9 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
                 return ApiResponse<object>.FailureResponse("DecisionReason is required for MANUAL_FINALIZE.");
             }
 
-            totals = ValidateAndInsertJudgeScores(matchId, actorId, match, criteria, request!, out var failureResponse);
-            if (failureResponse != null) return failureResponse;
+            var validated = await ValidateAndInsertJudgeScoresAsync(matchId, actorId, match, criteria, request!, ct);
+            if (validated.failure != null) return validated.failure;
+            totals = validated.scores;
         }
 
         if (totals.Values.Any(v => v > 999.99m))
@@ -522,26 +530,60 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
         return ApiResponse<object>.SuccessResponse(new { match.CompetitionMatchId, match.WinnerUserId, match.WinnerTeamId });
     }
 
-    private Dictionary<long, decimal> ValidateAndInsertJudgeScores(
+    private async Task<(Dictionary<long, decimal> scores, ApiResponse<object>? failure)> ValidateAndInsertJudgeScoresAsync(
         int matchId,
         int actorId,
         CompetitionMatch match,
         List<DebateCriteria> criteria,
         FinalizeMatchRequest request,
-        out ApiResponse<object>? failure)
+        CancellationToken ct)
     {
-        failure = null;
-
         // Support both Phase 3 RoundScoreInput and legacy ScoreInput
         if (request.Scores != null && request.Scores.Count > 0)
         {
             var scores = request.Scores;
-            if (scores.Any(s => !match.Participants.Any(p => p.MatchParticipantId == s.MatchParticipantId)
-                || s.Score != decimal.Round(s.Score, 2)
-                || !criteria.Any(c => c.CriteriaId == s.CriteriaId && s.Score >= 0 && s.Score <= c.MaxScore)))
+            var roundIds = match.DebateSessionId.HasValue
+                ? await _db.DebateRounds.AsNoTracking()
+                    .Where(r => r.DebateSessionId == match.DebateSessionId.Value)
+                    .Select(r => r.RoundId)
+                    .ToListAsync(ct)
+                : new List<int>();
+            var validRoundIds = roundIds.ToHashSet();
+            var validParticipantIds = match.Participants.Select(p => p.MatchParticipantId).ToHashSet();
+            var criteriaById = criteria.ToDictionary(c => c.CriteriaId);
+            if (roundIds.Count == 0 || scores.Any(s => !s.RoundId.HasValue || !validRoundIds.Contains(s.RoundId.Value)))
             {
-                failure = ApiResponse<object>.FailureResponse("Scores must cover valid criteria within allowed range [0, 10] for participants.");
-                return new Dictionary<long, decimal>();
+                return (new Dictionary<long, decimal>(), ApiResponse<object>.FailureResponse(
+                    "Each score must reference a round belonging to this match's debate session.", CompetitionErrorCodes.BadRequest));
+            }
+
+            if (scores.Any(s => !validParticipantIds.Contains(s.MatchParticipantId)
+                || !criteriaById.TryGetValue(s.CriteriaId, out var criterion)
+                || s.Score != decimal.Round(s.Score, 2)
+                || s.Score < 1 || s.Score > Math.Min(5.0m, criterion.MaxScore)))
+            {
+                return (new Dictionary<long, decimal>(), ApiResponse<object>.FailureResponse(
+                    "Each score must reference a match participant and active criterion, and be within its allowed range [1, 5].", CompetitionErrorCodes.BadRequest));
+            }
+
+            var suppliedKeys = scores
+                .Select(s => (RoundId: s.RoundId!.Value, s.MatchParticipantId, s.CriteriaId))
+                .ToList();
+            if (suppliedKeys.Count != suppliedKeys.Distinct().Count())
+            {
+                return (new Dictionary<long, decimal>(), ApiResponse<object>.FailureResponse(
+                    "Duplicate rubric score combination found; provide exactly one score per round, participant, and active criterion.", CompetitionErrorCodes.BadRequest));
+            }
+
+            var expectedKeys = (from roundId in roundIds
+                                from participantId in validParticipantIds
+                                from criterionId in criteriaById.Keys
+                                select (RoundId: roundId, MatchParticipantId: participantId, CriteriaId: criterionId))
+                .ToHashSet();
+            if (!expectedKeys.SetEquals(suppliedKeys))
+            {
+                return (new Dictionary<long, decimal>(), ApiResponse<object>.FailureResponse(
+                    $"Rubric is incomplete: provide exactly one score for every round, participant, and active criterion ({expectedKeys.Count} combinations required).", CompetitionErrorCodes.BadRequest));
             }
 
             foreach (var input in scores)
@@ -559,10 +601,10 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
                 });
             }
 
-            return match.Participants.ToDictionary(
+            return (match.Participants.ToDictionary(
                 p => p.MatchParticipantId,
                 p => Math.Round(scores.Where(s => s.MatchParticipantId == p.MatchParticipantId)
-                    .Sum(s => s.Score * criteria.Single(c => c.CriteriaId == s.CriteriaId).Weight), 2));
+                    .Sum(s => s.Score * criteriaById[s.CriteriaId].Weight), 2)), null);
         }
 
         if (request.LegacyScores != null && request.LegacyScores.Count > 0)
@@ -574,8 +616,7 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
                     || s.Score != decimal.Round(s.Score, 2)
                     || !criteria.Any(c => c.CriteriaId == s.CriteriaId && s.Score >= 0 && s.Score <= c.MaxScore)))
             {
-                failure = ApiResponse<object>.FailureResponse("Scores must cover each active criterion for both sides within its allowed range.");
-                return new Dictionary<long, decimal>();
+                return (new Dictionary<long, decimal>(), ApiResponse<object>.FailureResponse("Scores must cover each active criterion for both sides within its allowed range.", CompetitionErrorCodes.BadRequest));
             }
 
             foreach (var input in scores)
@@ -593,13 +634,12 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
                 });
             }
 
-            return match.Participants.ToDictionary(
+            return (match.Participants.ToDictionary(
                 p => p.MatchParticipantId,
                 p => Math.Round(scores.Where(s => s.MatchParticipantId == p.MatchParticipantId)
-                    .Sum(s => s.Score * criteria.Single(c => c.CriteriaId == s.CriteriaId).Weight), 2));
+                    .Sum(s => s.Score * criteria.Single(c => c.CriteriaId == s.CriteriaId).Weight), 2)), null);
         }
 
-        failure = ApiResponse<object>.FailureResponse("Scores are required when DecisionType is OVERRIDE or MANUAL_FINALIZE.");
-        return new Dictionary<long, decimal>();
+        return (new Dictionary<long, decimal>(), ApiResponse<object>.FailureResponse("Scores are required when DecisionType is OVERRIDE or MANUAL_FINALIZE.", CompetitionErrorCodes.BadRequest));
     }
 }

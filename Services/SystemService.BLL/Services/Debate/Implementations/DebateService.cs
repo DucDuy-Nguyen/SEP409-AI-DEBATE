@@ -2012,9 +2012,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     throw new InvalidOperationException($"AI evaluation returned duplicate criterion '{criterion.CriteriaName}' for Round {round.RoundNumber}, Side {side}.");
                 }
 
-                if (cDto.Score < 1 || cDto.Score > 10)
+                if (cDto.Score < 1 || cDto.Score > 5)
                 {
-                    throw new InvalidOperationException($"AI evaluation returned invalid score {cDto.Score} for criterion '{criterion.CriteriaName}' in Round {round.RoundNumber}, Side {side}. Score must be between 1 and 10.");
+                    throw new InvalidOperationException($"AI evaluation returned invalid score {cDto.Score} for criterion '{criterion.CriteriaName}' in Round {round.RoundNumber}, Side {side}. Score must be between 1 and 5.");
                 }
 
                 scores.Add(new JudgeScore
