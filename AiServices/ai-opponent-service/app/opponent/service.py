@@ -865,7 +865,10 @@ def _ensure_same_data(session: OpponentSession, req: CreateSessionRequest) -> No
 
 
 def _is_stale(session: OpponentSession, settings: Settings) -> bool:
-    age = datetime.now(timezone.utc) - session.updated_at
+    updated_at = session.updated_at
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+    age = datetime.now(timezone.utc) - updated_at
     return age >= timedelta(seconds=settings.case_plan_stale_after_seconds)
 
 

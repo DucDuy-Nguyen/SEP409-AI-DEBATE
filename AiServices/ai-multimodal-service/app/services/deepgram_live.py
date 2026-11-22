@@ -285,11 +285,14 @@ async def proxy_deepgram_live(client_ws: WebSocket, settings: Settings) -> None:
             pending_chunks.clear()
 
             async def keepalive_loop() -> None:
-                while not is_stopping:
-                    await asyncio.sleep(settings.deepgram_keepalive_interval_s)
-                    if is_stopping:
-                        break
-                    await dg_ws.send(json.dumps({"type": "KeepAlive"}))
+                try:
+                    while not is_stopping:
+                        await asyncio.sleep(settings.deepgram_keepalive_interval_s)
+                        if is_stopping:
+                            break
+                        await dg_ws.send(json.dumps({"type": "KeepAlive"}))
+                except (websockets.ConnectionClosed, asyncio.CancelledError):
+                    pass
 
             async def forward_client_to_dg() -> None:
                 nonlocal is_stopping
@@ -325,7 +328,7 @@ async def proxy_deepgram_live(client_ws: WebSocket, settings: Settings) -> None:
                                 await dg_ws.send(json.dumps({"type": "Finalize"}))
                                 await dg_ws.send(json.dumps({"type": "CloseStream"}))
                                 break
-                except WebSocketDisconnect:
+                except (WebSocketDisconnect, websockets.ConnectionClosed, asyncio.CancelledError):
                     is_stopping = True
 
             async def forward_dg_to_client() -> None:
