@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using SystemService.BLL.Common.Debate;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.Debate.Interfaces;
@@ -24,7 +25,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
         {
             var (items, totalCount) = await _topicRepository.GetTopicsAsync(
                 query.SearchTerm,
-                query.Category,
+                // a label ("Công nghệ") filters like its code
+                TopicCategories.Normalize(query.Category) ?? query.Category,
                 query.Difficulty,
                 query.IsActive,
                 query.PageNumber,
@@ -60,6 +62,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
         public async Task<ApiResponse<TopicDto>> CreateTopicAsync(int userId, CreateTopicRequest request, CancellationToken cancellationToken = default)
         {
+            var category = TopicCategories.Normalize(request.Category);
+            if (category == null)
+            {
+                return ApiResponse<TopicDto>.FailureResponse(TopicCategories.InvalidMessage);
+            }
+
             var exists = await _topicRepository.ExistsByTitleAsync(request.Title, null, cancellationToken);
             if (exists)
             {
@@ -70,7 +78,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             {
                 Title = request.Title.Trim(),
                 Description = request.Description?.Trim(),
-                Category = string.IsNullOrWhiteSpace(request.Category) ? "General" : request.Category.Trim(),
+                Category = category,
                 Difficulty = string.IsNullOrWhiteSpace(request.Difficulty) ? "Medium" : request.Difficulty.Trim(),
                 CreatedBy = userId,
                 IsActive = true,
@@ -108,7 +116,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             if (!string.IsNullOrWhiteSpace(request.Category))
             {
-                topic.Category = request.Category.Trim();
+                var category = TopicCategories.Normalize(request.Category);
+                if (category == null)
+                {
+                    return ApiResponse<TopicDto>.FailureResponse(TopicCategories.InvalidMessage);
+                }
+                topic.Category = category;
             }
 
             if (!string.IsNullOrWhiteSpace(request.Difficulty))

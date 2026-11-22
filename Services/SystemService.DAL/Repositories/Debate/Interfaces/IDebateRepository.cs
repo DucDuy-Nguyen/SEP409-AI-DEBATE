@@ -29,7 +29,7 @@ namespace SystemService.DAL.Repositories.Debate.Interfaces
         Task<IDbContextTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default);
         void ClearChangeTracker();
         Task<Topic?> GetTopicByIdAsync(int topicId, CancellationToken cancellationToken = default);
-        Task<Topic> GetOrCreateTopicAsync(string title, string? description, string difficulty, int createdBy, CancellationToken cancellationToken = default);
+        Task<Topic> GetOrCreateTopicAsync(string title, string? description, string category, string difficulty, int createdBy, CancellationToken cancellationToken = default);
         Task<DebateFormat?> GetFormatByIdAsync(int formatId, CancellationToken cancellationToken = default);
         Task<DebateFormat?> GetFormatByNameAsync(string formatName, CancellationToken cancellationToken = default);
         Task<DebateFormat> GetOrCreateFormatAsync(string formatName, int maxParticipants, int totalRounds = 3, int roundDurationSeconds = 180, CancellationToken cancellationToken = default);

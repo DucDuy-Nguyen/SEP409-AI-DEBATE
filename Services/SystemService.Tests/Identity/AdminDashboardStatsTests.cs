@@ -21,6 +21,7 @@ namespace SystemService.Tests.Identity
 
             ApiResponseAssert.Succeeds(await _harness.NewService().CreateP2pSessionAsync(UserA, new CreateP2pSessionRequest
             {
+                Category = "education",
                 Title = "Motion",
                 Topic = "Topic",
                 UserSide = DebateSide.PRO,

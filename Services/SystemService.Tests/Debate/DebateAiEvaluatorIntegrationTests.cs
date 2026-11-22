@@ -260,6 +260,7 @@ namespace SystemService.Tests.Debate
 
         [Theory]
         [InlineData("Education", "education")]
+        [InlineData("Xã hội", "society")]
         [InlineData("Lịch sử", null)]
         [InlineData("", null)]
         public void MapEvidenceTopic_OnlyKnownTopics(string category, string? expected)

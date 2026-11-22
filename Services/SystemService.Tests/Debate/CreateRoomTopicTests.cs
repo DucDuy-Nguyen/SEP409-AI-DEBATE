@@ -38,13 +38,14 @@ namespace SystemService.Tests.Debate
         [Theory]
         [InlineData(Room.OneVsOne)]
         [InlineData(Room.TwoVsTwo)]
-        public async Task WithoutTopicId_CreatesByTitle_AsBefore_WithoutEvidenceTopic(Room room)
+        public async Task WithoutTopicId_CreatesByTitle_InTheGivenCategory(Room room)
         {
             SeedTopic("Học qua chơi", "Mô tả", "Education");
 
             var session = ApiResponseAssert.Succeeds(await CreateAsync(room, null, title: "Phòng tự đặt", topic: "Chủ đề tự viết"));
 
-            Assert.Null(session.EvidenceTopic);
+            // created from text in the request's category (education), so it is evidence-checked too
+            Assert.Equal("education", session.EvidenceTopic);
             Assert.Equal(2, TopicCount());
         }
 
@@ -75,10 +76,12 @@ namespace SystemService.Tests.Debate
             return room == Room.OneVsOne
                 ? _harness.NewService().CreateP2pSessionAsync(UserA, new CreateP2pSessionRequest
                 {
+                    Category = "education",
                     TopicId = topicId, Title = title, Topic = topic, UserSide = DebateSide.PRO,
                 })
                 : _harness.NewService().Create2v2SessionAsync(UserA, new Create2v2SessionRequest
                 {
+                    Category = "education",
                     TopicId = topicId, Title = title, Topic = topic, UserSide = DebateSide.PRO,
                 });
         }

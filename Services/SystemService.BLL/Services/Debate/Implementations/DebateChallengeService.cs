@@ -56,8 +56,26 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<ChallengeResponse>.FailureResponse("A pending challenge already exists between these users.");
             }
 
-            var topic = await _debateRepository.GetOrCreateTopicAsync(
-                request.Topic.Trim(), null, "Medium", challengerUserId, cancellationToken);
+            // The topic picked from the list; free text only with a category (no catch-all "General" topic)
+            Topic? topic;
+            if (request.TopicId.HasValue)
+            {
+                topic = await _debateRepository.GetTopicByIdAsync(request.TopicId.Value, cancellationToken);
+                if (topic == null || !topic.IsActive)
+                {
+                    return ApiResponse<ChallengeResponse>.FailureResponse("Debate topic not found or no longer active.");
+                }
+            }
+            else
+            {
+                var category = TopicCategories.Normalize(request.Category);
+                if (category == null)
+                {
+                    return ApiResponse<ChallengeResponse>.FailureResponse(TopicCategories.InvalidMessage);
+                }
+                topic = await _debateRepository.GetOrCreateTopicAsync(
+                    request.Topic.Trim(), null, category, "Medium", challengerUserId, cancellationToken);
+            }
 
             var challenge = new DebateChallenge
             {
