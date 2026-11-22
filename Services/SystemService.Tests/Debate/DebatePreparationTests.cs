@@ -50,6 +50,7 @@ namespace SystemService.Tests.Debate
             {
                 Title = "Motion",
                 Topic = "Topic",
+                Category = "education",
                 UserSide = DebateSide.PRO,
                 IsAI = true
             }));
@@ -80,6 +81,7 @@ namespace SystemService.Tests.Debate
             {
                 ChallengedUserId = UserB,
                 Topic = "Students should not have homework",
+                Category = "education",
                 ChallengerPreferredSide = DebateSide.PRO
             }));
 
