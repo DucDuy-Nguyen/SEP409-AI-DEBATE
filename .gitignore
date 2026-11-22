@@ -36,3 +36,6 @@ AiServices/**/.env
 AiServices/**/.env.*
 AiServices/**/experiments/matches/
 AiServices/**/experiments/case_plan/
+
+# Connection string DB tren Azure cho run-all.ps1 -Azure
+.azure-db.env

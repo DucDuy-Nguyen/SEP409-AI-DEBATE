@@ -1,0 +1,5 @@
+**/bin/
+**/obj/
+**/venv/
+**/*.Backup.tmp
+SystemService.Tests/
