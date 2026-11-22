@@ -144,23 +144,37 @@ namespace SystemService.Tests.Debate
             return sessionId;
         }
 
-        /// <summary>Lets the preparation minute pass: Round 1 started a little while ago.</summary>
+        /// <summary>
+        /// Submits made through the helpers below first let the preparation minute of the current round pass, so a
+        /// test can play a whole debate; the preparation tests turn it off.
+        /// </summary>
+        public bool AutoEndPreparation { get; set; } = true;
+
+        /// <summary>Lets the preparation minute of the current round pass: it started a little while ago.</summary>
         public void EndPreparation(int sessionId)
         {
             using var context = CreateContext();
-            var firstRound = context.DebateRounds.Single(r => r.DebateSessionId == sessionId && r.RoundNumber == 1);
-            firstRound.StartTime = DateTime.UtcNow.AddSeconds(-1);
-            context.SaveChanges();
+            var round = context.DebateRounds
+                .Where(r => r.DebateSessionId == sessionId && r.StartTime != null && r.EndTime == null)
+                .OrderBy(r => r.RoundNumber)
+                .FirstOrDefault();
+            if (round != null && round.StartTime > DateTime.UtcNow)
+            {
+                round.StartTime = DateTime.UtcNow.AddSeconds(-1);
+                context.SaveChanges();
+            }
         }
 
         public Task<ApiResponse<DebateSessionResponse>> UserSubmitsAsync(int userId, int sessionId, string content = "User speech")
         {
+            if (AutoEndPreparation) EndPreparation(sessionId);
             return NewService().SubmitArgumentAsync(userId, sessionId, new SubmitArgumentRequest { Content = content });
         }
 
         public Task<ApiResponse<SubmitAiArgumentResponse>> AiSubmitsAsync(
             int sessionId, int? turnIndex, string? content = "AI speech", int userId = UserA)
         {
+            if (AutoEndPreparation) EndPreparation(sessionId);
             return NewService().SubmitAiArgumentAsync(userId, sessionId, new SubmitAiArgumentRequest { Content = content, TurnIndex = turnIndex });
         }
 

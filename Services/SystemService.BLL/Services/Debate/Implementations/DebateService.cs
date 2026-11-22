@@ -660,7 +660,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 var nextRound = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == currentRound.RoundNumber + 1);
                 if (nextRound != null)
                 {
-                    nextRound.StartTime = DateTime.UtcNow;
+                    // the next round opens with its preparation minute
+                    nextRound.StartTime = DebatePreparation.RoundStart(DateTime.UtcNow);
                     await _debateRepository.UpdateRoundAsync(nextRound, cancellationToken);
                 }
                 else
@@ -950,7 +951,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     RoundType = roundTypes[i],
                     CreatedAt = DateTime.UtcNow,
                     StartTime = roundNumber == 1 && session.Status == SessionStatus.InProgress
-                        ? DebatePreparation.FirstRoundStart(DateTime.UtcNow)
+                        ? DebatePreparation.RoundStart(DateTime.UtcNow)
                         : null
                 });
             }
@@ -1072,7 +1073,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             if (nextRound != null)
             {
-                nextRound.StartTime = now;
+                // the next round opens with its preparation minute
+                nextRound.StartTime = DebatePreparation.RoundStart(now);
                 await _debateRepository.UpdateRoundAsync(nextRound, cancellationToken);
             }
             else
@@ -1422,7 +1424,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             return await Task.FromResult(ApiResponse<List<SideSwapRequestResponse>>.SuccessResponse(activeRequests, "Active swap requests retrieved."));
         }
 
-        // An AI practice may end its preparation minute early: Round 1 starts now.
+        // An AI practice may end the preparation minute of the current round early: the round starts now.
         public async Task<ApiResponse<DebateSessionResponse>> SkipPreparationAsync(
             int userId, int sessionId, CancellationToken cancellationToken = default)
         {
@@ -1455,21 +1457,22 @@ namespace SystemService.BLL.Services.Debate.Implementations
             if (!DebatePreparation.IsPreparing(session, now))
             {
                 // Already over (skipped twice, or the minute ran out): nothing to change.
-                return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Vòng 1 đã bắt đầu.");
+                return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Vòng đấu đã bắt đầu.");
             }
 
-            var firstRound = session.DebateRounds.First(r => r.RoundNumber == 1);
-            firstRound.StartTime = now;
-            await _debateRepository.UpdateRoundAsync(firstRound, cancellationToken);
+            var round = DebatePreparation.CurrentRound(session)!;
+            round.StartTime = now;
+            await _debateRepository.UpdateRoundAsync(round, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
             var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
             var mapped = MapToSessionResponse(updatedSession!, userId);
             NotifyRoundStarted(mapped);
-            return ApiResponse<DebateSessionResponse>.SuccessResponse(mapped, "Đã bỏ qua thời gian chuẩn bị, bắt đầu Vòng 1.");
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(mapped, $"Đã bỏ qua thời gian chuẩn bị, bắt đầu Vòng {round.RoundNumber}.");
         }
 
-        // SignalR "RoundStarted" to the room when the debate moves to a new round (the label is the one to announce).
+        // SignalR "RoundStarted" to the room when the debate moves to a new round, i.e. its preparation minute begins
+        // (IsPreparing true, speaking starts at StartedAt = PreparationEndsAt), and again when an AI practice skips it.
         private void NotifyRoundStarted(DebateSessionResponse session)
         {
             var turn = session.CurrentTurn;
@@ -1484,6 +1487,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 TotalRounds = session.TotalRounds,
                 RoundLabel = turn.RoundLabel,
                 StartedAt = turn.StartedAt,
+                PreparationEndsAt = session.PreparationEndsAt,
+                IsPreparing = session.IsPreparing,
                 CurrentTurnSide = turn.Side.ToString(),
                 Timestamp = DateTime.UtcNow
             }, CancellationToken.None);
@@ -1611,7 +1616,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 var now = DateTime.UtcNow;
                 // Round 1 starts after the preparation minute (DebatePreparation).
                 var claimed = await _debateRepository.ClaimAndStartSessionAsync(
-                    sessionId, now, DebatePreparation.FirstRoundStart(now), linkedMatch?.CompetitionMatchId, cancellationToken);
+                    sessionId, now, DebatePreparation.RoundStart(now), linkedMatch?.CompetitionMatchId, cancellationToken);
 
                 if (!claimed)
                 {

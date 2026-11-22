@@ -21,8 +21,9 @@ namespace SystemService.BLL.DTOs.Debate
         public DateTime? StartedAt { get; set; }
         public DateTime? EndedAt { get; set; }
 
-        // Preparation before Round 1 (see DebatePreparation): Round 1 starts at PreparationEndsAt (UTC), no argument is
-        // accepted before. Compare it with ServerTime (UTC, when this response was made), not with the browser clock.
+        // Preparation minute before each round (see DebatePreparation): the current round (CurrentTurn.TurnOrder) starts
+        // at PreparationEndsAt (UTC), no argument is accepted before. Compare it with ServerTime (UTC, when this response
+        // was made), not with the browser clock. Past PreparationEndsAt = the current round is under way since then.
         public int PreparationSeconds { get; set; }
         public DateTime? PreparationEndsAt { get; set; }
         public bool IsPreparing { get; set; }

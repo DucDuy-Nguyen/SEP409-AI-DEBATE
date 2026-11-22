@@ -9,12 +9,12 @@ using static SystemService.Tests.Debate.DebateTestHarness;
 namespace SystemService.Tests.Debate
 {
     /// <summary>
-    /// Every debate opens with a preparation minute before Round 1 (only an AI practice may skip it), and the room is
-    /// told by a RoundStarted event each time a new round begins.
+    /// Every round opens with a preparation minute, Round 1 and between rounds (only an AI practice may skip it), and
+    /// the room is told by a RoundStarted event each time the debate moves to a new round.
     /// </summary>
     public class DebatePreparationTests : IDisposable
     {
-        private readonly DebateTestHarness _harness = new() { Notifier = new RecordingRealtimeNotifier() };
+        private readonly DebateTestHarness _harness = new() { Notifier = new RecordingRealtimeNotifier(), AutoEndPreparation = false };
 
         public void Dispose() => _harness.Dispose();
 
@@ -61,7 +61,7 @@ namespace SystemService.Tests.Debate
                 session.Status = SessionStatus.InProgress;
                 session.StartTime = DateTime.UtcNow;
                 context.DebateRounds.Single(r => r.DebateSessionId == created.SessionId && r.RoundNumber == 1).StartTime =
-                    DebatePreparation.FirstRoundStart(session.StartTime.Value);
+                    DebatePreparation.RoundStart(session.StartTime.Value);
                 context.SaveChanges();
             }
 
@@ -191,12 +191,55 @@ namespace SystemService.Tests.Debate
             // Turn order: R1 PRO, CON - R2 PRO, CON - R3 CON, PRO
             foreach (int user in new[] { UserA, UserB, UserA, UserB, UserB, UserA })
             {
+                _harness.EndPreparation(sessionId);
                 ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(user, sessionId));
             }
 
             Assert.Equal(new[] { 2, 3 }, _harness.Notifier!.RoundsStarted());
             var round2 = _harness.Notifier.Events.First(e => e.Event == "RoundStarted").Data!;
             Assert.Equal("Phản biện", round2.GetType().GetProperty("RoundLabel")!.GetValue(round2));
+
+            var done = ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionDetailsAsync(UserA, sessionId));
+            Assert.Equal(SessionStatus.Completed, done.Status);
+            Assert.False(done.IsPreparing);
+            Assert.Null(done.PreparationEndsAt);
+        }
+
+        [Fact]
+        public async Task BetweenRounds_TheNextRoundOpensWithAPreparationMinute()
+        {
+            int sessionId = await _harness.StartP2pSessionAsync(DebateSide.PRO); // A = PRO, B = CON
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId));
+
+            var endOfRound1 = ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserB, sessionId));
+
+            Assert.Equal(2, endOfRound1.CurrentTurn!.TurnOrder);
+            Assert.True(endOfRound1.IsPreparing);
+            Assert.Equal(TurnStatus.Pending, endOfRound1.CurrentTurn.Status);
+            Assert.Equal(endOfRound1.PreparationEndsAt, endOfRound1.CurrentTurn.StartedAt);
+            var secondsLeft = (endOfRound1.PreparationEndsAt!.Value - endOfRound1.ServerTime).TotalSeconds;
+            Assert.InRange(secondsLeft, DebatePreparation.Seconds - 5, DebatePreparation.Seconds);
+            ApiResponseAssert.FailsWith(await _harness.UserSubmitsAsync(UserA, sessionId), DebateErrorCodes.PreparationInProgress);
+
+            var round2 = _harness.Notifier!.Events.Single(e => e.Event == "RoundStarted").Data!;
+            Assert.Equal(true, round2.GetType().GetProperty("IsPreparing")!.GetValue(round2));
+
+            _harness.EndPreparation(sessionId);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId));
+        }
+
+        [Fact]
+        public async Task AiPractice_SkipsThePreparationBetweenRounds_Too()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 0
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 1)); // turn 1: Round 2 prepares
+
+            var skipped = ApiResponseAssert.Succeeds(await _harness.NewService().SkipPreparationAsync(UserA, sessionId));
+
+            Assert.False(skipped.IsPreparing);
+            Assert.Equal(2, skipped.CurrentTurn!.TurnOrder);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 2, Round 2
         }
 
         [Fact]
@@ -209,6 +252,8 @@ namespace SystemService.Tests.Debate
 
             ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 1)); // turn 1, CON: Round 1 over
             Assert.Equal(new[] { 2 }, _harness.Notifier.RoundsStarted());
+            var payload = _harness.Notifier.Events.Single(e => e.Event == "RoundStarted").Data!;
+            Assert.Equal(true, payload.GetType().GetProperty("IsPreparing")!.GetValue(payload));
         }
     }
 }

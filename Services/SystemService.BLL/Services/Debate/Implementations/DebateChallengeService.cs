@@ -298,7 +298,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     RoundType = roundTypes[i],
                     CreatedAt = DateTime.UtcNow,
                     // the accepted challenge starts at once: Round 1 after the preparation minute
-                    StartTime = roundNumber == 1 ? DebatePreparation.FirstRoundStart(DateTime.UtcNow) : null
+                    StartTime = roundNumber == 1 ? DebatePreparation.RoundStart(DateTime.UtcNow) : null
                 });
             }
         }

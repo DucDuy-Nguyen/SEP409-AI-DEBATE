@@ -6,9 +6,10 @@ using SystemService.DAL.Entities.Debate.Enums;
 namespace SystemService.BLL.Common.Debate
 {
     /// <summary>
-    /// Every debate opens with a preparation minute: the session is InProgress from the start, but Round 1 only starts
-    /// (DebateRound.StartTime of round 1) once it is over, and no argument is accepted before. No column of its own: the
-    /// preparation end is the start of Round 1. An AI practice may skip it (POST /debate/{id}/skip-preparation).
+    /// Every round opens with a preparation minute: before Round 1 (the session is InProgress from the start) and
+    /// between rounds. A round's DebateRound.StartTime is set 60 s ahead when it becomes the current round, and no
+    /// argument is accepted before it. No column of its own: the preparation end is the start of the current round.
+    /// An AI practice may skip it (POST /debate/{id}/skip-preparation).
     /// </summary>
     public static class DebatePreparation
     {
@@ -16,17 +17,24 @@ namespace SystemService.BLL.Common.Debate
 
         public static readonly string[] RoundLabels = { "Mở đầu", "Phản biện", "Kết luận" };
 
-        /// <summary>The start of Round 1 for a debate started at <paramref name="startedAt"/>.</summary>
-        public static DateTime FirstRoundStart(DateTime startedAt) => startedAt.AddSeconds(Seconds);
+        /// <summary>The start of a round that becomes the current one at <paramref name="now"/>: after its preparation.</summary>
+        public static DateTime RoundStart(DateTime now) => now.AddSeconds(Seconds);
 
-        /// <summary>When the preparation of a started session ends (Round 1 start), or null before it is started.</summary>
+        /// <summary>The round under way or in its preparation: started (StartTime set) and not ended.</summary>
+        public static DebateRound? CurrentRound(DebateSession session) =>
+            session.DebateRounds
+                .Where(r => r.StartTime.HasValue && !r.EndTime.HasValue)
+                .OrderBy(r => r.RoundNumber)
+                .FirstOrDefault();
+
+        /// <summary>When the preparation of the current round ends (its start), or null when no round is current.</summary>
         public static DateTime? EndsAt(DebateSession session)
         {
             if (session.StartTime == null || session.Status == SessionStatus.Waiting)
             {
                 return null;
             }
-            return AsUtc(session.DebateRounds.FirstOrDefault(r => r.RoundNumber == 1)?.StartTime);
+            return AsUtc(CurrentRound(session)?.StartTime);
         }
 
         /// <summary>
@@ -45,6 +53,6 @@ namespace SystemService.BLL.Common.Debate
         public static string RoundLabel(int roundNumber) =>
             roundNumber >= 1 && roundNumber <= RoundLabels.Length ? RoundLabels[roundNumber - 1] : $"Vòng {roundNumber}";
 
-        public const string InProgressMessage = "Đang trong thời gian chuẩn bị, Vòng 1 chưa bắt đầu.";
+        public const string InProgressMessage = "Đang trong thời gian chuẩn bị, vòng tiếp theo chưa bắt đầu.";
     }
 }
