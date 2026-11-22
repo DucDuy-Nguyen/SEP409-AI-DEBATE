@@ -105,6 +105,7 @@ namespace SystemService.Tests.Debate
         {
             var created = await NewService().CreateAiPracticeSessionAsync(UserA, new CreateAiPracticeSessionRequest
             {
+                Category = "education",
                 Title = "Motion",
                 Topic = "Students should not have homework",
                 UserSide = userSide,
@@ -121,6 +122,7 @@ namespace SystemService.Tests.Debate
         {
             var created = await NewService().CreateP2pSessionAsync(UserA, new CreateP2pSessionRequest
             {
+                Category = "education",
                 Title = "Motion",
                 Topic = "Students should not have homework",
                 UserSide = creatorSide,

@@ -6,7 +6,7 @@ namespace SystemService.BLL.DTOs.Debate
     public class CreateP2pSessionRequest
     {
         // An existing topic (its Category enables the evidence check). Takes priority over Title and Topic: they are
-        // still required but then ignored. Without it the topic is found or created by its text, without a category.
+        // still required but then ignored. Without it the topic is found or created by its text, in Category.
         public int? TopicId { get; set; }
 
         [Required]
@@ -16,6 +16,11 @@ namespace SystemService.BLL.DTOs.Debate
         [Required]
         [MaxLength(500)]
         public string Topic { get; set; } = null!;
+
+        // Category code or Vietnamese label (see TopicCategories), required when there is no TopicId: a topic created
+        // from free text must belong to a category
+        [MaxLength(100)]
+        public string? Category { get; set; }
 
         [Required]
         public DebateSide UserSide { get; set; } = DebateSide.Affirmative;

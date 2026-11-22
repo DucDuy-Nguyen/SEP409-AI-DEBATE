@@ -39,6 +39,7 @@ namespace SystemService.Tests.Debate
         {
             var created = ApiResponseAssert.Succeeds(await _harness.NewService().CreateP2pSessionAsync(UserA, new CreateP2pSessionRequest
             {
+                Category = "education",
                 Title = "Motion",
                 Topic = "Topic",
                 UserSide = DebateSide.PRO,
@@ -55,6 +56,7 @@ namespace SystemService.Tests.Debate
         {
             var created = ApiResponseAssert.Succeeds(await _harness.NewService().Create2v2SessionAsync(UserA, new Create2v2SessionRequest
             {
+                Category = "education",
                 Title = "Motion",
                 Topic = "Topic",
                 UserSide = DebateSide.PRO,

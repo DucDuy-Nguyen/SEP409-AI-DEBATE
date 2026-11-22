@@ -17,6 +17,11 @@ namespace SystemService.BLL.DTOs.Debate
         [MaxLength(500)]
         public string Topic { get; set; } = null!;
 
+        // Category code or Vietnamese label (see TopicCategories), required when there is no TopicId: a topic created
+        // from free text must belong to a category
+        [MaxLength(100)]
+        public string? Category { get; set; }
+
         [Required]
         public DebateSide UserSide { get; set; } = DebateSide.Affirmative;
 

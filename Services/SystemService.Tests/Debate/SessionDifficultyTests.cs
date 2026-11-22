@@ -97,6 +97,7 @@ namespace SystemService.Tests.Debate
         {
             return _harness.NewService().CreateAiPracticeSessionAsync(UserA, new CreateAiPracticeSessionRequest
             {
+                Category = "education",
                 TopicId = topicId,
                 Title = "Luật AI",
                 Topic = "Mô tả",

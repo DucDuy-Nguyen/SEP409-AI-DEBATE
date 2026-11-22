@@ -79,8 +79,13 @@ namespace SystemService.BLL.Services.Debate.Implementations
             }
             else
             {
+                var category = TopicCategories.Normalize(request.Category);
+                if (category == null)
+                {
+                    return ApiResponse<DebateSessionResponse>.FailureResponse(TopicCategories.InvalidMessage);
+                }
                 topic = await _debateRepository.GetOrCreateTopicAsync(
-                    request.Title.Trim(), request.Topic.Trim(), request.Difficulty ?? "Medium", userId, cancellationToken);
+                    request.Title.Trim(), request.Topic.Trim(), category, request.Difficulty ?? "Medium", userId, cancellationToken);
             }
 
             var isAi = request.IsAI;
@@ -147,7 +152,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
-            var (topic, topicError) = await ResolveTopicAsync(request.TopicId, request.Title, request.Topic, userId, cancellationToken);
+            var (topic, topicError) = await ResolveTopicAsync(request.TopicId, request.Title, request.Topic, request.Category, userId, cancellationToken);
             if (topic == null)
             {
                 return ApiResponse<DebateSessionResponse>.FailureResponse(topicError!);
@@ -694,7 +699,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.FailureResponse("User not found.");
             }
 
-            var (topic, topicError) = await ResolveTopicAsync(request.TopicId, request.Title, request.Topic, userId, cancellationToken);
+            var (topic, topicError) = await ResolveTopicAsync(request.TopicId, request.Title, request.Topic, request.Category, userId, cancellationToken);
             if (topic == null)
             {
                 return ApiResponse<DebateSessionResponse>.FailureResponse(topicError!);
@@ -1739,10 +1744,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
         /// <summary>
         /// The topic of a new P2P / 2v2 session: the one picked by id (unknown or inactive → error), otherwise found
-        /// or created by its text (no category, so no evidence check).
+        /// or created by its text in the given category (a missing or unknown category → error).
         /// </summary>
         private async Task<(Topic? Topic, string? Error)> ResolveTopicAsync(
-            int? topicId, string title, string description, int userId, CancellationToken cancellationToken)
+            int? topicId, string title, string description, string? category, int userId, CancellationToken cancellationToken)
         {
             if (topicId.HasValue)
             {
@@ -1751,7 +1756,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     ? (null, "Debate topic not found or no longer active.")
                     : (picked, null);
             }
-            var topic = await _debateRepository.GetOrCreateTopicAsync(title.Trim(), description.Trim(), "Medium", userId, cancellationToken);
+            var code = TopicCategories.Normalize(category);
+            if (code == null)
+            {
+                return (null, TopicCategories.InvalidMessage);
+            }
+            var topic = await _debateRepository.GetOrCreateTopicAsync(title.Trim(), description.Trim(), code, "Medium", userId, cancellationToken);
             return (topic, null);
         }
 
@@ -2019,13 +2029,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
             };
         }
 
-        private static readonly HashSet<string> EvidenceTopics = new() { "education", "technology", "society" };
-
-        // Topic.Category -> chu de kho fact cua AI Evaluator; khac 3 chu de thi null (evaluator khong kiem chung)
+        // Topic.Category -> chu de kho fact cua AI Evaluator; ngoai 3 danh muc (education, technology, society) thi null (evaluator khong kiem chung)
         public static string? MapEvidenceTopic(string? category)
         {
-            var normalized = category?.Trim().ToLowerInvariant();
-            return normalized != null && EvidenceTopics.Contains(normalized) ? normalized : null;
+            return TopicCategories.EvidenceTopic(category);
         }
 
         // Phe dang cham la AI (AI practice) thi khong kiem chung so lieu cua phe do

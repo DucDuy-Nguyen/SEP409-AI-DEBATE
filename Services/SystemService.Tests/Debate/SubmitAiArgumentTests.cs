@@ -102,6 +102,7 @@ namespace SystemService.Tests.Debate
         {
             var created = ApiResponseAssert.Succeeds(await _harness.NewService().CreateAiPracticeSessionAsync(UserA, new CreateAiPracticeSessionRequest
             {
+                Category = "education",
                 Title = "Motion",
                 Topic = "Topic",
                 UserSide = DebateSide.CON,

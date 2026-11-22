@@ -136,12 +136,22 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             return await _context.Topics.FirstOrDefaultAsync(t => t.TopicId == topicId, cancellationToken);
         }
 
-        public async Task<Topic> GetOrCreateTopicAsync(string title, string? description, string difficulty, int createdBy, CancellationToken cancellationToken = default)
+        /// <summary>
+        /// A topic found by its text, or created in <paramref name="category"/> (a category code). A found topic still
+        /// in the old catch-all "General" / "Chung" category takes the given one.
+        /// </summary>
+        public async Task<Topic> GetOrCreateTopicAsync(string title, string? description, string category, string difficulty, int createdBy, CancellationToken cancellationToken = default)
         {
             var existing = await _context.Topics.FirstOrDefaultAsync(
                 t => t.Title.ToLower() == title.ToLower() && (description == null || t.Description == description), cancellationToken);
             if (existing != null)
             {
+                if (string.IsNullOrWhiteSpace(existing.Category) || existing.Category.Trim().ToLower() == "general" || existing.Category.Trim().ToLower() == "chung")
+                {
+                    existing.Category = category;
+                    existing.UpdatedAt = System.DateTime.UtcNow;
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
                 return existing;
             }
 
@@ -149,7 +159,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             {
                 Title = title,
                 Description = description,
-                Category = "General",
+                Category = category,
                 Difficulty = string.IsNullOrWhiteSpace(difficulty) ? "Medium" : difficulty,
                 CreatedBy = createdBy,
                 IsActive = true,
