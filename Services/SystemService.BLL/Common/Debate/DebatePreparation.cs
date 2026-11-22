@@ -26,8 +26,15 @@ namespace SystemService.BLL.Common.Debate
             {
                 return null;
             }
-            return session.DebateRounds.FirstOrDefault(r => r.RoundNumber == 1)?.StartTime;
+            return AsUtc(session.DebateRounds.FirstOrDefault(r => r.RoundNumber == 1)?.StartTime);
         }
+
+        /// <summary>
+        /// The times are stored in UTC, but SQL Server gives them back with Kind Unspecified, which JSON writes without
+        /// "Z": a browser then reads them as local time (7 h off in Vietnam). Mark them UTC before they go out.
+        /// </summary>
+        public static DateTime? AsUtc(DateTime? value) =>
+            value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null;
 
         public static bool IsPreparing(DebateSession session, DateTime now)
         {

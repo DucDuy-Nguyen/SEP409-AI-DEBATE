@@ -1170,7 +1170,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 Status = session.Status,
                 CreatedByUserId = session.CreatedBy,
                 CreatedAt = session.CreatedAt,
-                StartedAt = session.StartTime,
+                StartedAt = DebatePreparation.AsUtc(session.StartTime),
                 EndedAt = session.EndTime,
                 PreparationSeconds = DebatePreparation.Seconds,
                 PreparationEndsAt = DebatePreparation.EndsAt(session),
@@ -1197,7 +1197,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     RoundLabel = DebatePreparation.RoundLabel(currentRound.RoundNumber),
                     TimeLimitSeconds = session.TurnTimeLimitSeconds > 0 ? session.TurnTimeLimitSeconds : (session.Format?.RoundDurationSeconds ?? 180),
                     Status = session.Status == SessionStatus.InProgress && !isPreparing ? TurnStatus.Active : TurnStatus.Pending,
-                    StartedAt = currentRound.StartTime
+                    StartedAt = DebatePreparation.AsUtc(currentRound.StartTime)
                 }
             };
         }

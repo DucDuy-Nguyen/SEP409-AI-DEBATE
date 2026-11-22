@@ -106,6 +106,29 @@ namespace SystemService.Tests.Debate
         }
 
         [Fact]
+        public async Task PreparationTimes_GoOutAsUtc_EvenWhenTheDatabaseGivesThemBackWithoutAKind()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO, endPreparation: false);
+            // SQL Server reads datetime2 back with Kind Unspecified (InMemory keeps the Kind): store it that way
+            var endsAt = DateTime.SpecifyKind(DateTime.UtcNow.AddSeconds(30), DateTimeKind.Unspecified);
+            using (var context = _harness.CreateContext())
+            {
+                context.DebateRounds.Single(r => r.DebateSessionId == sessionId && r.RoundNumber == 1).StartTime = endsAt;
+                context.SaveChanges();
+            }
+
+            var details = ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionDetailsAsync(UserA, sessionId));
+
+            Assert.True(details.IsPreparing);
+            Assert.Equal(DateTimeKind.Utc, details.PreparationEndsAt!.Value.Kind);
+            Assert.Equal(DateTimeKind.Utc, details.CurrentTurn!.StartedAt!.Value.Kind);
+            Assert.Equal(DateTimeKind.Utc, details.StartedAt!.Value.Kind);
+            Assert.Equal(endsAt.Ticks, details.PreparationEndsAt.Value.Ticks);
+            // JSON (what the browser parses) carries the zone
+            Assert.EndsWith("Z\"", System.Text.Json.JsonSerializer.Serialize(details.PreparationEndsAt));
+        }
+
+        [Fact]
         public async Task DuringPreparation_NoArgumentIsAccepted_FromTheLearnerOrTheAi()
         {
             int proSession = await _harness.StartAiSessionAsync(DebateSide.PRO, endPreparation: false);
