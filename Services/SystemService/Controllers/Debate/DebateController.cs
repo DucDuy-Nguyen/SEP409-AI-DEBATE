@@ -270,6 +270,23 @@ namespace SystemService.Controllers.Debate
             return Ok(result);
         }
 
+        [HttpPost("{sessionId:int}/skip-preparation")]
+        public async Task<IActionResult> SkipPreparation(int sessionId, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized(ApiResponse<object>.FailureResponse("Unauthorized access."));
+            }
+
+            var result = await _debateService.SkipPreparationAsync(userId.Value, sessionId, cancellationToken);
+            if (!result.Success)
+            {
+                return MapTurnFailure(result);
+            }
+            return Ok(result);
+        }
+
         [HttpPost("{sessionId:int}/leave")]
         public async Task<IActionResult> LeaveSession(int sessionId, CancellationToken cancellationToken)
         {
@@ -355,7 +372,8 @@ namespace SystemService.Controllers.Debate
                 DebateErrorCodes.TurnOutOfOrder
                     or DebateErrorCodes.SessionNotInProgress
                     or DebateErrorCodes.SessionCompleted
-                    or DebateErrorCodes.ConcurrentSubmission => Conflict(result),
+                    or DebateErrorCodes.ConcurrentSubmission
+                    or DebateErrorCodes.PreparationInProgress => Conflict(result),
                 _ => BadRequest(result)
             };
         }

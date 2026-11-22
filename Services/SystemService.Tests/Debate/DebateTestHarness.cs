@@ -80,6 +80,9 @@ namespace SystemService.Tests.Debate
         /// <summary>Evaluator used by every service built here when none is passed (null = AI evaluation off).</summary>
         public IAiEvaluatorClient? AiEvaluator { get; set; }
 
+        /// <summary>Records the realtime events the service sends (null: no notifier, as before).</summary>
+        public RecordingRealtimeNotifier? Notifier { get; set; }
+
         public DebateService NewService(IAiEvaluatorClient? aiEvaluatorClient = null)
         {
             var evaluator = aiEvaluatorClient ?? AiEvaluator;
@@ -98,10 +101,10 @@ namespace SystemService.Tests.Debate
                 _contexts.Add(context);
             }
             return new DebateService(new DebateRepository(context), new UserRepository(context),
-                evaluator, logger: null, evaluationCoordinator: Coordinator);
+                evaluator, logger: null, evaluationCoordinator: Coordinator, realtimeNotifier: Notifier);
         }
 
-        public async Task<int> StartAiSessionAsync(DebateSide userSide)
+        public async Task<int> StartAiSessionAsync(DebateSide userSide, bool endPreparation = true)
         {
             var created = await NewService().CreateAiPracticeSessionAsync(UserA, new CreateAiPracticeSessionRequest
             {
@@ -114,10 +117,11 @@ namespace SystemService.Tests.Debate
 
             var started = await NewService().StartDebateSessionAsync(UserA, created.Data!.SessionId);
             Assert.True(started.Success, started.Message);
+            if (endPreparation) EndPreparation(created.Data.SessionId);
             return created.Data.SessionId;
         }
 
-        public async Task<int> StartP2pSessionAsync(DebateSide creatorSide)
+        public async Task<int> StartP2pSessionAsync(DebateSide creatorSide, bool endPreparation = true)
         {
             var created = await NewService().CreateP2pSessionAsync(UserA, new CreateP2pSessionRequest
             {
@@ -134,7 +138,17 @@ namespace SystemService.Tests.Debate
 
             var started = await NewService().StartDebateSessionAsync(UserA, sessionId);
             Assert.True(started.Success, started.Message);
+            if (endPreparation) EndPreparation(sessionId);
             return sessionId;
+        }
+
+        /// <summary>Lets the preparation minute pass: Round 1 started a little while ago.</summary>
+        public void EndPreparation(int sessionId)
+        {
+            using var context = CreateContext();
+            var firstRound = context.DebateRounds.Single(r => r.DebateSessionId == sessionId && r.RoundNumber == 1);
+            firstRound.StartTime = DateTime.UtcNow.AddSeconds(-1);
+            context.SaveChanges();
         }
 
         public Task<ApiResponse<DebateSessionResponse>> UserSubmitsAsync(int userId, int sessionId, string content = "User speech")
@@ -177,6 +191,35 @@ namespace SystemService.Tests.Debate
                 {
                     context.Dispose();
                 }
+            }
+        }
+    }
+
+    internal sealed class RecordingRealtimeNotifier : IDebateRealtimeNotifier
+    {
+        public List<(string Event, int SessionId, object? Data)> Events { get; } = new();
+
+        private Task Record(string name, int sessionId, object? data)
+        {
+            lock (Events) Events.Add((name, sessionId, data));
+            return Task.CompletedTask;
+        }
+
+        public Task NotifyUserJoinedAsync(int sessionId, int userId, string fullName, string side, CancellationToken cancellationToken = default) => Record("UserJoined", sessionId, null);
+        public Task NotifyUserLeftAsync(int sessionId, int userId, string fullName, CancellationToken cancellationToken = default) => Record("UserLeft", sessionId, null);
+        public Task NotifyArgumentSubmittedAsync(int sessionId, object argumentData, object? turnData, CancellationToken cancellationToken = default) => Record("ArgumentSubmitted", sessionId, argumentData);
+        public Task NotifySessionStartedAsync(int sessionId, object sessionData, CancellationToken cancellationToken = default) => Record("SessionStarted", sessionId, sessionData);
+        public Task NotifySessionStatusChangedAsync(int sessionId, string status, string? reason = null, CancellationToken cancellationToken = default) => Record("SessionStatusChanged", sessionId, status);
+        public Task NotifyRoundStartedAsync(int sessionId, object roundData, CancellationToken cancellationToken = default) => Record("RoundStarted", sessionId, roundData);
+
+        /// <summary>RoundNumber of every RoundStarted sent, in order.</summary>
+        public List<int> RoundsStarted()
+        {
+            lock (Events)
+            {
+                return Events.Where(e => e.Event == "RoundStarted")
+                    .Select(e => (int)e.Data!.GetType().GetProperty("RoundNumber")!.GetValue(e.Data)!)
+                    .ToList();
             }
         }
     }

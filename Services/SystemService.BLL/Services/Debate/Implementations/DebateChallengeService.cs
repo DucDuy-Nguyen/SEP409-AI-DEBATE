@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using SystemService.BLL.Common.Debate;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.Debate.Interfaces;
@@ -278,7 +279,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     RoundNumber = roundNumber,
                     RoundType = roundTypes[i],
                     CreatedAt = DateTime.UtcNow,
-                    StartTime = roundNumber == 1 ? DateTime.UtcNow : null
+                    // the accepted challenge starts at once: Round 1 after the preparation minute
+                    StartTime = roundNumber == 1 ? DebatePreparation.FirstRoundStart(DateTime.UtcNow) : null
                 });
             }
         }

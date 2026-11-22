@@ -39,7 +39,8 @@ namespace SystemService.DAL.Repositories.Debate.Interfaces
         Task<bool> IsSessionInCompetitionAsync(int debateSessionId, CancellationToken cancellationToken = default);
         Task<CompetitionMatch?> GetLinkedCompetitionMatchAsync(int debateSessionId, CancellationToken cancellationToken = default);
         Task UpdateLinkedMatchStatusOnSessionCompleteAsync(int debateSessionId, DateTime completedAt, CancellationToken cancellationToken = default);
-        Task<bool> ClaimAndStartSessionAsync(int debateSessionId, DateTime startTime, int? linkedMatchId = null, CancellationToken cancellationToken = default);
+        // firstRoundStartTime: Round 1 starts after the preparation (later than startTime).
+        Task<bool> ClaimAndStartSessionAsync(int debateSessionId, DateTime startTime, DateTime firstRoundStartTime, int? linkedMatchId = null, CancellationToken cancellationToken = default);
 
         Task AddAIJudgementAsync(AIJudgement judgement, CancellationToken cancellationToken = default);
         Task<AIJudgement?> GetLatestAIJudgementAsync(int debateSessionId, CancellationToken cancellationToken = default);

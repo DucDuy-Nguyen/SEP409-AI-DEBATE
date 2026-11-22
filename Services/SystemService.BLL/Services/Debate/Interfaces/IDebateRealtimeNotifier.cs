@@ -10,6 +10,7 @@ namespace SystemService.BLL.Services.Debate.Interfaces
         Task NotifyArgumentSubmittedAsync(int sessionId, object argumentData, object? turnData, CancellationToken cancellationToken = default);
         Task NotifySessionStartedAsync(int sessionId, object sessionData, CancellationToken cancellationToken = default);
         Task NotifySessionStatusChangedAsync(int sessionId, string status, string? reason = null, CancellationToken cancellationToken = default);
+        Task NotifyRoundStartedAsync(int sessionId, object roundData, CancellationToken cancellationToken = default);
     }
 }
 

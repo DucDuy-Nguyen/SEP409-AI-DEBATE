@@ -238,7 +238,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             }
         }
 
-        public async Task<bool> ClaimAndStartSessionAsync(int debateSessionId, DateTime startTime, int? linkedMatchId = null, CancellationToken cancellationToken = default)
+        public async Task<bool> ClaimAndStartSessionAsync(int debateSessionId, DateTime startTime, DateTime firstRoundStartTime, int? linkedMatchId = null, CancellationToken cancellationToken = default)
         {
             if (!_context.Database.IsRelational())
             {
@@ -256,7 +256,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
                     .FirstOrDefaultAsync(r => r.DebateSessionId == debateSessionId && r.RoundNumber == 1, cancellationToken);
                 if (firstRoundInMemory != null)
                 {
-                    firstRoundInMemory.StartTime = startTime;
+                    firstRoundInMemory.StartTime = firstRoundStartTime;
                 }
 
                 if (linkedMatchId.HasValue)
@@ -293,7 +293,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
                 .FirstOrDefaultAsync(r => r.DebateSessionId == debateSessionId && r.RoundNumber == 1, cancellationToken);
             if (firstRound != null)
             {
-                firstRound.StartTime = startTime;
+                firstRound.StartTime = firstRoundStartTime;
             }
 
             if (linkedMatchId.HasValue)

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using SystemService.BLL.Common.Debate;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.Competition.Interfaces;
@@ -304,6 +305,8 @@ namespace SystemService.BLL.Services.Competition.Implementations
         private static DebateSessionResponse MapSession(DebateSession session, int currentUserId)
         {
             var currentRound = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == 1);
+            var now = DateTime.UtcNow;
+            bool isPreparing = DebatePreparation.IsPreparing(session, now);
             return new DebateSessionResponse
             {
                 SessionId = session.DebateSessionId,
@@ -318,6 +321,12 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 CreatedAt = session.CreatedAt,
                 StartedAt = session.StartTime,
                 EndedAt = session.EndTime,
+                PreparationSeconds = DebatePreparation.Seconds,
+                PreparationEndsAt = DebatePreparation.EndsAt(session),
+                IsPreparing = isPreparing,
+                CanSkipPreparation = false,
+                TotalRounds = session.DebateRounds.Count,
+                ServerTime = now,
                 Participants = session.Participants.Select(p => new ParticipantDto
                 {
                     ParticipantId = p.ParticipantId,
@@ -333,8 +342,9 @@ namespace SystemService.BLL.Services.Competition.Implementations
                     Stage = DebateStage.Opening,
                     Side = DebateSide.PRO,
                     TurnOrder = currentRound.RoundNumber,
+                    RoundLabel = DebatePreparation.RoundLabel(currentRound.RoundNumber),
                     TimeLimitSeconds = session.TurnTimeLimitSeconds > 0 ? session.TurnTimeLimitSeconds : (session.Format?.RoundDurationSeconds ?? 180),
-                    Status = session.Status == SessionStatus.InProgress ? TurnStatus.Active : TurnStatus.Pending,
+                    Status = session.Status == SessionStatus.InProgress && !isPreparing ? TurnStatus.Active : TurnStatus.Pending,
                     StartedAt = currentRound.StartTime
                 }
             };

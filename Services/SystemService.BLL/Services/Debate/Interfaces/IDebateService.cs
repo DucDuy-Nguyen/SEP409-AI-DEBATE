@@ -25,6 +25,7 @@ namespace SystemService.BLL.Services.Debate.Interfaces
         Task<ApiResponse<DebateSessionResponse>> RespondSwapSideRequestAsync(int userId, int sessionId, RespondSwapSideRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<List<SideSwapRequestResponse>>> GetPendingSwapRequestsAsync(int userId, int sessionId, CancellationToken cancellationToken = default);
         Task<ApiResponse<DebateSessionResponse>> StartDebateSessionAsync(int userId, int sessionId, CancellationToken cancellationToken = default);
+        Task<ApiResponse<DebateSessionResponse>> SkipPreparationAsync(int userId, int sessionId, CancellationToken cancellationToken = default);
 
         Task<ApiResponse<DebateEvaluationResponse>> EvaluateSessionAsync(int userId, int sessionId, CancellationToken cancellationToken = default);
         Task<ApiResponse<DebateEvaluationResponse>> GetSessionEvaluationAsync(int userId, int sessionId, CancellationToken cancellationToken = default);

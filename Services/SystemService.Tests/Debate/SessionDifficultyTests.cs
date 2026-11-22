@@ -18,6 +18,7 @@ namespace SystemService.Tests.Debate
 
             var created = ApiResponseAssert.Succeeds(await CreateAsync(topicId, "Hard"));
             var started = ApiResponseAssert.Succeeds(await _harness.NewService().StartDebateSessionAsync(UserA, created.SessionId));
+            _harness.EndPreparation(created.SessionId);
             var submitted = ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, created.SessionId));
             var details = ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionDetailsAsync(UserA, created.SessionId));
 

@@ -314,6 +314,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     return ApiResponse<DebateSessionResponse>.FailureResponse("You are not a participant in this debate session.", new ApiErrorDetail(DebateErrorCodes.NotParticipant));
                 }
 
+                if (DebatePreparation.IsPreparing(session, DateTime.UtcNow))
+                {
+                    return ApiResponse<DebateSessionResponse>.FailureResponse(DebatePreparation.InProgressMessage, new ApiErrorDetail(DebateErrorCodes.PreparationInProgress));
+                }
+
                 // 2v2 has 4 speakers per round and does not follow DebateTurnOrder; keep its original logic.
                 if (!IsOneVsOne(session))
                 {
@@ -387,6 +392,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     {
                         _ = _realtimeNotifier.NotifySessionStatusChangedAsync(sessionId, "Completed", "All rounds completed", CancellationToken.None);
                     }
+                }
+
+                if (!isSessionCompleted && mappedResponse.CurrentTurn?.TurnOrder > nextTurn.RoundNumber)
+                {
+                    NotifyRoundStarted(mappedResponse);
                 }
 
                 return ApiResponse<DebateSessionResponse>.SuccessResponse(mappedResponse, "Argument submitted successfully.");
@@ -478,6 +488,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     return AiArgumentFailure("Debate session is not currently in progress.", DebateErrorCodes.SessionNotInProgress);
                 }
 
+                if (DebatePreparation.IsPreparing(session, DateTime.UtcNow))
+                {
+                    return AiArgumentFailure(DebatePreparation.InProgressMessage, DebateErrorCodes.PreparationInProgress);
+                }
+
                 if (turn.TurnIndex > orderedArguments.Count)
                 {
                     var expectedTurn = DebateTurnOrder.GetNextTurn(orderedArguments.Count)!;
@@ -498,6 +513,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 var round = session.DebateRounds.First(r => r.RoundNumber == turn.RoundNumber);
                 var response = await AiArgumentSuccessAsync(userId, sessionId, turn.TurnIndex, argument, round, aiParticipant,
                     alreadyRecorded: false, "AI argument recorded successfully.", cancellationToken);
+
+                var mappedSession = response.Data?.Session;
+                if (!isSessionCompleted && mappedSession?.CurrentTurn?.TurnOrder > turn.RoundNumber)
+                {
+                    NotifyRoundStarted(mappedSession);
+                }
 
                 // The debate is over: it is graded in the background (own DI scope), the response does not wait for it.
                 // GET /evaluation awaits that same evaluation, or starts a new one if it failed.
@@ -680,6 +701,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 {
                     _ = _realtimeNotifier.NotifySessionStatusChangedAsync(sessionId, "Completed", "All rounds completed", CancellationToken.None);
                 }
+            }
+
+            if (!isSessionCompleted && mappedResponse.CurrentTurn?.TurnOrder > currentRound.RoundNumber)
+            {
+                NotifyRoundStarted(mappedResponse);
             }
 
             return ApiResponse<DebateSessionResponse>.SuccessResponse(mappedResponse, "Argument submitted successfully.");
@@ -918,7 +944,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     RoundNumber = roundNumber,
                     RoundType = roundTypes[i],
                     CreatedAt = DateTime.UtcNow,
-                    StartTime = roundNumber == 1 && session.Status == SessionStatus.InProgress ? DateTime.UtcNow : null
+                    StartTime = roundNumber == 1 && session.Status == SessionStatus.InProgress
+                        ? DebatePreparation.FirstRoundStart(DateTime.UtcNow)
+                        : null
                 });
             }
         }
@@ -1120,13 +1148,17 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 }
             }
 
+            var now = DateTime.UtcNow;
+            bool isPreparing = DebatePreparation.IsPreparing(session, now);
+            var debateType = InferDebateType(session);
+
             return new DebateSessionResponse
             {
                 SessionId = session.DebateSessionId,
                 Title = session.Topic?.Title ?? "Debate Session",
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
                 EvidenceTopic = MapEvidenceTopic(session.Topic?.Category),
-                DebateType = InferDebateType(session),
+                DebateType = debateType,
                 Difficulty = session.Difficulty ?? session.Topic?.Difficulty,
                 CurrentStage = currentRound != null ? MapRoundTypeToStage(currentRound.RoundType) : DebateStage.Closing,
                 CurrentTurnSide = currentTurnSide,
@@ -1135,6 +1167,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 CreatedAt = session.CreatedAt,
                 StartedAt = session.StartTime,
                 EndedAt = session.EndTime,
+                PreparationSeconds = DebatePreparation.Seconds,
+                PreparationEndsAt = DebatePreparation.EndsAt(session),
+                IsPreparing = isPreparing,
+                CanSkipPreparation = isPreparing && debateType == DebateType.AiPractice,
+                TotalRounds = session.DebateRounds.Count,
+                ServerTime = now,
                 Participants = session.Participants.Select(p => new ParticipantDto
                 {
                     ParticipantId = p.ParticipantId,
@@ -1151,8 +1189,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     Side = currentTurnSide,
                     TurnOrder = currentRound.RoundNumber,
                     TurnIndex = currentTurnIndex,
+                    RoundLabel = DebatePreparation.RoundLabel(currentRound.RoundNumber),
                     TimeLimitSeconds = session.TurnTimeLimitSeconds > 0 ? session.TurnTimeLimitSeconds : (session.Format?.RoundDurationSeconds ?? 180),
-                    Status = session.Status == SessionStatus.InProgress ? TurnStatus.Active : TurnStatus.Pending,
+                    Status = session.Status == SessionStatus.InProgress && !isPreparing ? TurnStatus.Active : TurnStatus.Pending,
                     StartedAt = currentRound.StartTime
                 }
             };
@@ -1378,6 +1417,73 @@ namespace SystemService.BLL.Services.Debate.Implementations
             return await Task.FromResult(ApiResponse<List<SideSwapRequestResponse>>.SuccessResponse(activeRequests, "Active swap requests retrieved."));
         }
 
+        // An AI practice may end its preparation minute early: Round 1 starts now.
+        public async Task<ApiResponse<DebateSessionResponse>> SkipPreparationAsync(
+            int userId, int sessionId, CancellationToken cancellationToken = default)
+        {
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
+            await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.", new ApiErrorDetail(DebateErrorCodes.SessionNotFound));
+            }
+
+            if (!session.Participants.Any(p => p.UserId == userId && p.ParticipantType == ParticipantType.USER))
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("You are not a participant in this debate session.", new ApiErrorDetail(DebateErrorCodes.NotParticipant));
+            }
+
+            if (InferDebateType(session) != DebateType.AiPractice)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse(
+                    "Chỉ phiên luyện tập với AI mới được bỏ qua thời gian chuẩn bị.", new ApiErrorDetail(DebateErrorCodes.NotAiSession));
+            }
+
+            if (session.Status != SessionStatus.InProgress)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session is not currently in progress.", new ApiErrorDetail(DebateErrorCodes.SessionNotInProgress));
+            }
+
+            var now = DateTime.UtcNow;
+            if (!DebatePreparation.IsPreparing(session, now))
+            {
+                // Already over (skipped twice, or the minute ran out): nothing to change.
+                return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Vòng 1 đã bắt đầu.");
+            }
+
+            var firstRound = session.DebateRounds.First(r => r.RoundNumber == 1);
+            firstRound.StartTime = now;
+            await _debateRepository.UpdateRoundAsync(firstRound, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            var mapped = MapToSessionResponse(updatedSession!, userId);
+            NotifyRoundStarted(mapped);
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(mapped, "Đã bỏ qua thời gian chuẩn bị, bắt đầu Vòng 1.");
+        }
+
+        // SignalR "RoundStarted" to the room when the debate moves to a new round (the label is the one to announce).
+        private void NotifyRoundStarted(DebateSessionResponse session)
+        {
+            var turn = session.CurrentTurn;
+            if (_realtimeNotifier == null || turn == null)
+            {
+                return;
+            }
+            _ = _realtimeNotifier.NotifyRoundStartedAsync(session.SessionId, new
+            {
+                SessionId = session.SessionId,
+                RoundNumber = turn.TurnOrder,
+                TotalRounds = session.TotalRounds,
+                RoundLabel = turn.RoundLabel,
+                StartedAt = turn.StartedAt,
+                CurrentTurnSide = turn.Side.ToString(),
+                Timestamp = DateTime.UtcNow
+            }, CancellationToken.None);
+        }
+
         public async Task<ApiResponse<DebateSessionResponse>> StartDebateSessionAsync(
             int userId, int sessionId, CancellationToken cancellationToken = default)
         {
@@ -1498,8 +1604,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 }
 
                 var now = DateTime.UtcNow;
+                // Round 1 starts after the preparation minute (DebatePreparation).
                 var claimed = await _debateRepository.ClaimAndStartSessionAsync(
-                    sessionId, now, linkedMatch?.CompetitionMatchId, cancellationToken);
+                    sessionId, now, DebatePreparation.FirstRoundStart(now), linkedMatch?.CompetitionMatchId, cancellationToken);
 
                 if (!claimed)
                 {

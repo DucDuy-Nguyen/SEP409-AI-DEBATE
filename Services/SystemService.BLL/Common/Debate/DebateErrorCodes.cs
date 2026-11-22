@@ -16,5 +16,6 @@ namespace SystemService.BLL.Common.Debate
         public const string SessionNotInProgress = "SESSION_NOT_IN_PROGRESS";
         public const string SessionCompleted = "SESSION_COMPLETED";
         public const string ConcurrentSubmission = "CONCURRENT_SUBMISSION";
+        public const string PreparationInProgress = "PREPARATION_IN_PROGRESS";
     }
 }

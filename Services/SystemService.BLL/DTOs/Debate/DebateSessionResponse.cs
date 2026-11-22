@@ -21,6 +21,16 @@ namespace SystemService.BLL.DTOs.Debate
         public DateTime? StartedAt { get; set; }
         public DateTime? EndedAt { get; set; }
 
+        // Preparation before Round 1 (see DebatePreparation): Round 1 starts at PreparationEndsAt (UTC), no argument is
+        // accepted before. Compare it with ServerTime (UTC, when this response was made), not with the browser clock.
+        public int PreparationSeconds { get; set; }
+        public DateTime? PreparationEndsAt { get; set; }
+        public bool IsPreparing { get; set; }
+        // Only an AI practice may skip the preparation (POST /debate/{id}/skip-preparation).
+        public bool CanSkipPreparation { get; set; }
+        public int TotalRounds { get; set; }
+        public DateTime ServerTime { get; set; }
+
         public List<ParticipantDto> Participants { get; set; } = new List<ParticipantDto>();
         public TurnDto? CurrentTurn { get; set; }
     }
@@ -44,6 +54,8 @@ namespace SystemService.BLL.DTOs.Debate
 
         // 0-based index into DebateTurnOrder for 1v1 sessions (send as turnIndex to /ai-arguments); null for 2v2.
         public int? TurnIndex { get; set; }
+        // "Mở đầu" / "Phản biện" / "Kết luận" for TurnOrder (round number) 1 / 2 / 3.
+        public string RoundLabel { get; set; } = string.Empty;
         public int TimeLimitSeconds { get; set; }
         public TurnStatus Status { get; set; }
         public DateTime? StartedAt { get; set; }

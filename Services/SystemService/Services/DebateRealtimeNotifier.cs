@@ -95,6 +95,18 @@ namespace SystemService.Services
             }
         }
 
+        public async Task NotifyRoundStartedAsync(int sessionId, object roundData, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await _hubContext.Clients.Group(DebateHub.GetGroupName(sessionId)).SendAsync("RoundStarted", roundData, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to broadcast NotifyRoundStartedAsync for session {SessionId}", sessionId);
+            }
+        }
+
         public async Task NotifySessionStatusChangedAsync(int sessionId, string status, string? reason = null, CancellationToken cancellationToken = default)
         {
             try
