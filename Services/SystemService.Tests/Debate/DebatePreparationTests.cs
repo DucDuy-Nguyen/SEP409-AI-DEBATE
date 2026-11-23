@@ -243,6 +243,172 @@ namespace SystemService.Tests.Debate
         }
 
         [Fact]
+        public async Task AiPractice_RestartPreparation_CountsTheMinuteFromNow_AndAnnouncesIt()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 0
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 1)); // turn 1: Round 2 prepares
+            _harness.ShiftLastTurnBack(sessionId, 50); // the AI read aloud for 50 s: 10 s of the minute left
+
+            var restarted = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId));
+
+            Assert.True(restarted.IsPreparing);
+            Assert.Equal(2, restarted.CurrentTurn!.TurnOrder);
+            Assert.Equal(restarted.PreparationEndsAt, restarted.CurrentTurn.StartedAt);
+            var secondsLeft = (restarted.PreparationEndsAt!.Value - restarted.ServerTime).TotalSeconds;
+            Assert.InRange(secondsLeft, DebatePreparation.Seconds - 5, DebatePreparation.Seconds);
+            Assert.Equal(new[] { 2, 2 }, _harness.Notifier!.RoundsStarted()); // the AI turn, then the restart
+            ApiResponseAssert.FailsWith(await _harness.UserSubmitsAsync(UserA, sessionId), DebateErrorCodes.PreparationInProgress);
+
+            _harness.EndPreparation(sessionId);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 2, Round 2
+        }
+
+        [Fact]
+        public async Task AiPractice_RestartPreparation_AfterTheMinuteRanOutDuringTheReading_PreparesAgain()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 0
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 1)); // turn 1: Round 2 prepares
+            _harness.ShiftLastTurnBack(sessionId, 90); // the AI read aloud for longer than the minute
+
+            var restarted = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId));
+
+            Assert.True(restarted.IsPreparing);
+            var secondsLeft = (restarted.PreparationEndsAt!.Value - restarted.ServerTime).TotalSeconds;
+            Assert.InRange(secondsLeft, DebatePreparation.Seconds - 5, DebatePreparation.Seconds);
+            ApiResponseAssert.FailsWith(await _harness.UserSubmitsAsync(UserA, sessionId), DebateErrorCodes.PreparationInProgress);
+        }
+
+        [Fact]
+        public async Task RestartPreparation_OncePerAiTurn_ItCannotReArmTheMinute()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 0
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 1)); // turn 1: Round 2 prepares
+            _harness.ShiftLastTurnBack(sessionId, 90); // the AI read for 90 s: the minute ran out 30 s ago
+
+            Assert.True(ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId)).IsPreparing);
+
+            _harness.EndPreparation(sessionId); // the restarted minute has passed too
+            var again = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId));
+            Assert.False(again.IsPreparing);
+            Assert.Equal(new[] { 2, 2 }, _harness.Notifier!.RoundsStarted()); // the AI turn, then one restart
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 2, Round 2
+        }
+
+        [Fact]
+        public async Task RestartPreparation_NeverShortensIt()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId));
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 1));
+            _harness.SetPreparationEndsIn(sessionId, DebatePreparation.Seconds + 30); // ends later than now + 60 s
+            var before = ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionDetailsAsync(UserA, sessionId));
+
+            var same = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId));
+
+            Assert.Equal(before.PreparationEndsAt, same.PreparationEndsAt);
+            Assert.Equal(new[] { 2 }, _harness.Notifier!.RoundsStarted()); // only the AI turn announced Round 2
+        }
+
+        [Fact]
+        public async Task RestartPreparation_OnlyRightAfterTheAiTurnEndedARound()
+        {
+            // Round 1: nobody has spoken yet, so there is no AI reading to wait for
+            int round1 = await _harness.StartAiSessionAsync(DebateSide.PRO, endPreparation: false);
+            _harness.EndPreparation(round1);
+            var notMoved = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, round1));
+            Assert.False(notMoved.IsPreparing);
+
+            // Round 2 after the learner has spoken in it: the round is never sent back to preparing
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 0
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 1)); // turn 1
+            _harness.EndPreparation(sessionId);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 2, Round 2
+            var underWay = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId));
+            Assert.False(underWay.IsPreparing);
+            Assert.Empty(_harness.Notifier!.RoundsStarted().Where(r => r == 1)); // nothing announced for Round 1
+        }
+
+        [Fact]
+        public async Task AiPractice_LearnerPro_TheAiClosesRebuttalThenOpensClosing_DuringThePreparation()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 0
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 1));      // turn 1: Round 2 prepares
+            _harness.EndPreparation(sessionId);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 2
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 3));      // turn 3: Round 3 prepares
+
+            // The AI's closing right away, inside the minute: accepted, and the minute stays the learner's
+            var closing = ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 4));
+            Assert.True(closing.Session!.IsPreparing);
+            Assert.Equal(5, closing.Session.CurrentTurn!.TurnIndex);
+            ApiResponseAssert.FailsWith(await _harness.UserSubmitsAsync(UserA, sessionId), DebateErrorCodes.PreparationInProgress);
+
+            // Both speeches read aloud for 90 s: the minute counts from the end of the reading, once
+            _harness.ShiftLastTurnBack(sessionId, 90);
+            var before = DateTime.UtcNow;
+            var restarted = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId));
+            Assert.True(restarted.IsPreparing);
+            Assert.True(restarted.PreparationEndsAt >= before.AddSeconds(DebatePreparation.Seconds));
+            var again = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId));
+            Assert.Equal(restarted.PreparationEndsAt, again.PreparationEndsAt);
+        }
+
+        [Fact]
+        public async Task AiPractice_LearnerCon_TheAiOpensRebuttal_DuringThePreparation_ThenTheMinuteRestarts()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.CON);
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 0));      // turn 0
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 1: Round 2 prepares
+
+            var rebuttal = ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 2));
+            Assert.True(rebuttal.Session!.IsPreparing);
+
+            _harness.ShiftLastTurnBack(sessionId, 90);
+            var restarted = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId));
+            Assert.True(restarted.IsPreparing);
+            Assert.Equal(3, restarted.CurrentTurn!.TurnIndex);
+        }
+
+        [Fact]
+        public async Task RestartPreparation_TwiceRightAfterTheAiTurn_DoesNotReArmIt()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO);
+            ApiResponseAssert.Succeeds(await _harness.UserSubmitsAsync(UserA, sessionId)); // turn 0
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 1));      // turn 1: Round 2 prepares
+
+            // No reading aloud: the browser restarts at once, then again
+            var first = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId));
+            await Task.Delay(50);
+            var second = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId));
+            Assert.True(first.IsPreparing);
+            Assert.Equal(first.PreparationEndsAt, second.PreparationEndsAt);
+        }
+
+        [Fact]
+        public async Task RestartPreparation_NotAfterTheAiOpening_OfRound1()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.CON);
+            ApiResponseAssert.Succeeds(await _harness.AiSubmitsAsync(sessionId, 0));
+            var notMoved = ApiResponseAssert.Succeeds(await _harness.NewService().RestartPreparationAsync(UserA, sessionId));
+            Assert.False(notMoved.IsPreparing);
+        }
+
+        [Fact]
+        public async Task RestartPreparation_OnlyForAParticipantOfAnAiPractice()
+        {
+            int aiSession = await _harness.StartAiSessionAsync(DebateSide.PRO, endPreparation: false);
+            ApiResponseAssert.FailsWith(await _harness.NewService().RestartPreparationAsync(Outsider, aiSession), DebateErrorCodes.NotParticipant);
+
+            int p2pSession = await _harness.StartP2pSessionAsync(DebateSide.PRO);
+            ApiResponseAssert.FailsWith(await _harness.NewService().RestartPreparationAsync(UserA, p2pSession), DebateErrorCodes.NotAiSession);
+        }
+
+        [Fact]
         public async Task AiPractice_TheAiTurnEndingARound_AnnouncesTheNextOne()
         {
             int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO);

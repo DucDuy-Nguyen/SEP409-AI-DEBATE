@@ -287,6 +287,24 @@ namespace SystemService.Controllers.Debate
             return Ok(result);
         }
 
+        // AI practice: the AI has finished reading its speech aloud, the preparation minute counts from now
+        [HttpPost("{sessionId:int}/restart-preparation")]
+        public async Task<IActionResult> RestartPreparation(int sessionId, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized(ApiResponse<object>.FailureResponse("Unauthorized access."));
+            }
+
+            var result = await _debateService.RestartPreparationAsync(userId.Value, sessionId, cancellationToken);
+            if (!result.Success)
+            {
+                return MapTurnFailure(result);
+            }
+            return Ok(result);
+        }
+
         [HttpPost("{sessionId:int}/leave")]
         public async Task<IActionResult> LeaveSession(int sessionId, CancellationToken cancellationToken)
         {

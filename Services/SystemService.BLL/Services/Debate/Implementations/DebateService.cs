@@ -493,7 +493,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     return AiArgumentFailure("Debate session is not currently in progress.", DebateErrorCodes.SessionNotInProgress);
                 }
 
-                if (DebatePreparation.IsPreparing(session, DateTime.UtcNow))
+                // Between rounds the minute is the learner's: the AI may open the round meanwhile (e.g. learner PRO, the
+                // AI's rebuttal then its closing back to back), and the learner still waits for the round's StartTime.
+                // Before Round 1 nobody speaks.
+                if (DebatePreparation.IsPreparing(session, DateTime.UtcNow) && !(DebatePreparation.CurrentRound(session)?.RoundNumber > 1))
                 {
                     return AiArgumentFailure(DebatePreparation.InProgressMessage, DebateErrorCodes.PreparationInProgress);
                 }
@@ -1469,6 +1472,84 @@ namespace SystemService.BLL.Services.Debate.Implementations
             var mapped = MapToSessionResponse(updatedSession!, userId);
             NotifyRoundStarted(mapped);
             return ApiResponse<DebateSessionResponse>.SuccessResponse(mapped, $"Đã bỏ qua thời gian chuẩn bị, bắt đầu Vòng {round.RoundNumber}.");
+        }
+
+        // The next round's StartTime is written a moment after the AI's argument (same request): margin for that gap
+        private const int RestartToleranceSeconds = 5;
+
+        // An AI practice counts the preparation minute from when the AI has finished reading its speech aloud: the
+        // minute began when the AI's argument was recorded, while the browser was still reading it (often longer than
+        // the minute, so the round may already be under way). Only right after the AI's turns, when the learner speaks
+        // next in Round 2 or 3 (the AI ended the previous round and/or opened this one), once per AI turn, and only
+        // later: StartTime = now + 60 s (at least the AI's SubmittedAt + 66 s, so it cannot be re-armed).
+        // A learner who skipped the preparation may still restart it once: harmless in a practice against the AI.
+        public async Task<ApiResponse<DebateSessionResponse>> RestartPreparationAsync(
+            int userId, int sessionId, CancellationToken cancellationToken = default)
+        {
+            using var transaction = await _debateRepository.BeginTransactionAsync(cancellationToken);
+            await _debateRepository.LockSessionForUpdateAsync(sessionId, cancellationToken);
+
+            var session = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            if (session == null)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session not found.", new ApiErrorDetail(DebateErrorCodes.SessionNotFound));
+            }
+
+            if (!session.Participants.Any(p => p.UserId == userId && p.ParticipantType == ParticipantType.USER))
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("You are not a participant in this debate session.", new ApiErrorDetail(DebateErrorCodes.NotParticipant));
+            }
+
+            if (InferDebateType(session) != DebateType.AiPractice)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse(
+                    "Chỉ phiên luyện tập với AI mới được tính lại thời gian chuẩn bị.", new ApiErrorDetail(DebateErrorCodes.NotAiSession));
+            }
+
+            if (session.Status != SessionStatus.InProgress)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Debate session is not currently in progress.", new ApiErrorDetail(DebateErrorCodes.SessionNotInProgress));
+            }
+
+            var now = DateTime.UtcNow;
+            var round = DebatePreparation.CurrentRound(session);
+            var newStart = DebatePreparation.RoundStart(now);
+            var lastArgument = session.DebateRounds
+                .SelectMany(r => r.Arguments)
+                .OrderByDescending(a => a.ArgumentId) // identity: the order the arguments were recorded in
+                .FirstOrDefault();
+            var aiParticipantIds = session.Participants
+                .Where(p => p.ParticipantType == ParticipantType.AI)
+                .Select(p => p.ParticipantId)
+                .ToHashSet();
+            // Right after the AI's turns: the AI spoke last and the learner has not spoken in this round (Rounds 2-3;
+            // the round is empty, or the AI opened it, possibly during its preparation)
+            bool learnerNextAfterTheAi = round is not null && round.RoundNumber > 1 && lastArgument != null
+                && aiParticipantIds.Contains(lastArgument.ParticipantId)
+                && round.Arguments.All(a => aiParticipantIds.Contains(a.ParticipantId));
+            // Once per AI turn: the AI's last argument came after StartTime was set (at most its SubmittedAt + 60 s); a
+            // restart already done moved it later than that, and the call cannot re-arm the minute again.
+            var restartedMark = learnerNextAfterTheAi
+                ? DebatePreparation.RoundStart(lastArgument!.SubmittedAt).AddSeconds(RestartToleranceSeconds)
+                : DateTime.MinValue;
+            bool notRestartedYet = learnerNextAfterTheAi && round!.StartTime <= restartedMark;
+            // Called within the tolerance (no reading): still past the mark, so a second call cannot re-arm it
+            if (newStart <= restartedMark) newStart = restartedMark.AddSeconds(1);
+            if (!notRestartedYet || round!.StartTime >= newStart)
+            {
+                // Not right after the AI's turn ended a round (Round 1, someone has spoken in this round), already
+                // restarted for this AI turn, or the minute already ends later: nothing to change, nothing announced.
+                return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Không thay đổi thời gian chuẩn bị.");
+            }
+
+            round.StartTime = newStart;
+            await _debateRepository.UpdateRoundAsync(round, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
+            var mapped = MapToSessionResponse(updatedSession!, userId);
+            NotifyRoundStarted(mapped);
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(mapped, $"Bắt đầu tính thời gian chuẩn bị Vòng {round.RoundNumber}.");
         }
 
         // SignalR "RoundStarted" to the room when the debate moves to a new round, i.e. its preparation minute begins

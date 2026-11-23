@@ -165,6 +165,35 @@ namespace SystemService.Tests.Debate
             }
         }
 
+        /// <summary>The preparation of the current round ends in <paramref name="seconds"/> (part of the minute has passed).</summary>
+        public void SetPreparationEndsIn(int sessionId, int seconds)
+        {
+            using var context = CreateContext();
+            var round = context.DebateRounds
+                .Where(r => r.DebateSessionId == sessionId && r.StartTime != null && r.EndTime == null)
+                .OrderBy(r => r.RoundNumber)
+                .First();
+            round.StartTime = DateTime.UtcNow.AddSeconds(seconds);
+            context.SaveChanges();
+        }
+
+        /// <summary>The last argument and the current round's start happened <paramref name="seconds"/> earlier.</summary>
+        public void ShiftLastTurnBack(int sessionId, int seconds)
+        {
+            using var context = CreateContext();
+            var last = context.Arguments
+                .Where(a => a.Round.DebateSessionId == sessionId)
+                .OrderByDescending(a => a.ArgumentId)
+                .First();
+            last.SubmittedAt = last.SubmittedAt.AddSeconds(-seconds);
+            var round = context.DebateRounds
+                .Where(r => r.DebateSessionId == sessionId && r.StartTime != null && r.EndTime == null)
+                .OrderBy(r => r.RoundNumber)
+                .First();
+            round.StartTime = round.StartTime!.Value.AddSeconds(-seconds);
+            context.SaveChanges();
+        }
+
         public Task<ApiResponse<DebateSessionResponse>> UserSubmitsAsync(int userId, int sessionId, string content = "User speech")
         {
             if (AutoEndPreparation) EndPreparation(sessionId);
