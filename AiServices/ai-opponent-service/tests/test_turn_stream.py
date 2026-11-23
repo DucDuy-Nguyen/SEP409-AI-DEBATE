@@ -136,6 +136,7 @@ async def test_failure_after_streaming_started_is_an_error_event(client, fake_ll
 
     assert events[-1]["type"] == "error" and events[-1]["status"] == 502
     assert events[-1]["detail"].startswith("AI tra ve bai noi khong hop le")
+    assert events[-1]["code"] == "banned_phrase"  # failure_kind lan thu cuoi: client bao dung loi
 
 
 async def test_errors_before_generating_and_replays_are_plain_json(client, fake_llm, fake_reviewer):

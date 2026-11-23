@@ -177,10 +177,9 @@ async def create_turn(
     except service.LLMNotConfiguredError as e:
         logger.error("Khong khoi tao duoc LLM client: %s", e)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
-    except turn_service.TurnBudgetExceededError as e:
-        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail=str(e))
-    except turn_service.TurnGenerationError as e:
-        raise HTTPException(status_code=502, detail=f"AI tra ve bai noi khong hop le: {e}")
+    except (turn_service.TurnBudgetExceededError, turn_service.TurnGenerationError) as e:
+        code, body = _turn_error(e, external_session_id)
+        return JSONResponse(status_code=code, content=body)
     except service.LLMCallError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -205,10 +204,12 @@ def _turn_error(e: Exception, external_session_id: str) -> tuple[int, dict]:
     if isinstance(e, service.LLMNotConfiguredError):
         logger.error("Khong khoi tao duoc LLM client: %s", e)
         return status.HTTP_503_SERVICE_UNAVAILABLE, {"detail": str(e)}
+    # "code" (failure_kind: side_flip, truncated_max_tokens, budget_exceeded...) de client bao dung loi
     if isinstance(e, turn_service.TurnBudgetExceededError):
-        return status.HTTP_504_GATEWAY_TIMEOUT, {"detail": str(e)}
+        return status.HTTP_504_GATEWAY_TIMEOUT, {"detail": str(e), "code": e.code}
     if isinstance(e, turn_service.TurnGenerationError):
-        return 502, {"detail": f"AI tra ve bai noi khong hop le: {e}"}
+        body = {"detail": f"AI tra ve bai noi khong hop le: {e}"}
+        return 502, {**body, "code": e.code} if e.code else body
     if isinstance(e, service.LLMCallError):
         return 502, {"detail": str(e)}
     logger.exception("Loi khong luong truoc khi sinh luot stream: %s", e)

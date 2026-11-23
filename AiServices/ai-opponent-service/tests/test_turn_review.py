@@ -18,6 +18,7 @@ from app.opponent.models import (
     OpponentTurn,
     ReviewerVerdict,
 )
+from app.opponent.stance_reviewer import SIDE_CHECK_QUESTION
 from tests.conftest import FakeLLMClient, FakeStanceReviewer
 from tests.test_turn_full import CASE, _ctx, _out, _sp
 from tests.test_turns_api import _learner, _ready_session, _session_id, _turn
@@ -89,15 +90,17 @@ async def test_side_flip_retries_neutrally_without_feedback(client, db_session, 
     assert "PHẢN HỒI" not in second["user"] and "lật phe" not in second["user"]
     rows = await _calls(db_session, ext)
     assert [(r.purpose.value, r.attempt, r.success, r.failure_kind) for r in rows] == [
-        ("turn", 1, False, "side_flip"), ("stance_review", 2, True, None),
-        ("turn", 3, True, None), ("stance_review", 4, True, None),
+        ("turn", 1, False, "side_flip"), ("stance_review", 2, True, None), ("stance_review", 3, True, None),
+        ("turn", 4, True, None), ("stance_review", 5, True, None),
     ]
-    flipped, review1, accepted, review2 = rows
+    flipped, review1, side_check, accepted, review2 = rows
     assert flipped.reviewer_verdict == ReviewerVerdict.SIDE_FLIP and flipped.retry_feedback is None
     assert flipped.reviewer_detail["retry"] == "side_flip_neutral_retry"
     assert flipped.reviewer_detail["flipped_ids"] == ["P1", "P2", "weighing"]
+    assert flipped.reviewer_detail["side_check"]["position"] == UH  # lat TOAN BO -> side check, xac nhan lat phe
     assert review1.reviewer_verdict == ReviewerVerdict.SIDE_FLIP and review1.llm_model == "fake-reviewer"
     assert review1.prompt_version == "stance_review_v1" and review1.temperature == 0.0
+    assert side_check.prompt_version == "side_check_v1" and side_check.reviewer_verdict == ReviewerVerdict.SIDE_FLIP
     assert accepted.reviewer_verdict == review2.reviewer_verdict == ReviewerVerdict.PASS
     assert all(r.turn_id == accepted.turn_id is not None for r in rows)
 
@@ -109,6 +112,7 @@ async def test_side_flip_every_attempt_is_502_and_speech_not_saved(client, db_se
 
     resp = await _turn(client, ext, 2, [_learner(1)])
     assert resp.status_code == 502 and "side_flip" in resp.json()["detail"]
+    assert resp.json()["code"] == "side_flip"
 
     sid = await _session_id(db_session, ext)
     assert await db_session.scalar(select(OpponentSpeech).where(
@@ -126,12 +130,15 @@ async def test_side_flip_never_returned_even_if_earlier_attempt_only_had_length_
     # Lan 1: dung phe nhung dai 700 tu (ung vien); lan 2, 3: lat phe -> chap nhan LAN 1 (khong phai ban lat phe)
     ext = await _ready_session(client, fake_llm, fake_reviewer, "con")
     reviews = iter([None, _flipped(), _flipped()])  # None = review that (fake mac dinh: dung phe)
+    fake_reviewer.side_check_position = UH  # side check cung xac nhan lat phe
 
     orig = fake_reviewer.generate
 
-    def generate(*args, **kwargs):
+    def generate(system_prompt, *args, **kwargs):
+        if SIDE_CHECK_QUESTION in system_prompt:
+            return orig(system_prompt, *args, **kwargs)
         item = next(reviews, None)
-        return item if item is not None else orig(*args, **kwargs)
+        return item if item is not None else orig(system_prompt, *args, **kwargs)
 
     fake_reviewer.generate = generate
     fake_llm.responses = [_out(TurnMode.OPENING_REPLY, n_words=560), _out(TurnMode.OPENING_REPLY),
@@ -258,3 +265,95 @@ def test_target_null_modes(mode):
     assert tf.build_response_schema(mode)["properties"]["target_premise"] == {"type": "null"}
     assert not tf.needs_target(mode)
     assert CASE["motion_reading"]  # dung chung fixture
+
+
+# ---------------- lat TOAN BO -> side check (2026-11-23) ----------------
+
+
+def _con_closing_gen(reviewer: FakeStanceReviewer, n_outputs: int = 3) -> tf.FullTurnGeneratorV2:
+    return tf.FullTurnGeneratorV2(
+        FakeLLMClient([_out(TurnMode.CLOSING)] * n_outputs), Settings(_env_file=None), reviewer
+    )
+
+
+def _side_checks(result) -> list:
+    return [c for c in result.calls if c.prompt_version == "side_check_v1"]
+
+
+async def test_total_flip_overridden_when_side_check_confirms_ai_side():
+    reviewer = FakeStanceReviewer(UH)  # reviewer chinh: MOI muc ung ho (nguoc AI con)
+    reviewer.side_check_position = PD  # side check: nguoi noi muon kien nghi bi bac bo = dung phe con
+    result = await _con_closing_gen(reviewer).generate(TurnMode.CLOSING, _ctx(CON, 5))
+
+    assert result.text is not None and result.failure_kind is None
+    turns = [c for c in result.calls if c.purpose == LLMCallPurpose.TURN]
+    assert len(turns) == 1  # khong thu lai
+    turn = turns[0]
+    assert turn.success and turn.reviewer_verdict == ReviewerVerdict.UNCLEAR
+    assert turn.reviewer_detail["override"] == "reviewer_inverted_suspect"
+    assert turn.reviewer_detail["flipped_ids"] == ["P1", "P2", "weighing"]
+    check = turn.reviewer_detail["side_check"]
+    assert check["position"] == PD and check["conclusion"] and check["calls"] == 1
+    (sc,) = _side_checks(result)
+    assert sc.purpose == LLMCallPurpose.STANCE_REVIEW and sc.reviewer_verdict == ReviewerVerdict.PASS
+
+    # Prompt side check: kien nghi + ca bai noi, KHONG cho biet phe mong doi
+    sc_call = reviewer.calls[-1]
+    speech = json.loads(_out(TurnMode.CLOSING))["speech_text"]
+    assert "Nên cấm học sinh sử dụng điện thoại" in sc_call["user"] and speech in sc_call["user"]
+    for leak in ("phe của bạn", "phe con", "phe Phản đối", "CON"):
+        assert leak not in sc_call["system"] + sc_call["user"]
+    assert sc_call["temperature"] == 0.0 and sc_call["json_schema"]["required"] == ["conclusion", "position", "reason"]
+
+
+async def test_partial_flip_skips_side_check():
+    reviewer = FakeStanceReviewer(PD)
+    reviewer.positions = {"P1": UH}  # chi 1 muc nguoc phe: lat phe binh thuong, khong hoi lai
+    result = await _con_closing_gen(reviewer).generate(TurnMode.CLOSING, _ctx(CON, 5))
+    assert result.text is None and result.failure_kind == "side_flip"
+    assert _side_checks(result) == []
+    assert len([c for c in result.calls if c.purpose == LLMCallPurpose.TURN]) == 3
+
+
+@pytest.mark.parametrize("answers", [
+    [json.dumps({"conclusion": "x", "position": "khong_ro", "reason": "x"})],  # khong ro -> van lat phe
+    ["khong phai json", RuntimeError("503 reviewer down")],  # loi 2 lan -> van lat phe
+])
+async def test_total_flip_kept_when_side_check_unclear_or_fails(answers):
+    reviewer = FakeStanceReviewer(UH)
+    reviewer.side_check_responses = list(answers) * 3
+    result = await _con_closing_gen(reviewer).generate(TurnMode.CLOSING, _ctx(CON, 5))
+    assert result.text is None and result.failure_kind == "side_flip"
+    turns = [c for c in result.calls if c.purpose == LLMCallPurpose.TURN]
+    assert len(turns) == 3 and all(t.reviewer_verdict == ReviewerVerdict.SIDE_FLIP for t in turns)
+    assert all("override" not in t.reviewer_detail for t in turns)
+    assert len(_side_checks(result)) == 3 * len(answers)
+
+
+async def test_side_check_confirming_flip_keeps_side_flip():
+    reviewer = FakeStanceReviewer(UH)  # side check mac dinh giong weighing: ung ho -> xac nhan lat phe
+    result = await _con_closing_gen(reviewer).generate(TurnMode.CLOSING, _ctx(CON, 5))
+    assert result.text is None and result.failure_kind == "side_flip"
+    assert [t.reviewer_detail["side_check"]["position"] for t in result.calls
+            if t.purpose == LLMCallPurpose.TURN] == [UH] * 3
+
+
+def test_is_total_flip():
+    from app.opponent import stance_reviewer as sr
+    detail = {"flipped_ids": ["P1", "weighing"], "positions": [{"id": "P1"}, {"id": "weighing"}]}
+    assert sr.is_total_flip(detail)
+    assert not sr.is_total_flip({**detail, "flipped_ids": ["P1"]})
+    assert not sr.is_total_flip({"flipped_ids": ["weighing"], "positions": [{"id": "weighing"}]})  # 1 muc: khong du
+
+
+# ---------------- ma loi cho client ----------------
+
+
+def test_turn_error_carries_failure_code():
+    from app.opponent import router, turn_service
+    status, body = router._turn_error(turn_service.TurnGenerationError("side_flip: ...", code="side_flip"), "s")
+    assert status == 502 and body["code"] == "side_flip" and body["detail"].startswith("AI tra ve bai noi khong hop le")
+    status, body = router._turn_error(turn_service.TurnGenerationError("loi"), "s")
+    assert status == 502 and "code" not in body
+    status, body = router._turn_error(turn_service.TurnBudgetExceededError("het 240s"), "s")
+    assert status == 504 and body == {"detail": "het 240s", "code": "budget_exceeded"}

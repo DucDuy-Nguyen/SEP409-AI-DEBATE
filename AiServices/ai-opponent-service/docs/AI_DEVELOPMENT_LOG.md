@@ -1314,3 +1314,10 @@ dài mềm). Đọc tay 1 lượt rebuttal mỗi cấu hình: v3 / v4-medium cù
   thật, provider khác gửi cả bài 1 lần), `LLMCaller.complete_stream`, hook `_prompt` / `_complete` / `_parse` + sự kiện
   `attempt` trong `FullTurnGenerator` (v3 không đổi hành vi), `TURN_STREAM_REASONING_EFFORT`, script đo
   `run_stream_turn_eval`. 377 test cũ + 11 test mới pass.
+- 2026-11-23: Side check khi Stance Reviewer báo lật TOÀN BỘ. Trận thật: AI con, cả 3 lần thử reviewer v1 báo 5/5 mục
+  (P1..P4 + weighing) ủng hộ kiến nghị → lượt thất bại 502 dù prompt ghi rõ phe. Lật thật thường chỉ 1–2 ý, nên khi MỌI
+  mục (≥ 2) bị báo ngược phe, hỏi lại 1 lần `side_check_v1` (cả bài nói, kết luận trước, "người nói muốn kiến nghị được
+  thông qua hay bị bác bỏ", vẫn KHÔNG cho biết phe). Xác nhận đúng phe → `unclear` + `override:
+  reviewer_inverted_suspect` (chấp nhận, ghi `reviewer_detail.side_check`); ngược phe / không rõ / lỗi 2 lần → giữ
+  side_flip. Lỗi 502 / 504 của `POST .../turns` và sự kiện `error` của stream kèm `code` (= failure_kind lần thử cuối,
+  vd `side_flip`, `budget_exceeded`). CHƯA chạy LLM thật; test DB chưa chạy được (Postgres tắt), test không cần DB pass.

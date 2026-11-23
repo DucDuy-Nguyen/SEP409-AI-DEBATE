@@ -65,6 +65,9 @@ LENGTH_SOFT_ACCEPT = "length_soft_accept"
 ANALYSIS_COERCED = "analysis_coerced"  # speech_checks: model tra phan tich khong rong o cho bi ep rong
 # Reviewer cho luot noi: CO DINH v1 (chi doc tung y — ai_points khong co "reasoning" rieng cho v2 / v3), muc 2.11.
 TURN_REVIEW_VERSION = stance_reviewer.PROMPT_VERSION
+# reviewer_detail: ket qua side check khi reviewer bao MOI muc nguoc phe; override khi side check xac nhan dung phe
+SIDE_CHECK = "side_check"
+REVIEWER_INVERTED_SUSPECT = "reviewer_inverted_suspect"
 NO_NEW_SPEECH = "Không có bài nói mới của người học kể từ lượt trước của bạn."
 # Learner bo luot (het gio / bam bo luot): khong co gi de phan bac, KHONG duoc gan cho ho loi chua noi
 SKIPPED_SPEECH_NOTE = "Đội {learner} đã bỏ lượt {round} (không phát biểu)."
@@ -686,6 +689,8 @@ class FullTurnGenerator:
                         verdict, detail = sr.judge(review, context.ai_side, TURN_REVIEW_VERSION, extra)
                         detail["reviewer_calls"] = call_no
                         call.reviewer_verdict, call.reviewer_detail = verdict, detail
+                        if verdict == ReviewerVerdict.SIDE_FLIP and sr.is_total_flip(detail):
+                            return await self._check_total_flip(out, context, detail)
                         return verdict, detail
                 else:
                     error = call.error or ""
@@ -694,6 +699,51 @@ class FullTurnGenerator:
         verdict, detail = sr.reviewer_failure(error, TURN_REVIEW_VERSION)
         detail["reviewer_calls"] = sr.MAX_CALLS
         return verdict, detail
+
+    async def _check_total_flip(
+        self, out: TurnOutput, context: TurnContext, detail: dict
+    ) -> tuple[ReviewerVerdict, dict]:
+        """
+        Reviewer bao MOI muc nguoc phe: hoi lai 1 lan theo cach khac (side_check_v1: ca bai noi, y dinh nguoi noi, van
+        KHONG biet phe). Xac nhan dung phe AI -> reviewer bi nghi doc nguoc: UNCLEAR (chap nhan, log
+        reviewer_inverted_suspect). Nguoc phe / khong ro / loi -> giu SIDE_FLIP (khong bao gio tra bai lat phe chua ro).
+        """
+        sr, settings = stance_reviewer, self.settings
+        expected = sr.EXPECTED_POSITION[context.ai_side]
+        system, user = sr.build_side_check_prompt(context.motion, out.speech_text)
+        schema = sr.build_side_check_schema() if settings.case_plan_use_json_schema else None
+        check: dict = {"prompt_version": sr.SIDE_CHECK_VERSION}
+        for call_no in range(1, sr.MAX_CALLS + 1):
+            check["calls"] = call_no
+            try:
+                call = await self.reviewer.complete(
+                    system, user, temperature=sr.TEMPERATURE, max_tokens=settings.stance_review_max_tokens,
+                    prompt_version=sr.SIDE_CHECK_VERSION, json_schema=schema, purpose=LLMCallPurpose.STANCE_REVIEW,
+                )
+            except TurnLLMError as e:
+                check["error"] = str(e)[:2000]
+                continue
+            if not call.success:
+                check["error"] = (call.error or "")[:2000]
+                continue
+            try:
+                parsed = sr.parse_side_check(call.raw_output)
+            except (LLMOutputParseError, ValidationError, ValueError) as e:
+                call.success, call.error = False, str(e)[:4000]
+                call.failure_kind = TurnFailure.REVIEWER_ERROR
+                check["error"] = call.error[:2000]
+                continue
+            check.pop("error", None)
+            check.update(position=parsed.position.value, conclusion=parsed.conclusion, reason=parsed.reason)
+            call.reviewer_verdict = ReviewerVerdict.PASS if parsed.position == expected else ReviewerVerdict.SIDE_FLIP
+            call.reviewer_detail = {**check, "expected_position": expected.value}
+            break
+        detail = {**detail, SIDE_CHECK: check}
+        if check.get("position") == expected.value:
+            logger.warning("Luot %d: %s — reviewer bao lat ca %s nhung side check xac nhan dung phe %s",
+                           context.turn_index, REVIEWER_INVERTED_SUSPECT, detail["flipped_ids"], context.ai_side.value)
+            return ReviewerVerdict.UNCLEAR, {**detail, "override": REVIEWER_INVERTED_SUSPECT}
+        return ReviewerVerdict.SIDE_FLIP, detail
 
     def _give_up(self, result: TurnResult, candidates: list, context: TurnContext, error: str, kind: str) -> TurnResult:
         """Het luot thu. Con ban hop le chi sai do dai (da qua reviewer) -> chap nhan; khong -> that bai."""

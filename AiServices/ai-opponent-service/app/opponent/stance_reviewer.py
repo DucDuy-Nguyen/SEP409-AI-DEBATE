@@ -382,6 +382,69 @@ def judge(
     return verdict, detail
 
 
+# ---------------------------------------------------------------------------
+# Kiem tra lai khi reviewer bao MOI muc nguoc phe (side check). Ly do: tran 2026-11-23, AI con, ca 3 lan thu reviewer
+# v1 bao 5/5 muc (P1..P4 + weighing) ung ho kien nghi -> luot that bai 502, du prompt sinh bai noi ro "Ban thuoc phe
+# Phan doi". Lat phe THAT thuong chi 1-2 y; lat TOAN BO lap lai nhieu lan giong reviewer doc nguoc chieu kien nghi.
+# Cach hoi KHAC v1: doc CA bai noi (khong tach tung y), neu ket luan cua nguoi noi TRUOC, roi hoi nguoi noi MUON kien
+# nghi duoc thong qua hay bi bac bo (y dinh nguoi noi, khong phai "huong tac dong"). VAN KHONG cho biet phe mong doi.
+# ---------------------------------------------------------------------------
+SIDE_CHECK_VERSION = "side_check_v1"
+SIDE_CHECK_QUESTION = "người nói muốn kiến nghị được thông qua hay bị bác bỏ"
+
+SIDE_CHECK_SYSTEM_PROMPT = f"""Bạn là TRỌNG TÀI TRUNG LẬP của một cuộc thi tranh biện, KHÔNG phải người tranh biện. \
+Bạn không đánh giá bài nói hay hay dở, đúng hay sai.
+
+Nhiệm vụ duy nhất: đọc TOÀN BỘ một bài nói và xác định {SIDE_CHECK_QUESTION}. Làm đúng theo thứ tự:
+a. "conclusion": tóm tắt trong MỘT câu điều người nói kết luận về kiến nghị ở cuối bài.
+b. "position":
+   - "ung_ho_kien_nghi": người nói muốn kiến nghị được thông qua.
+   - "phan_doi_kien_nghi": người nói muốn kiến nghị bị bác bỏ.
+   - "khong_ro": không xác định được.
+c. "reason": lý do ngắn gọn, 1 câu.
+
+Chú ý: kiến nghị có thể chứa từ phủ định ("không nên", "cấm", "bãi bỏ"). Phản đối kiến nghị "Nên cấm X" nghĩa là \
+muốn X KHÔNG bị cấm. Xác định theo điều người nói muốn xảy ra với kiến nghị, không theo từ ngữ bề mặt.
+
+Viết bằng tiếng Việt. Chỉ trả về JSON hợp lệ, các trường theo đúng thứ tự conclusion → position → reason."""
+
+
+class SideCheckOutput(BaseModel):
+    conclusion: str = Field(..., min_length=1)
+    position: Position
+    reason: str = Field(..., min_length=1)
+
+
+def build_side_check_prompt(motion: str, speech: str) -> tuple[str, str]:
+    """KHONG co tham so phe (giong reviewer chinh)."""
+    user_prompt = f"""Kiến nghị: '{motion}'
+
+Bài nói của một đội tranh luận:
+"{speech}"
+
+Trả về JSON gồm "conclusion", "position", "reason" (đúng thứ tự này)."""
+    return SIDE_CHECK_SYSTEM_PROMPT, user_prompt
+
+
+def build_side_check_schema() -> dict:
+    fields = {
+        "conclusion": {"type": "string"},
+        "position": {"type": "string", "enum": [p.value for p in Position]},
+        "reason": {"type": "string"},
+    }
+    return {"type": "object", "properties": fields, "required": list(fields), "additionalProperties": False}
+
+
+def parse_side_check(raw_output: str) -> SideCheckOutput:
+    return SideCheckOutput.model_validate(extract_json(raw_output))
+
+
+def is_total_flip(detail: dict) -> bool:
+    """Reviewer bao MOI muc (it nhat 2: cac y + weighing) nguoc phe — dau hieu reviewer co the doc nguoc kien nghi."""
+    ids = [p["id"] for p in detail.get("positions", [])]
+    return len(ids) >= 2 and sorted(detail.get("flipped_ids", [])) == sorted(ids)
+
+
 def reviewer_failure(error: str, prompt_version: str = PROMPT_VERSION) -> tuple[ReviewerVerdict, dict]:
     """Reviewer loi (goi LLM that bai / output sai): KHONG chan Case Planning — coi nhu unclear + ghi ly do."""
     return ReviewerVerdict.UNCLEAR, {"prompt_version": prompt_version, "reviewer_error": error[:2000]}

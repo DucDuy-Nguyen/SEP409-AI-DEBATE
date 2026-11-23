@@ -63,11 +63,17 @@ class LearnerSpeechMismatchError(TurnConflictError):
 
 
 class TurnGenerationError(Exception):
-    """Bo sinh tra ve bai noi khong hop le sau moi lan thu -> 502."""
+    """Bo sinh tra ve bai noi khong hop le sau moi lan thu -> 502. code = failure_kind cua lan thu cuoi (vd side_flip)."""
+
+    def __init__(self, message: str | None, code: str | None = None):
+        super().__init__(message)
+        self.code = code
 
 
 class TurnBudgetExceededError(Exception):
     """Sinh 1 luot vuot TURN_TOTAL_BUDGET_SECONDS -> 504."""
+
+    code = "budget_exceeded"
 
 
 @dataclass
@@ -309,7 +315,7 @@ async def generate_turn(
             raise TurnBudgetExceededError(result.error)
         if result.failure_kind == TurnFailure.PROVIDER_ERROR:
             raise LLMCallError(result.error)
-        raise TurnGenerationError(result.error)
+        raise TurnGenerationError(result.error, code=result.failure_kind)
 
     speech = OpponentSpeech(
         session_id=session_id, turn_index=req.turn_index, round_type=round_type, speaker=Speaker.AI, text=result.text

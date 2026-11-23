@@ -43,6 +43,7 @@ from app.core.db import get_db
 from app.llm.client import LLMClient
 from app.main import app
 from app.opponent.router import get_llm_client_factory, get_stance_reviewer_factory
+from app.opponent.stance_reviewer import SIDE_CHECK_QUESTION
 
 ROOT = Path(__file__).resolve().parent.parent
 # Settings mac dinh cho test API — khong doc .env (xem fixture `client`). Cung dung cho gia tri test can doc.
@@ -209,6 +210,9 @@ class FakeStanceReviewer(LLMClient):
       phe mac dinh cua _payload() trong test API).
     - positions: ghi de theo id (vd {"A2": "ung_ho_kien_nghi", "weighing": "khong_ro"}).
     - responses: neu con phan tu thi tra/nem phan tu do TRUOC (de gia lap output sai / loi).
+    - Side check (side_check_v1, chi khi reviewer bao MOI muc nguoc phe): side_check_responses tra/nem TRUOC; khong co
+      thi position = side_check_position, hoac (mac dinh) GIONG weighing cua lan review gan nhat — reviewer "doc" bai
+      the nao thi side check cung doc the ay, nen test cu (lat phe that) giu nguyen ket qua.
     """
 
     provider = "fake"
@@ -218,8 +222,20 @@ class FakeStanceReviewer(LLMClient):
         self.default_position = default_position
         self.positions: dict[str, str] = {}
         self.responses: list[str | Exception] = []
+        self.side_check_position: str | None = None
+        self.side_check_responses: list[str | Exception] = []
+        self.last_weighing: str | None = None
         self.calls: list[dict] = []
         self.delay_seconds = 0.0
+
+    def _side_check(self) -> str:
+        if self.side_check_responses:
+            item = self.side_check_responses.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+        position = self.side_check_position or self.last_weighing or self.default_position
+        return json.dumps({"conclusion": "gia lap ket luan", "position": position, "reason": "gia lap"})
 
     def generate(
         self, system_prompt, user_prompt, temperature=None, max_tokens=None, json_schema=None, reasoning_effort=None
@@ -230,15 +246,23 @@ class FakeStanceReviewer(LLMClient):
         )
         if self.delay_seconds:
             time.sleep(self.delay_seconds)
+        if SIDE_CHECK_QUESTION in system_prompt:
+            return self._side_check()
         if self.responses:
             item = self.responses.pop(0)
             if isinstance(item, Exception):
                 raise item
+            try:
+                self.last_weighing = json.loads(item)["weighing"]["position"]
+            except (ValueError, KeyError, TypeError):
+                pass
             return item
         ids = re.findall(r"^- \[(\w+)\]", user_prompt, re.MULTILINE)
 
         def pos(i: str) -> str:
             return self.positions.get(i, self.default_position)
+
+        self.last_weighing = pos("weighing")
 
         if '"restatement"' in system_prompt + user_prompt:  # stance_review_v3: restatement -> effect -> reason
             effect = {"ung_ho_kien_nghi": "manh_hon", "phan_doi_kien_nghi": "yeu_di", "khong_ro": "khong_ro"}
