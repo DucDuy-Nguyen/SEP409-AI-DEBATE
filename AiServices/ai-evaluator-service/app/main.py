@@ -71,9 +71,10 @@ app.include_router(coaching.router)
 
 if settings.rag_enabled:
     # Import tai day: RAG tat thi khong nap module RAG nao (torch, psycopg chi nap khi thuc su goi)
-    from app.routers import rag
+    from app.routers import knowledge_base, rag
 
     app.include_router(rag.router)
+    app.include_router(knowledge_base.router)
 
 
 @app.get("/health", tags=["health"])

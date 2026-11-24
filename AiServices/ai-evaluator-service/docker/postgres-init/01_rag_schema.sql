@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS fact_card (
     content         text NOT NULL,
     citation        text,
     published_date  date,
-    status          text NOT NULL DEFAULT 'approved',   -- 'pending' | 'approved'
+    status          text NOT NULL DEFAULT 'approved',   -- 'pending' | 'approved' | 'rejected'
     embedding       vector(1024),                       -- bge-m3 dense = 1024 chieu
     -- Config 'simple' vi Postgres khong co stemmer tieng Viet
     content_tsv     tsvector GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED,

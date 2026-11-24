@@ -18,6 +18,8 @@ using SystemService.BLL.Services.Debate.Implementations;
 using SystemService.BLL.Services.Debate.Interfaces;
 using SystemService.BLL.Services.Identity.Implementations;
 using SystemService.BLL.Services.Identity.Interfaces;
+using SystemService.BLL.Services.KnowledgeBase.Implementations;
+using SystemService.BLL.Services.KnowledgeBase.Interfaces;
 
 using SystemService.DAL.Context;
 using SystemService.DAL.Repositories.Competition.Implementations;
@@ -111,6 +113,7 @@ builder.Services.AddScoped<IDebateRealtimeNotifier, DebateRealtimeNotifier>();
 builder.Services.AddScoped<IDebateService, DebateService>();
 builder.Services.AddScoped<IDebateChallengeService, DebateChallengeService>();
 builder.Services.AddScoped<ITopicService, TopicService>();
+builder.Services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
 
 // 5. AI Services Clients
 var evaluatorUrl = builder.Configuration["AiServices:EvaluatorUrl"] 
@@ -136,6 +139,11 @@ builder.Services.AddHttpClient(StartupWarmupService.EvaluatorHttpClientName, cli
 {
     client.BaseAddress = new Uri(evaluatorUrl.TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddHttpClient(KnowledgeBaseService.EvaluatorKbClientName, client =>
+{
+    client.BaseAddress = new Uri(evaluatorUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(60);
 });
 builder.Services.AddHostedService<StartupWarmupService>();
 
