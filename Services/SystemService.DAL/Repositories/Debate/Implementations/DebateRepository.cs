@@ -233,6 +233,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
         {
             return await _context.CompetitionMatches
                 .Include(m => m.Competition)
+                .Include(m => m.Participants)
                 .FirstOrDefaultAsync(m => m.DebateSessionId == debateSessionId, cancellationToken);
         }
 
@@ -243,6 +244,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             if (linkedMatch != null)
             {
                 linkedMatch.Status = "Evaluating";
+                linkedMatch.EvaluationStatus = "Pending";
                 linkedMatch.UpdatedAt = completedAt;
                 await _context.SaveChangesAsync(cancellationToken);
             }
@@ -339,6 +341,68 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
                 .Where(j => j.DebateSessionId == debateSessionId)
                 .OrderByDescending(j => j.CreatedAt)
                 .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<List<DebateCriteria>> GetActiveCriteriaAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.DebateCriteria
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.CriteriaId)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task AddJudgeScoresAsync(IEnumerable<JudgeScore> scores, CancellationToken cancellationToken = default)
+        {
+            await _context.JudgeScores.AddRangeAsync(scores, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task DeleteAiJudgeScoresAsync(int matchId, CancellationToken cancellationToken = default)
+        {
+            var oldAiScores = await _context.JudgeScores
+                .Where(s => s.CompetitionMatchId == matchId && s.ScoreSource == "AI")
+                .ToListAsync(cancellationToken);
+            if (oldAiScores.Count > 0)
+            {
+                _context.JudgeScores.RemoveRange(oldAiScores);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task DeleteAIJudgementsBySessionIdAsync(int sessionId, CancellationToken cancellationToken = default)
+        {
+            var oldJudgements = await _context.AIJudgements
+                .Where(j => j.DebateSessionId == sessionId)
+                .ToListAsync(cancellationToken);
+            if (oldJudgements.Count > 0)
+            {
+                _context.AIJudgements.RemoveRange(oldJudgements);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task UpdateMatchEvaluationStartedAsync(int matchId, DateTime startedAt, CancellationToken cancellationToken = default)
+        {
+            var match = await _context.CompetitionMatches.FindAsync(new object[] { matchId }, cancellationToken);
+            if (match != null)
+            {
+                match.EvaluationStatus = "Running";
+                match.EvaluationStartedAt = startedAt;
+                match.UpdatedAt = startedAt;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task UpdateMatchEvaluationStatusAsync(int matchId, string status, string? error = null, CancellationToken cancellationToken = default)
+        {
+            var match = await _context.CompetitionMatches.FindAsync(new object[] { matchId }, cancellationToken);
+            if (match != null)
+            {
+                match.EvaluationStatus = status;
+                match.EvaluationError = error;
+                match.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
         }
     }
 }

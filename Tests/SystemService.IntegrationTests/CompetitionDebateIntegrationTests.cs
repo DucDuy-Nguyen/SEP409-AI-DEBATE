@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using SystemService.BLL.Common.Debate;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.Competition.Implementations;
@@ -791,6 +792,233 @@ namespace SystemService.IntegrationTests
 
             var updatedMatch = await context.CompetitionMatches.FindAsync(match.CompetitionMatchId);
             Assert.Equal("Ongoing", updatedMatch!.Status);
+        }
+
+        [Fact]
+        public async Task Test13_Team2v2_Exactly12Turns_CompletesOn12thTurn_Rejects13thTurn()
+        {
+            using var context = CreateContext();
+            var (orgId, judgeId, p1Id, p2Id, topicId, _, f2v2) = await SeedTestDataAsync(context);
+
+            var p3 = new User { FullName = "Player 3", Email = "p3@test.com", PasswordHash = "hash" };
+            var p4 = new User { FullName = "Player 4", Email = "p4@test.com", PasswordHash = "hash" };
+            context.Users.AddRange(p3, p4);
+            await context.SaveChangesAsync();
+
+            var competition = new Competition
+            {
+                Title = "Team 2v2 Tournament",
+                CompetitionType = "TEAM",
+                CreatedBy = orgId,
+                FormatId = f2v2,
+                RegistrationStart = DateTime.UtcNow.AddDays(-2),
+                RegistrationEnd = DateTime.UtcNow,
+                StartDate = DateTime.UtcNow
+            };
+            context.Competitions.Add(competition);
+
+            var teamA = new CompetitionTeam { Competition = competition, TeamName = "Team Alpha", CaptainUserId = p1Id };
+            teamA.TeamMembers.Add(new CompetitionTeamMember { Team = teamA, UserId = p3.UserId });
+
+            var teamB = new CompetitionTeam { Competition = competition, TeamName = "Team Beta", CaptainUserId = p2Id };
+            teamB.TeamMembers.Add(new CompetitionTeamMember { Team = teamB, UserId = p4.UserId });
+            context.CompetitionTeams.AddRange(teamA, teamB);
+
+            var round = new CompetitionRound { Competition = competition, RoundNumber = 1, RoundName = "Finals" };
+            context.CompetitionRounds.Add(round);
+
+            var match = new CompetitionMatch
+            {
+                Competition = competition,
+                Round = round,
+                MatchNumber = 1,
+                Status = "Ready",
+                AssignedJudgeUserId = judgeId
+            };
+            context.CompetitionMatches.Add(match);
+            context.MatchParticipants.AddRange(
+                new MatchParticipant { Match = match, Team = teamA, Side = "PRO" },
+                new MatchParticipant { Match = match, Team = teamB, Side = "CON" }
+            );
+            await context.SaveChangesAsync();
+
+            var bridge = new CompetitionDebateBridgeService(context, new DebateRepository(context), new CompetitionTeamRepository(context));
+            var prepareRes = await bridge.PrepareMatchDebateAsync(orgId, match.CompetitionMatchId, topicId);
+            Assert.True(prepareRes.Success);
+            int sessionId = prepareRes.Data!.SessionId;
+
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context));
+            var startRes = await debateService.StartDebateSessionAsync(orgId, sessionId);
+            Assert.True(startRes.Success);
+
+            // Turn sequence per round: PRO member 1 (p1), CON member 1 (p2), PRO member 2 (p3), CON member 2 (p4)
+            var speakerSequence = new[] { p1Id, p2Id, p3.UserId, p4.UserId };
+
+            int turnCounter = 0;
+            for (int r = 1; r <= 3; r++)
+            {
+                for (int s = 0; s < 4; s++)
+                {
+                    turnCounter++;
+                    int speakerUserId = speakerSequence[s];
+                    var submitRes = await debateService.SubmitArgumentAsync(speakerUserId, sessionId, new SubmitArgumentRequest
+                    {
+                        Content = $"Round {r} argument by speaker {speakerUserId} (Turn {turnCounter})"
+                    });
+
+                    Assert.True(submitRes.Success, $"Turn {turnCounter} failed: {submitRes.Message}");
+
+                    if (turnCounter < 12)
+                    {
+                        Assert.Equal(SessionStatus.InProgress, submitRes.Data!.Status);
+                    }
+                    else
+                    {
+                        // Exactly at turn 12, session must be Completed!
+                        Assert.Equal(SessionStatus.Completed, submitRes.Data!.Status);
+                    }
+                }
+            }
+
+            Assert.Equal(12, turnCounter);
+
+            // Attempt 13th turn: MUST be rejected!
+            var turn13Res = await debateService.SubmitArgumentAsync(p1Id, sessionId, new SubmitArgumentRequest
+            {
+                Content = "Turn 13 should be rejected!"
+            });
+            Assert.False(turn13Res.Success);
+
+            // Verify database state: Exactly 12 arguments across 3 rounds (4 per round)
+            var sessionInDb = await context.DebateSessions
+                .Include(s => s.DebateRounds)
+                    .ThenInclude(r => r.Arguments)
+                        .ThenInclude(a => a.Participant)
+                .FirstAsync(s => s.DebateSessionId == sessionId);
+
+            Assert.Equal(SessionStatus.Completed, sessionInDb.Status);
+            Assert.NotNull(sessionInDb.EndTime);
+            Assert.Equal(3, sessionInDb.DebateRounds.Count);
+
+            foreach (var dbRound in sessionInDb.DebateRounds)
+            {
+                Assert.Equal(4, dbRound.Arguments.Count);
+            }
+
+            var finalArg = sessionInDb.DebateRounds
+                .First(r => r.RoundNumber == 3)
+                .Arguments
+                .OrderBy(a => a.SubmittedAt)
+                .Last();
+
+            Assert.Equal(DebateSide.CON, finalArg.Participant.Side);
+            Assert.Equal(p4.UserId, finalArg.Participant.UserId);
+
+            // Linked match must be moved to Evaluating
+            var updatedMatch = await context.CompetitionMatches.FindAsync(match.CompetitionMatchId);
+            Assert.Equal("Evaluating", updatedMatch!.Status);
+        }
+
+        [Fact]
+        public async Task Test14_Individual1v1_Exactly6Turns_CompletesOn6thTurn_Rejects7thTurn()
+        {
+            using var context = CreateContext();
+            var (orgId, judgeId, p1Id, p2Id, topicId, f1v1, _) = await SeedTestDataAsync(context);
+
+            var competition = new Competition
+            {
+                Title = "Individual 1v1 Tournament",
+                CompetitionType = "INDIVIDUAL",
+                CreatedBy = orgId,
+                FormatId = f1v1,
+                RegistrationStart = DateTime.UtcNow.AddDays(-2),
+                RegistrationEnd = DateTime.UtcNow,
+                StartDate = DateTime.UtcNow
+            };
+            context.Competitions.Add(competition);
+
+            var round = new CompetitionRound { Competition = competition, RoundNumber = 1, RoundName = "Round 1" };
+            context.CompetitionRounds.Add(round);
+
+            var match = new CompetitionMatch
+            {
+                Competition = competition,
+                Round = round,
+                MatchNumber = 1,
+                Status = "Ready",
+                AssignedJudgeUserId = judgeId
+            };
+            context.CompetitionMatches.Add(match);
+            context.MatchParticipants.AddRange(
+                new MatchParticipant { Match = match, UserId = p1Id, Side = "PRO" },
+                new MatchParticipant { Match = match, UserId = p2Id, Side = "CON" }
+            );
+            await context.SaveChangesAsync();
+
+            var bridge = new CompetitionDebateBridgeService(context, new DebateRepository(context), new CompetitionTeamRepository(context));
+            var prepareRes = await bridge.PrepareMatchDebateAsync(orgId, match.CompetitionMatchId, topicId);
+            Assert.True(prepareRes.Success);
+            int sessionId = prepareRes.Data!.SessionId;
+
+            var debateService = new DebateService(new DebateRepository(context), new UserRepository(context));
+            var startRes = await debateService.StartDebateSessionAsync(orgId, sessionId);
+            Assert.True(startRes.Success);
+
+            // 3 rounds x 2 turns (Round 1: PRO, CON; Round 2: PRO, CON; Round 3: CON, PRO per DebateTurnOrder)
+            for (int t = 0; t < DebateTurnOrder.TotalTurns; t++)
+            {
+                var turnSlot = DebateTurnOrder.Turns[t];
+                int speakerUserId = turnSlot.Side == DebateSide.PRO ? p1Id : p2Id;
+                var submitRes = await debateService.SubmitArgumentAsync(speakerUserId, sessionId, new SubmitArgumentRequest
+                {
+                    Content = $"Round {turnSlot.RoundNumber} argument by user {speakerUserId} (Turn {t + 1})"
+                });
+
+                Assert.True(submitRes.Success, $"Turn {t + 1} failed: {submitRes.Message}");
+
+                if (t + 1 < DebateTurnOrder.TotalTurns)
+                {
+                    Assert.Equal(SessionStatus.InProgress, submitRes.Data!.Status);
+                }
+                else
+                {
+                    Assert.Equal(SessionStatus.Completed, submitRes.Data!.Status);
+                }
+            }
+
+            // Turn 7 must be rejected
+            var turn7Res = await debateService.SubmitArgumentAsync(p1Id, sessionId, new SubmitArgumentRequest
+            {
+                Content = "Turn 7 should be rejected"
+            });
+            Assert.False(turn7Res.Success);
+
+            // Verify database state: Exactly 6 arguments across 3 rounds (2 per round)
+            var sessionInDb = await context.DebateSessions
+                .Include(s => s.DebateRounds)
+                    .ThenInclude(r => r.Arguments)
+                        .ThenInclude(a => a.Participant)
+                .FirstAsync(s => s.DebateSessionId == sessionId);
+
+            Assert.Equal(SessionStatus.Completed, sessionInDb.Status);
+            Assert.Equal(3, sessionInDb.DebateRounds.Count);
+
+            foreach (var dbRound in sessionInDb.DebateRounds)
+            {
+                Assert.Equal(2, dbRound.Arguments.Count);
+            }
+
+            var finalArg = sessionInDb.DebateRounds
+                .First(r => r.RoundNumber == 3)
+                .Arguments
+                .OrderBy(a => a.SubmittedAt)
+                .Last();
+
+            Assert.Equal(DebateSide.PRO, finalArg.Participant.Side);
+            Assert.Equal(p1Id, finalArg.Participant.UserId);
+
+            var updatedMatch = await context.CompetitionMatches.FindAsync(match.CompetitionMatchId);
+            Assert.Equal("Evaluating", updatedMatch!.Status);
         }
     }
 }

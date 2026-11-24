@@ -88,6 +88,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
         public bool IsRunning(int sessionId) => _inFlight.ContainsKey(sessionId);
 
+        public IServiceScopeFactory? ScopeFactory => _scopeFactory;
+
         /// <summary>True while any evaluation runs (tests wait for it before disposing their database).</summary>
         public bool HasRunningEvaluations => !_inFlight.IsEmpty;
 

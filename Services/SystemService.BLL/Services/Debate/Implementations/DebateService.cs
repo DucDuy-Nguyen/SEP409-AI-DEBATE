@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using SystemService.BLL.Common.Debate;
@@ -14,6 +15,7 @@ using SystemService.BLL.DTOs.AI;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.AI.Interfaces;
 using SystemService.BLL.Services.Debate.Interfaces;
+using SystemService.DAL.Entities.Competition;
 using SystemService.DAL.Entities.Debate;
 using SystemService.DAL.Entities.Debate.Enums;
 using SystemService.DAL.Repositories.Debate.Interfaces;
@@ -655,7 +657,13 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 _argumentDeliveryAnalytics[argument.ArgumentId] = request.DeliveryAnalytics;
             }
 
-            if (currentRound.Arguments.Count + 1 >= maxArgsPerRound)
+            // Ensure argument is counted even if navigation fixup is not active (e.g. In-Memory / mock)
+            if (!currentRound.Arguments.Contains(argument))
+            {
+                currentRound.Arguments.Add(argument);
+            }
+
+            if (currentRound.Arguments.Count >= maxArgsPerRound)
             {
                 currentRound.EndTime = DateTime.UtcNow;
                 await _debateRepository.UpdateRoundAsync(currentRound, cancellationToken);
@@ -1998,131 +2006,311 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 throw new InvalidOperationException("Debate session not found.");
             }
 
-            var motion = session.Topic?.Description ?? session.Topic?.Title ?? "Debate motion";
-            var evidenceTopic = MapEvidenceTopic(session.Topic?.Category);
-            var sortedRounds = session.DebateRounds.OrderBy(r => r.RoundNumber).ToList();
-
-            // Goi tat ca round (moi round x moi phe) song song; task them theo thu tu round nen ket qua gom lai giu dung thu tu
-            var proRoundTasks = new List<Task<EvaluateRoundResponse?>>();
-            var conRoundTasks = new List<Task<EvaluateRoundResponse?>>();
-
-            foreach (var round in sortedRounds)
+            var linkedMatch = await _debateRepository.GetLinkedCompetitionMatchAsync(sessionId, cancellationToken);
+            if (linkedMatch != null)
             {
-                var roundArgs = round.Arguments.OrderBy(a => a.SubmittedAt).ToList();
-                if (!roundArgs.Any()) continue;
-
-                var stageStr = round.RoundType switch
-                {
-                    RoundType.OPENING => "opening",
-                    RoundType.REBUTTAL => "rebuttal",
-                    RoundType.CLOSING => "closing",
-                    _ => "rebuttal"
-                };
-
-                // Formulate turns for PRO evaluation
-                var proTurns = roundArgs.Select(a => new RoundTurnDto(
-                    Speaker: (a.Participant.Side == DebateSide.PRO || a.Participant.Side == DebateSide.Affirmative) ? "learner" : "opponent",
-                    Text: a.Content,
-                    DeliveryAnalytics: _argumentDeliveryAnalytics.TryGetValue(a.ArgumentId, out var pDa) ? pDa : null
-                )).ToList();
-
-                if (proTurns.Any(t => t.Speaker == "learner"))
-                {
-                    var proRoundReq = new EvaluateRoundRequest(
-                        Motion: motion, Side: "pro", Stage: stageStr, Turns: proTurns, Topic: evidenceTopic,
-                        CheckEvidence: !IsAiSide(roundArgs, isPro: true));
-                    proRoundTasks.Add(_aiEvaluatorClient!.EvaluateRoundAsync(proRoundReq, cancellationToken));
-                }
-
-                // Formulate turns for CON evaluation
-                var conTurns = roundArgs.Select(a => new RoundTurnDto(
-                    Speaker: (a.Participant.Side == DebateSide.CON || a.Participant.Side == DebateSide.Negative) ? "learner" : "opponent",
-                    Text: a.Content,
-                    DeliveryAnalytics: _argumentDeliveryAnalytics.TryGetValue(a.ArgumentId, out var cDa) ? cDa : null
-                )).ToList();
-
-                if (conTurns.Any(t => t.Speaker == "learner"))
-                {
-                    var conRoundReq = new EvaluateRoundRequest(
-                        Motion: motion, Side: "con", Stage: stageStr, Turns: conTurns, Topic: evidenceTopic,
-                        CheckEvidence: !IsAiSide(roundArgs, isPro: false));
-                    conRoundTasks.Add(_aiEvaluatorClient!.EvaluateRoundAsync(conRoundReq, cancellationToken));
-                }
+                await _debateRepository.UpdateMatchEvaluationStartedAsync(linkedMatch.CompetitionMatchId, DateTime.UtcNow, cancellationToken);
             }
 
-            // Nhu ban tuan tu: 1 round loi (exception) thi ca lan cham loi, khong luu judgement; response null bi bo qua
-            await Task.WhenAll(proRoundTasks.Concat(conRoundTasks));
-            var proRounds = proRoundTasks.Select(t => t.Result).OfType<EvaluateRoundResponse>().ToList();
-            var conRounds = conRoundTasks.Select(t => t.Result).OfType<EvaluateRoundResponse>().ToList();
-            LogUnavailableEvidenceChecks(sessionId, "pro", proRounds);
-            LogUnavailableEvidenceChecks(sessionId, "con", conRounds);
-
-            // Stages a side did not speak in count 0 in its overall score (same rule as the FE grading had)
-            var proSkipped = SkippedStages(proRounds);
-            var conSkipped = SkippedStages(conRounds);
-
-            var proSessionTask = proRounds.Any()
-                ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "pro", Rounds: proRounds, SkippedStages: proSkipped), cancellationToken)
-                : Task.FromResult<EvaluateSessionResponse?>(null);
-            var conSessionTask = conRounds.Any()
-                ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "con", Rounds: conRounds, SkippedStages: conSkipped), cancellationToken)
-                : Task.FromResult<EvaluateSessionResponse?>(null);
-            await Task.WhenAll(proSessionTask, conSessionTask);
-            var proSessionRes = proSessionTask.Result;
-            var conSessionRes = conSessionTask.Result;
-
-            decimal proScore = proSessionRes?.OverallScore ?? AverageWithSkipped(proRounds, proSkipped);
-            decimal conScore = conSessionRes?.OverallScore ?? AverageWithSkipped(conRounds, conSkipped);
-
-            string suggestedWinner;
-            if (proScore > conScore) suggestedWinner = "PRO";
-            else if (conScore > proScore) suggestedWinner = "CON";
-            else suggestedWinner = "TIE";
-
-            var winnerParticipant = session.Participants.FirstOrDefault(p =>
-                (suggestedWinner == "PRO" && (p.Side == DebateSide.PRO || p.Side == DebateSide.Affirmative)) ||
-                (suggestedWinner == "CON" && (p.Side == DebateSide.CON || p.Side == DebateSide.Negative))
-            );
-
-            decimal scoreDiff = Math.Abs(proScore - conScore);
-            decimal confidence = Math.Round(Math.Min(1.0m, 0.50m + (scoreDiff / 20.0m)), 2);
-
-            var winnerText = suggestedWinner == "TIE" ? "Kết quả hòa" : $"Phe {suggestedWinner} thắng";
-            var summary = $"{winnerText} với điểm số: PRO {proScore:F1}/10 - CON {conScore:F1}/10.";
-            var feedback = proSessionRes?.ProgressTrend ?? conSessionRes?.ProgressTrend ?? summary;
-
-            var rawData = new
+            try
             {
-                ProSession = proSessionRes,
-                ConSession = conSessionRes,
-                ProRounds = proRounds,
-                ConRounds = conRounds
-            };
-            string rawJson = JsonSerializer.Serialize(rawData);
+                var motion = session.Topic?.Description ?? session.Topic?.Title ?? "Debate motion";
+                var evidenceTopic = MapEvidenceTopic(session.Topic?.Category);
+                var sortedRounds = session.DebateRounds.OrderBy(r => r.RoundNumber).ToList();
 
-            var judgement = new AIJudgement
+                var proRoundTasks = new List<(DebateRound Round, Task<EvaluateRoundResponse?> Task)>();
+                var conRoundTasks = new List<(DebateRound Round, Task<EvaluateRoundResponse?> Task)>();
+
+                foreach (var round in sortedRounds)
+                {
+                    var roundArgs = round.Arguments.OrderBy(a => a.SubmittedAt).ToList();
+                    if (!roundArgs.Any()) continue;
+
+                    var stageStr = round.RoundType switch
+                    {
+                        RoundType.OPENING => "opening",
+                        RoundType.REBUTTAL => "rebuttal",
+                        RoundType.CLOSING => "closing",
+                        _ => "rebuttal"
+                    };
+
+                    // Formulate turns for PRO evaluation
+                    var proTurns = roundArgs.Select(a => new RoundTurnDto(
+                        Speaker: (a.Participant.Side == DebateSide.PRO || a.Participant.Side == DebateSide.Affirmative) ? "learner" : "opponent",
+                        Text: a.Content,
+                        DeliveryAnalytics: _argumentDeliveryAnalytics.TryGetValue(a.ArgumentId, out var pDa) ? pDa : null
+                    )).ToList();
+
+                    if (proTurns.Any(t => t.Speaker == "learner"))
+                    {
+                        var proRoundReq = new EvaluateRoundRequest(
+                            Motion: motion, Side: "pro", Stage: stageStr, Turns: proTurns, Topic: evidenceTopic,
+                            CheckEvidence: !IsAiSide(roundArgs, isPro: true));
+                        proRoundTasks.Add((round, _aiEvaluatorClient!.EvaluateRoundAsync(proRoundReq, cancellationToken)));
+                    }
+
+                    // Formulate turns for CON evaluation
+                    var conTurns = roundArgs.Select(a => new RoundTurnDto(
+                        Speaker: (a.Participant.Side == DebateSide.CON || a.Participant.Side == DebateSide.Negative) ? "learner" : "opponent",
+                        Text: a.Content,
+                        DeliveryAnalytics: _argumentDeliveryAnalytics.TryGetValue(a.ArgumentId, out var cDa) ? cDa : null
+                    )).ToList();
+
+                    if (conTurns.Any(t => t.Speaker == "learner"))
+                    {
+                        var conRoundReq = new EvaluateRoundRequest(
+                            Motion: motion, Side: "con", Stage: stageStr, Turns: conTurns, Topic: evidenceTopic,
+                            CheckEvidence: !IsAiSide(roundArgs, isPro: false));
+                        conRoundTasks.Add((round, _aiEvaluatorClient!.EvaluateRoundAsync(conRoundReq, cancellationToken)));
+                    }
+                }
+
+                await Task.WhenAll(proRoundTasks.Select(x => x.Task).Concat(conRoundTasks.Select(x => x.Task)));
+                var proResults = proRoundTasks.Select(x => (x.Round, Result: x.Task.Result)).Where(x => x.Result != null).ToList();
+                var conResults = conRoundTasks.Select(x => (x.Round, Result: x.Task.Result)).Where(x => x.Result != null).ToList();
+
+                var proRounds = proResults.Select(x => x.Result!).ToList();
+                var conRounds = conResults.Select(x => x.Result!).ToList();
+                LogUnavailableEvidenceChecks(sessionId, "pro", proRounds);
+                LogUnavailableEvidenceChecks(sessionId, "con", conRounds);
+
+                var proSkipped = SkippedStages(proRounds);
+                var conSkipped = SkippedStages(conRounds);
+
+                var proSessionTask = proRounds.Any()
+                    ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "pro", Rounds: proRounds, SkippedStages: proSkipped), cancellationToken)
+                    : Task.FromResult<EvaluateSessionResponse?>(null);
+                var conSessionTask = conRounds.Any()
+                    ? _aiEvaluatorClient!.EvaluateSessionAsync(new EvaluateSessionRequest(Motion: motion, Side: "con", Rounds: conRounds, SkippedStages: conSkipped), cancellationToken)
+                    : Task.FromResult<EvaluateSessionResponse?>(null);
+                await Task.WhenAll(proSessionTask, conSessionTask);
+                var proSessionRes = proSessionTask.Result;
+                var conSessionRes = conSessionTask.Result;
+
+                decimal proScore = proSessionRes?.OverallScore ?? AverageWithSkipped(proRounds, proSkipped);
+                decimal conScore = conSessionRes?.OverallScore ?? AverageWithSkipped(conRounds, conSkipped);
+
+                string suggestedWinner;
+                if (proScore > conScore) suggestedWinner = "PRO";
+                else if (conScore > proScore) suggestedWinner = "CON";
+                else suggestedWinner = "TIE";
+
+                var winnerParticipant = session.Participants.FirstOrDefault(p =>
+                    (suggestedWinner == "PRO" && (p.Side == DebateSide.PRO || p.Side == DebateSide.Affirmative)) ||
+                    (suggestedWinner == "CON" && (p.Side == DebateSide.CON || p.Side == DebateSide.Negative))
+                );
+
+                decimal scoreDiff = Math.Abs(proScore - conScore);
+                decimal confidence = Math.Round(Math.Min(1.0m, 0.50m + (scoreDiff / 20.0m)), 2);
+
+                var winnerText = suggestedWinner == "TIE" ? "Kết quả hòa" : $"Phe {suggestedWinner} thắng";
+                var summary = $"{winnerText} với điểm số: PRO {proScore:F1}/10 - CON {conScore:F1}/10.";
+                var feedback = proSessionRes?.ProgressTrend ?? conSessionRes?.ProgressTrend ?? summary;
+
+                var rawData = new
+                {
+                    ProSession = proSessionRes,
+                    ConSession = conSessionRes,
+                    ProRounds = proRounds,
+                    ConRounds = conRounds
+                };
+                string rawJson = JsonSerializer.Serialize(rawData);
+
+                var judgement = new AIJudgement
+                {
+                    DebateSessionId = sessionId,
+                    WinnerParticipantId = winnerParticipant?.ParticipantId,
+                    SuggestedWinnerSide = suggestedWinner,
+                    OverallScorePro = proScore,
+                    OverallScoreCon = conScore,
+                    OverallScore = Math.Max(proScore, conScore),
+                    ConfidenceScore = confidence,
+                    OverallFeedback = feedback,
+                    Summary = summary,
+                    AIProvider = "Azure Container Apps - AI Evaluator",
+                    AIModel = "Groq / Llama-3.3-70b-versatile",
+                    RawResponseJson = rawJson,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                if (linkedMatch != null)
+                {
+                    var activeCriteria = await _debateRepository.GetActiveCriteriaAsync(cancellationToken);
+                    var proMatchParticipant = linkedMatch.Participants.FirstOrDefault(p => p.Side == "PRO");
+                    var conMatchParticipant = linkedMatch.Participants.FirstOrDefault(p => p.Side == "CON");
+
+                    if (proMatchParticipant == null || conMatchParticipant == null)
+                    {
+                        throw new InvalidOperationException("Linked competition match must have both PRO and CON participants.");
+                    }
+
+                    var aiJudgeScores = new List<JudgeScore>();
+                    foreach (var (r, res) in proResults)
+                    {
+                        aiJudgeScores.AddRange(BuildAndValidateAiRoundScores(res!, r, proMatchParticipant, linkedMatch.CompetitionMatchId, activeCriteria, "PRO"));
+                    }
+                    foreach (var (r, res) in conResults)
+                    {
+                        aiJudgeScores.AddRange(BuildAndValidateAiRoundScores(res!, r, conMatchParticipant, linkedMatch.CompetitionMatchId, activeCriteria, "CON"));
+                    }
+
+                    await using var tx = await _debateRepository.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+                    try
+                    {
+                        await _debateRepository.DeleteAiJudgeScoresAsync(linkedMatch.CompetitionMatchId, cancellationToken);
+                        await _debateRepository.DeleteAIJudgementsBySessionIdAsync(sessionId, cancellationToken);
+
+                        await _debateRepository.AddAIJudgementAsync(judgement, cancellationToken);
+                        await _debateRepository.AddJudgeScoresAsync(aiJudgeScores, cancellationToken);
+                        await _debateRepository.UpdateMatchEvaluationStatusAsync(linkedMatch.CompetitionMatchId, "Completed", null, cancellationToken);
+
+                        await tx.CommitAsync(cancellationToken);
+                    }
+                    catch
+                    {
+                        await tx.RollbackAsync(cancellationToken);
+                        _debateRepository.ClearChangeTracker();
+                        throw;
+                    }
+                }
+                else
+                {
+                    await _debateRepository.AddAIJudgementAsync(judgement, cancellationToken);
+                }
+
+                judgement.DebateSession = session;
+                judgement.WinnerParticipant = winnerParticipant;
+
+                return MapJudgementToResponse(judgement, session);
+            }
+            catch (Exception ex)
             {
-                DebateSessionId = sessionId,
-                WinnerParticipantId = winnerParticipant?.ParticipantId,
-                SuggestedWinnerSide = suggestedWinner,
-                OverallScorePro = proScore,
-                OverallScoreCon = conScore,
-                OverallScore = Math.Max(proScore, conScore),
-                ConfidenceScore = confidence,
-                OverallFeedback = feedback,
-                Summary = summary,
-                AIProvider = "Azure Container Apps - AI Evaluator",
-                AIModel = "Groq / Llama-3.3-70b-versatile",
-                RawResponseJson = rawJson,
-                CreatedAt = DateTime.UtcNow
+                if (linkedMatch != null)
+                {
+                    await RecordEvaluationFailureAsync(linkedMatch.CompetitionMatchId, ex);
+                }
+                throw;
+            }
+        }
+
+        private async Task RecordEvaluationFailureAsync(int matchId, Exception ex)
+        {
+            string status = (ex is TimeoutException or TaskCanceledException) ? "TimedOut" : "Failed";
+            string error = ex.Message;
+
+            try
+            {
+                if (_evaluationCoordinator?.ScopeFactory != null)
+                {
+                    await using var scope = _evaluationCoordinator.ScopeFactory.CreateAsyncScope();
+                    var freshRepo = scope.ServiceProvider.GetRequiredService<IDebateRepository>();
+                    await freshRepo.UpdateMatchEvaluationStatusAsync(matchId, status, error, CancellationToken.None);
+                    return;
+                }
+            }
+            catch
+            {
+                // Ignore and fall back to direct update
+            }
+
+            try
+            {
+                _debateRepository.ClearChangeTracker();
+                await _debateRepository.UpdateMatchEvaluationStatusAsync(matchId, status, error, CancellationToken.None);
+            }
+            catch (Exception dbEx)
+            {
+                _logger?.LogError(dbEx, "Failed to record evaluation failure status for match {MatchId}.", matchId);
+            }
+        }
+
+        private static DebateCriteria? ResolveCriterion(CriterionScoreDto dto, IReadOnlyList<DebateCriteria> activeCriteria)
+        {
+            if (!string.IsNullOrWhiteSpace(dto.Code))
+            {
+                var matchedByCode = activeCriteria.FirstOrDefault(c =>
+                    string.Equals(c.CriterionCode, dto.Code.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (matchedByCode != null) return matchedByCode;
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Name)) return null;
+
+            var normalized = dto.Name.Trim().ToLowerInvariant();
+            string? targetCode = normalized switch
+            {
+                "logic" => "LOGIC",
+                "evidence" => "EVIDENCE",
+                "relevance" => "RELEVANCE",
+                "structure" => "STRUCTURE",
+                "persuasiveness" => "PERSUASIVENESS",
+                _ => null
             };
 
-            await _debateRepository.AddAIJudgementAsync(judgement, cancellationToken);
+            if (targetCode != null)
+            {
+                var matchedByTarget = activeCriteria.FirstOrDefault(c =>
+                    string.Equals(c.CriterionCode, targetCode, StringComparison.OrdinalIgnoreCase));
+                if (matchedByTarget != null) return matchedByTarget;
+            }
 
-            judgement.DebateSession = session;
-            judgement.WinnerParticipant = winnerParticipant;
+            return activeCriteria.FirstOrDefault(c =>
+                string.Equals(c.CriteriaName, dto.Name.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
 
-            return MapJudgementToResponse(judgement, session);
+        private static List<JudgeScore> BuildAndValidateAiRoundScores(
+            EvaluateRoundResponse roundResponse,
+            DebateRound round,
+            MatchParticipant participant,
+            int matchId,
+            IReadOnlyList<DebateCriteria> activeCriteria,
+            string side)
+        {
+            if (roundResponse.Criteria == null || roundResponse.Criteria.Count == 0)
+            {
+                throw new InvalidOperationException($"AI evaluation returned empty criteria for Round {round.RoundNumber}, Side {side}.");
+            }
+
+            var scores = new List<JudgeScore>();
+            var usedCriteriaIds = new HashSet<int>();
+
+            foreach (var cDto in roundResponse.Criteria)
+            {
+                var criterion = ResolveCriterion(cDto, activeCriteria);
+                if (criterion == null)
+                {
+                    throw new InvalidOperationException($"AI evaluation returned unknown criterion '{cDto.Name}' (code: '{cDto.Code}') for Round {round.RoundNumber}, Side {side}.");
+                }
+
+                if (!usedCriteriaIds.Add(criterion.CriteriaId))
+                {
+                    throw new InvalidOperationException($"AI evaluation returned duplicate criterion '{criterion.CriteriaName}' for Round {round.RoundNumber}, Side {side}.");
+                }
+
+                if (cDto.Score < 1 || cDto.Score > 5)
+                {
+                    throw new InvalidOperationException($"AI evaluation returned invalid score {cDto.Score} for criterion '{criterion.CriteriaName}' in Round {round.RoundNumber}, Side {side}. Score must be between 1 and 5.");
+                }
+
+                scores.Add(new JudgeScore
+                {
+                    CompetitionMatchId = matchId,
+                    JudgeUserId = null,
+                    MatchParticipantId = participant.MatchParticipantId,
+                    CriteriaId = criterion.CriteriaId,
+                    DebateRoundId = round.RoundId,
+                    ScoreSource = "AI",
+                    Score = cDto.Score,
+                    Feedback = cDto.Reasoning,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            if (scores.Count != activeCriteria.Count)
+            {
+                throw new InvalidOperationException($"AI evaluation returned incomplete criteria set ({scores.Count}/{activeCriteria.Count}) for Round {round.RoundNumber}, Side {side}.");
+            }
+
+            return scores;
         }
 
         private DebateEvaluationResponse MapJudgementToResponse(AIJudgement judgement, DebateSession session)
