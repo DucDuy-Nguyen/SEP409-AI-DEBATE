@@ -17,6 +17,7 @@ namespace SystemService.BLL.DTOs.Debate
         public int MaxParticipants { get; set; }
         public bool IsTeamDebate { get; set; }
         public string? Difficulty { get; set; }
+        public bool EnableRag { get; set; } = true;
         public DebateStage CurrentStage { get; set; }
         public DebateSide CurrentTurnSide { get; set; }
         public SessionStatus Status { get; set; }

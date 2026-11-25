@@ -29,6 +29,8 @@ namespace SystemService.BLL.DTOs.Debate
         [MaxLength(50)]
         public string? Difficulty { get; set; }
 
+        public bool? EnableRag { get; set; } = true;
+
         [Range(30, 360, ErrorMessage = "Turn time limit must be between 30 and 360 seconds.")]
         public int TurnTimeLimitSeconds { get; set; } = 180;
     }

@@ -19,5 +19,8 @@ namespace SystemService.BLL.DTOs.Competition.Management
         public bool IsPublic { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        public string? Scale { get; set; }
+        public long CreditsCharged { get; set; }
+        public long? RemainingCredits { get; set; }
     }
 }

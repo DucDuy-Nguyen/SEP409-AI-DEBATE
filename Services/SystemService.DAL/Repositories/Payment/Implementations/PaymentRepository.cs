@@ -39,9 +39,15 @@ namespace SystemService.DAL.Repositories.Payment.Implementations
 
         public async Task<PaymentTransaction?> GetByProviderOrderCodeForUpdateAsync(string provider, long providerOrderCode, CancellationToken cancellationToken = default)
         {
+            if (_context.Database.IsSqlServer())
+            {
+                return await _context.PaymentTransactions
+                    .FromSqlInterpolated($"SELECT * FROM PaymentTransactions WITH (UPDLOCK, ROWLOCK) WHERE Provider = {provider} AND ProviderOrderCode = {providerOrderCode}")
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
             return await _context.PaymentTransactions
-                .FromSqlInterpolated($"SELECT * FROM PaymentTransactions WITH (UPDLOCK, ROWLOCK) WHERE Provider = {provider} AND ProviderOrderCode = {providerOrderCode}")
-                .FirstOrDefaultAsync(cancellationToken);
+                .FirstOrDefaultAsync(pt => pt.Provider == provider && pt.ProviderOrderCode == providerOrderCode, cancellationToken);
         }
 
         public async Task UpdateAsync(PaymentTransaction payment, CancellationToken cancellationToken = default)

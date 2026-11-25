@@ -10,16 +10,20 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using SystemService.BLL.Common.Debate;
+using SystemService.BLL.Common.Payment;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.AI;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.AI.Interfaces;
 using SystemService.BLL.Services.Debate.Interfaces;
+using SystemService.BLL.Services.Payment.Interfaces;
 using SystemService.DAL.Entities.Competition;
 using SystemService.DAL.Entities.Debate;
 using SystemService.DAL.Entities.Debate.Enums;
+using SystemService.DAL.Entities.Payment;
 using SystemService.DAL.Repositories.Debate.Interfaces;
 using SystemService.DAL.Repositories.Identity.Interfaces;
+using SystemService.DAL.Repositories.Payment.Interfaces;
 using System.Data;
 
 namespace SystemService.BLL.Services.Debate.Implementations
@@ -38,6 +42,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
         private readonly ILogger<DebateService>? _logger;
         private readonly DebateEvaluationCoordinator _evaluationCoordinator;
         private readonly IDebateRealtimeNotifier? _realtimeNotifier;
+        private readonly IWalletRepository? _walletRepository;
+        private readonly ICreditService? _creditService;
 
         public DebateService(
             IDebateRepository debateRepository,
@@ -45,13 +51,17 @@ namespace SystemService.BLL.Services.Debate.Implementations
             IAiEvaluatorClient? aiEvaluatorClient = null,
             ILogger<DebateService>? logger = null,
             DebateEvaluationCoordinator? evaluationCoordinator = null,
-            IDebateRealtimeNotifier? realtimeNotifier = null)
+            IDebateRealtimeNotifier? realtimeNotifier = null,
+            IWalletRepository? walletRepository = null,
+            ICreditService? creditService = null)
         {
             _debateRepository = debateRepository;
             _userRepository = userRepository;
             _aiEvaluatorClient = aiEvaluatorClient;
             _logger = logger;
             _realtimeNotifier = realtimeNotifier;
+            _walletRepository = walletRepository;
+            _creditService = creditService;
             // The API registers one singleton; without it the per-session lock only covers this service's own calls
             if (evaluationCoordinator == null && aiEvaluatorClient != null)
             {
@@ -110,6 +120,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 FormatId = format.FormatId,
                 CreatedBy = userId,
                 Difficulty = isAi && !string.IsNullOrWhiteSpace(request.Difficulty) ? request.Difficulty.Trim() : null,
+                EnableRag = request.EnableRag ?? true,
                 TurnTimeLimitSeconds = timeLimit,
                 Status = SessionStatus.Waiting,
                 StartTime = null,
@@ -1181,6 +1192,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 MaxParticipants = GetMaxArgsPerRound(session),
                 IsTeamDebate = GetMaxArgsPerRound(session) > 2,
                 Difficulty = session.Difficulty ?? session.Topic?.Difficulty,
+                EnableRag = session.EnableRag ?? true,
                 CurrentStage = currentRound != null ? MapRoundTypeToStage(currentRound.RoundType) : DebateStage.Closing,
                 CurrentTurnSide = currentTurnSide,
                 Status = session.Status,
@@ -1717,6 +1729,42 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     }
                 }
 
+                bool isAiPractice = linkedMatch == null
+                    && IsOneVsOne(session)
+                    && session.Participants.Any(p => p.ParticipantType == ParticipantType.AI);
+
+                long aiPracticeCost = 0;
+                string aiPracticeRuleCode = CreditRuleCodes.AiPracticeMatch;
+                bool shouldChargeAiPractice = false;
+
+                if (isAiPractice && _walletRepository != null)
+                {
+                    aiPracticeRuleCode = (session.EnableRag ?? true)
+                        ? CreditRuleCodes.AiPracticeMatch
+                        : CreditRuleCodes.AiPracticeNoRag;
+
+                    aiPracticeCost = _creditService != null
+                        ? await _creditService.GetRulePriceAsync(aiPracticeRuleCode, cancellationToken)
+                        : CreditRuleCodes.GetDefaultPrice(aiPracticeRuleCode);
+
+                    var wallet = await _walletRepository.GetByUserIdForUpdateAsync(userId, cancellationToken)
+                        ?? await _walletRepository.GetOrCreateWalletByUserIdAsync(userId, cancellationToken);
+
+                    var alreadyCharged = await _walletRepository.GetTransactionByReferenceAsync(
+                        wallet.WalletId, "Debit", "AiUsage", "DebateSession", sessionId, cancellationToken);
+
+                    if (alreadyCharged == null)
+                    {
+                        if (wallet.Balance < aiPracticeCost)
+                        {
+                            await transaction.RollbackAsync(cancellationToken);
+                            return ApiResponse<DebateSessionResponse>.InsufficientCreditsResponse(aiPracticeCost, wallet.Balance);
+                        }
+
+                        shouldChargeAiPractice = true;
+                    }
+                }
+
                 var now = DateTime.UtcNow;
                 // Round 1 starts after the preparation minute (DebatePreparation).
                 var claimed = await _debateRepository.ClaimAndStartSessionAsync(
@@ -1730,6 +1778,45 @@ namespace SystemService.BLL.Services.Debate.Implementations
                         linkedMatch != null
                             ? "Trận đấu đã được bắt đầu hoặc không còn ở trạng thái sẵn sàng."
                             : "Cuộc tranh biện đã được bắt đầu bởi một tiến trình khác.");
+                }
+
+                if (shouldChargeAiPractice && _walletRepository != null)
+                {
+                    var wallet = await _walletRepository.GetByUserIdForUpdateAsync(userId, cancellationToken)
+                        ?? await _walletRepository.GetOrCreateWalletByUserIdAsync(userId, cancellationToken);
+
+                    var alreadyCharged = await _walletRepository.GetTransactionByReferenceAsync(
+                        wallet.WalletId, "Debit", "AiUsage", "DebateSession", sessionId, cancellationToken);
+
+                    if (alreadyCharged == null)
+                    {
+                        if (wallet.Balance < aiPracticeCost)
+                        {
+                            await transaction.RollbackAsync(cancellationToken);
+                            _debateRepository.ClearChangeTracker();
+                            return ApiResponse<DebateSessionResponse>.InsufficientCreditsResponse(aiPracticeCost, wallet.Balance);
+                        }
+
+                        long balanceBefore = wallet.Balance;
+                        long balanceAfter = balanceBefore - aiPracticeCost;
+                        wallet.Balance = balanceAfter;
+                        wallet.UpdatedAt = DateTime.UtcNow;
+                        await _walletRepository.UpdateWalletAsync(wallet, cancellationToken);
+
+                        await _walletRepository.AddTransactionAsync(new WalletTransaction
+                        {
+                            WalletId = wallet.WalletId,
+                            TransactionType = "Debit",
+                            SourceType = "AiUsage",
+                            Amount = aiPracticeCost,
+                            BalanceBefore = balanceBefore,
+                            BalanceAfter = balanceAfter,
+                            ReferenceType = "DebateSession",
+                            ReferenceId = sessionId,
+                            Description = $"Start AI Practice debate session #{sessionId} ({aiPracticeRuleCode}) user #{userId}",
+                            CreatedAt = DateTime.UtcNow
+                        }, cancellationToken);
+                    }
                 }
 
                 await transaction.CommitAsync(cancellationToken);
@@ -2031,7 +2118,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
             try
             {
                 var motion = session.Topic?.Description ?? session.Topic?.Title ?? "Debate motion";
-                var evidenceTopic = MapEvidenceTopic(session.Topic?.Category);
+                bool isRagEnabled = session.EnableRag ?? true;
+                var evidenceTopic = isRagEnabled ? MapEvidenceTopic(session.Topic?.Category) : null;
                 var sortedRounds = session.DebateRounds.OrderBy(r => r.RoundNumber).ToList();
 
                 var proRoundTasks = new List<(DebateRound Round, Task<EvaluateRoundResponse?> Task)>();
@@ -2061,7 +2149,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     {
                         var proRoundReq = new EvaluateRoundRequest(
                             Motion: motion, Side: "pro", Stage: stageStr, Turns: proTurns, Topic: evidenceTopic,
-                            CheckEvidence: !IsAiSide(roundArgs, isPro: true));
+                            CheckEvidence: isRagEnabled && !IsAiSide(roundArgs, isPro: true));
                         proRoundTasks.Add((round, _aiEvaluatorClient!.EvaluateRoundAsync(proRoundReq, cancellationToken)));
                     }
 
@@ -2076,7 +2164,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                     {
                         var conRoundReq = new EvaluateRoundRequest(
                             Motion: motion, Side: "con", Stage: stageStr, Turns: conTurns, Topic: evidenceTopic,
-                            CheckEvidence: !IsAiSide(roundArgs, isPro: false));
+                            CheckEvidence: isRagEnabled && !IsAiSide(roundArgs, isPro: false));
                         conRoundTasks.Add((round, _aiEvaluatorClient!.EvaluateRoundAsync(conRoundReq, cancellationToken)));
                     }
                 }

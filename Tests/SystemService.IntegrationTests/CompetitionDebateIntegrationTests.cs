@@ -60,6 +60,20 @@ namespace SystemService.IntegrationTests
             _connection.Dispose();
         }
 
+        private static async Task EndPreparationAsync(SystemDbContext context, int sessionId)
+        {
+            var now = DateTime.UtcNow;
+            var rounds = await context.DebateRounds
+                .Where(r => r.DebateSessionId == sessionId && r.StartTime != null && r.StartTime > now)
+                .ToListAsync();
+            if (rounds.Count == 0) return;
+            foreach (var round in rounds)
+            {
+                round.StartTime = now.AddSeconds(-1);
+            }
+            await context.SaveChangesAsync();
+        }
+
         private async Task<(int organizerId, int judgeId, int player1Id, int player2Id, int topicId, int format1v1Id, int format2v2Id)> SeedTestDataAsync(SystemDbContext context)
         {
             var organizer = new User { FullName = "Organizer", Email = "org@test.com", PasswordHash = "hash" };
@@ -488,6 +502,7 @@ namespace SystemService.IntegrationTests
             {
                 Title = "Casual debate",
                 Topic = "Casual topic",
+                Category = "education",
                 UserSide = DebateSide.PRO,
                 TurnTimeLimitSeconds = 180,
                 IsAI = false
@@ -645,6 +660,7 @@ namespace SystemService.IntegrationTests
             });
             await context.SaveChangesAsync();
 
+            await EndPreparationAsync(context, session.DebateSessionId);
             var result = await debateService.SubmitArgumentAsync(p1Id, session.DebateSessionId,
                 new SubmitArgumentRequest { Content = "Final pro" });
 
@@ -857,6 +873,7 @@ namespace SystemService.IntegrationTests
             int turnCounter = 0;
             for (int r = 1; r <= 3; r++)
             {
+                await EndPreparationAsync(context, sessionId);
                 for (int s = 0; s < 4; s++)
                 {
                     turnCounter++;
@@ -967,6 +984,7 @@ namespace SystemService.IntegrationTests
             // 3 rounds x 2 turns (Round 1: PRO, CON; Round 2: PRO, CON; Round 3: CON, PRO per DebateTurnOrder)
             for (int t = 0; t < DebateTurnOrder.TotalTurns; t++)
             {
+                await EndPreparationAsync(context, sessionId);
                 var turnSlot = DebateTurnOrder.Turns[t];
                 int speakerUserId = turnSlot.Side == DebateSide.PRO ? p1Id : p2Id;
                 var submitRes = await debateService.SubmitArgumentAsync(speakerUserId, sessionId, new SubmitArgumentRequest

@@ -1,15 +1,22 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using SystemService.BLL.Common.Payment;
 using SystemService.BLL.Common.Responses;
 using SystemService.BLL.Services.Competition;
 using SystemService.BLL.DTOs.Competition.Management;
 using SystemService.BLL.Services.Competition.Interfaces;
+using SystemService.BLL.Services.Payment.Interfaces;
+using SystemService.DAL.Context;
 using SystemService.DAL.Entities.Competition;
+using SystemService.DAL.Entities.Payment;
 using SystemService.DAL.Repositories.Competition.Interfaces;
 using SystemService.DAL.Repositories.Identity.Interfaces;
+using SystemService.DAL.Repositories.Payment.Interfaces;
 
 namespace SystemService.BLL.Services.Competition.Implementations
 {
@@ -20,19 +27,28 @@ namespace SystemService.BLL.Services.Competition.Implementations
         private readonly IUserRepository _userRepository;
         private readonly ICompetitionRegistrationRepository _registrationRepository;
         private readonly ICompetitionTeamRepository _teamRepository;
+        private readonly IWalletRepository? _walletRepository;
+        private readonly ICreditService? _creditService;
+        private readonly SystemDbContext? _dbContext;
 
         public CompetitionService(
             ICompetitionRepository competitionRepository,
             IDebateFormatRepository debateFormatRepository,
             IUserRepository userRepository,
             ICompetitionRegistrationRepository registrationRepository,
-            ICompetitionTeamRepository teamRepository)
+            ICompetitionTeamRepository teamRepository,
+            IWalletRepository? walletRepository = null,
+            ICreditService? creditService = null,
+            SystemDbContext? dbContext = null)
         {
             _competitionRepository = competitionRepository;
             _debateFormatRepository = debateFormatRepository;
             _userRepository = userRepository;
             _registrationRepository = registrationRepository;
             _teamRepository = teamRepository;
+            _walletRepository = walletRepository;
+            _creditService = creditService;
+            _dbContext = dbContext;
         }
 
         public async Task<ApiResponse<CompetitionResponse>> CreateAsync(int createdByUserId, CreateCompetitionRequest request, CancellationToken cancellationToken = default)
@@ -43,9 +59,9 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<CompetitionResponse>.FailureResponse("User not found.");
             }
 
-            if (!creator.IsActive || !creator.UserRoles.Any(ur => ur.Role.RoleName == "Admin" || ur.Role.RoleName == "Lecturer"))
+            if (!creator.IsActive)
             {
-                return ApiResponse<CompetitionResponse>.FailureResponse("Only Admin or Lecturer may create competitions.", CompetitionErrorCodes.Forbidden);
+                return ApiResponse<CompetitionResponse>.FailureResponse("User account is inactive.", CompetitionErrorCodes.Forbidden);
             }
 
             if (string.IsNullOrWhiteSpace(request.Title))
@@ -79,14 +95,17 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 }
             }
 
-            if (request.MaxParticipants.HasValue && request.MaxParticipants.Value <= 0)
+            if (!CreditRuleCodes.TryResolveCompetitionScale(
+                    type,
+                    request.MaxParticipants,
+                    maxTeams: null,
+                    out var scale,
+                    out var ruleCode,
+                    out var normalizedMaxParticipants,
+                    out _,
+                    out var scaleError))
             {
-                return ApiResponse<CompetitionResponse>.FailureResponse("MaxParticipants must be greater than 0 or null.");
-            }
-
-            if (type == "TEAM" && request.MaxParticipants.HasValue && request.MaxParticipants.Value % 2 != 0)
-            {
-                return ApiResponse<CompetitionResponse>.FailureResponse("TEAM MaxParticipants must be even.");
+                return ApiResponse<CompetitionResponse>.FailureResponse(scaleError ?? "Invalid competition capacity.");
             }
 
             if (request.RegistrationEnd <= request.RegistrationStart)
@@ -104,14 +123,142 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<CompetitionResponse>.FailureResponse("EndDate must be on or after StartDate.");
             }
 
-            var competition = new SystemService.DAL.Entities.Competition.Competition
+            var requestId = request.RequestId?.Trim();
+            long requiredCredits = _creditService != null
+                ? await _creditService.GetRulePriceAsync(ruleCode, cancellationToken)
+                : CreditRuleCodes.GetDefaultPrice(ruleCode);
+
+            if (_dbContext != null && _walletRepository != null)
+            {
+                await _walletRepository.GetOrCreateWalletByUserIdAsync(createdByUserId, cancellationToken);
+
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+                try
+                {
+                    var wallet = await _walletRepository.GetByUserIdForUpdateAsync(createdByUserId, cancellationToken);
+                    if (wallet == null)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        return ApiResponse<CompetitionResponse>.FailureResponse("Wallet not found.");
+                    }
+
+                    // Idempotency check on retry using RequestId
+                    if (!string.IsNullOrWhiteSpace(requestId))
+                    {
+                        var marker = $"[CompReq:{requestId}]";
+                        var existingTx = await _walletRepository.GetTransactionByIdempotencyAsync(
+                            wallet.WalletId, "Competition", marker, cancellationToken);
+                        if (existingTx?.ReferenceId != null)
+                        {
+                            var existingComp = await _competitionRepository.GetByIdAsync((int)existingTx.ReferenceId.Value, cancellationToken);
+                            if (existingComp != null)
+                            {
+                                await transaction.CommitAsync(cancellationToken);
+                                var replayResp = MapToResponse(existingComp, scale, existingTx.Amount, wallet.Balance);
+                                return ApiResponse<CompetitionResponse>.SuccessResponse(replayResp, "Competition already created (idempotent replay).");
+                            }
+                        }
+                    }
+
+                    // Duplicate submit protection without RequestId within short retry window
+                    var duplicateWindowStart = DateTime.UtcNow.AddSeconds(-30);
+                    var recentDuplicate = await _dbContext.Competitions
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(c =>
+                            c.CreatedBy == createdByUserId
+                            && c.Title == trimmedTitle
+                            && c.CompetitionType == type
+                            && c.MaxParticipants == normalizedMaxParticipants
+                            && c.RegistrationStart == request.RegistrationStart
+                            && c.RegistrationEnd == request.RegistrationEnd
+                            && c.StartDate == request.StartDate
+                            && c.CreatedAt >= duplicateWindowStart,
+                            cancellationToken);
+
+                    if (recentDuplicate != null && string.IsNullOrWhiteSpace(requestId))
+                    {
+                        await transaction.CommitAsync(cancellationToken);
+                        var dupResp = MapToResponse(recentDuplicate, scale, requiredCredits, wallet.Balance);
+                        return ApiResponse<CompetitionResponse>.SuccessResponse(dupResp, "Competition already created.");
+                    }
+
+                    if (wallet.Balance < requiredCredits)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        return ApiResponse<CompetitionResponse>.InsufficientCreditsResponse(requiredCredits, wallet.Balance);
+                    }
+
+                    var competition = new SystemService.DAL.Entities.Competition.Competition
+                    {
+                        Title = trimmedTitle,
+                        Description = request.Description,
+                        CreatedBy = createdByUserId,
+                        CompetitionType = type,
+                        FormatId = request.FormatId,
+                        MaxParticipants = normalizedMaxParticipants,
+                        RegistrationStart = request.RegistrationStart,
+                        RegistrationEnd = request.RegistrationEnd,
+                        StartDate = request.StartDate,
+                        EndDate = request.EndDate,
+                        Status = "Draft",
+                        IsPublic = request.IsPublic,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    await _dbContext.Competitions.AddAsync(competition, cancellationToken);
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+
+                    var judge = new CompetitionJudge
+                    {
+                        CompetitionId = competition.CompetitionId,
+                        UserId = createdByUserId,
+                        AssignedAt = DateTime.UtcNow
+                    };
+                    await _dbContext.CompetitionJudges.AddAsync(judge, cancellationToken);
+                    await _dbContext.SaveChangesAsync(cancellationToken);
+
+                    long balanceBefore = wallet.Balance;
+                    long balanceAfter = balanceBefore - requiredCredits;
+                    wallet.Balance = balanceAfter;
+                    wallet.UpdatedAt = DateTime.UtcNow;
+                    await _walletRepository.UpdateWalletAsync(wallet, cancellationToken);
+
+                    var markerSuffix = !string.IsNullOrWhiteSpace(requestId) ? $" [CompReq:{requestId}]" : string.Empty;
+                    var walletTx = new WalletTransaction
+                    {
+                        WalletId = wallet.WalletId,
+                        TransactionType = "Debit",
+                        SourceType = "AiUsage",
+                        Amount = requiredCredits,
+                        BalanceBefore = balanceBefore,
+                        BalanceAfter = balanceAfter,
+                        ReferenceType = "Competition",
+                        ReferenceId = competition.CompetitionId,
+                        Description = $"Create {scale} {type} competition #{competition.CompetitionId} ({ruleCode}) user #{createdByUserId}{markerSuffix}",
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _walletRepository.AddTransactionAsync(walletTx, cancellationToken);
+
+                    await transaction.CommitAsync(cancellationToken);
+
+                    var response = MapToResponse(competition, scale, requiredCredits, balanceAfter);
+                    return ApiResponse<CompetitionResponse>.SuccessResponse(response, "Competition created successfully.");
+                }
+                catch
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    throw;
+                }
+            }
+
+            var fallbackCompetition = new SystemService.DAL.Entities.Competition.Competition
             {
                 Title = trimmedTitle,
                 Description = request.Description,
                 CreatedBy = createdByUserId,
                 CompetitionType = type,
                 FormatId = request.FormatId,
-                MaxParticipants = request.MaxParticipants,
+                MaxParticipants = normalizedMaxParticipants,
                 RegistrationStart = request.RegistrationStart,
                 RegistrationEnd = request.RegistrationEnd,
                 StartDate = request.StartDate,
@@ -121,16 +268,16 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 CreatedAt = DateTime.UtcNow
             };
 
-            var judge = new CompetitionJudge
+            var fallbackJudge = new CompetitionJudge
             {
                 UserId = createdByUserId,
                 AssignedAt = DateTime.UtcNow
             };
 
-            await _competitionRepository.CreateWithJudgeAsync(competition, judge, cancellationToken);
+            await _competitionRepository.CreateWithJudgeAsync(fallbackCompetition, fallbackJudge, cancellationToken);
 
-            var response = MapToResponse(competition);
-            return ApiResponse<CompetitionResponse>.SuccessResponse(response, "Competition created successfully.");
+            var fallbackResponse = MapToResponse(fallbackCompetition, scale, 0, null);
+            return ApiResponse<CompetitionResponse>.SuccessResponse(fallbackResponse, "Competition created successfully.");
         }
 
         public async Task<ApiResponse<CompetitionResponse>> PatchAsync(int competitionId, int currentUserId, PatchCompetitionRequest request, CancellationToken cancellationToken = default)
@@ -185,18 +332,28 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 }
             }
 
-            if (request.HasMaxParticipants && request.MaxParticipants.HasValue)
-            {
-                if (request.MaxParticipants.Value <= 0)
-                {
-                    return ApiResponse<CompetitionResponse>.FailureResponse("MaxParticipants must be greater than 0 or null.");
-                }
-            }
+            string? upgradedScale = null;
+            string? upgradedRuleCode = null;
+            long upgradeDelta = 0;
 
-            var effectiveMaxParticipants = request.HasMaxParticipants ? request.MaxParticipants : competition.MaxParticipants;
-            if (competition.CompetitionType == "TEAM" && effectiveMaxParticipants.HasValue && effectiveMaxParticipants.Value % 2 != 0)
+            if (request.HasMaxParticipants)
             {
-                return ApiResponse<CompetitionResponse>.FailureResponse("TEAM MaxParticipants must be even.");
+                if (!CreditRuleCodes.TryResolveCompetitionScale(
+                        competition.CompetitionType,
+                        request.MaxParticipants,
+                        maxTeams: null,
+                        out var newScale,
+                        out var newRuleCode,
+                        out var normalizedNewCapacity,
+                        out _,
+                        out var scaleError))
+                {
+                    return ApiResponse<CompetitionResponse>.FailureResponse(scaleError ?? "Invalid MaxParticipants.");
+                }
+
+                upgradedScale = newScale;
+                upgradedRuleCode = newRuleCode;
+                request.MaxParticipants = normalizedNewCapacity;
             }
 
             if (existingRounds.Count > 0 && (request.HasFormatId || request.HasMaxParticipants || request.HasRegistrationStart || request.HasRegistrationEnd))
@@ -255,6 +412,103 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 return ApiResponse<CompetitionResponse>.FailureResponse("EndDate must be on or after StartDate.");
             }
 
+            if (request.HasMaxParticipants && upgradedRuleCode != null && _dbContext != null && _walletRepository != null)
+            {
+                long newFee = _creditService != null
+                    ? await _creditService.GetRulePriceAsync(upgradedRuleCode, cancellationToken)
+                    : CreditRuleCodes.GetDefaultPrice(upgradedRuleCode);
+
+                long oldScaleFee = 0;
+                if (competition.MaxParticipants.HasValue
+                    && CreditRuleCodes.TryResolveCompetitionScale(
+                        competition.CompetitionType,
+                        competition.MaxParticipants,
+                        maxTeams: null,
+                        out _,
+                        out var oldRuleCode,
+                        out _,
+                        out _,
+                        out _))
+                {
+                    oldScaleFee = _creditService != null
+                        ? await _creditService.GetRulePriceAsync(oldRuleCode, cancellationToken)
+                        : CreditRuleCodes.GetDefaultPrice(oldRuleCode);
+                }
+
+                await _walletRepository.GetOrCreateWalletByUserIdAsync(currentUserId, cancellationToken);
+
+                await using var tx = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+                try
+                {
+                    var wallet = await _walletRepository.GetByUserIdForUpdateAsync(currentUserId, cancellationToken);
+                    if (wallet == null)
+                    {
+                        await tx.RollbackAsync(cancellationToken);
+                        return ApiResponse<CompetitionResponse>.FailureResponse("Wallet not found.");
+                    }
+
+                    var pastTxs = await _walletRepository.GetTransactionsByReferenceAsync(
+                        wallet.WalletId, "Competition", competition.CompetitionId, cancellationToken);
+                    long paidFromLedger = pastTxs
+                        .Where(t => t.TransactionType == "Debit" && t.SourceType == "AiUsage")
+                        .Sum(t => t.Amount);
+
+                    long coveredFee = Math.Max(paidFromLedger, oldScaleFee);
+                    upgradeDelta = newFee > coveredFee ? newFee - coveredFee : 0;
+
+                    if (upgradeDelta > 0)
+                    {
+                        if (wallet.Balance < upgradeDelta)
+                        {
+                            await tx.RollbackAsync(cancellationToken);
+                            return ApiResponse<CompetitionResponse>.InsufficientCreditsResponse(upgradeDelta, wallet.Balance);
+                        }
+
+                        long balanceBefore = wallet.Balance;
+                        long balanceAfter = balanceBefore - upgradeDelta;
+                        wallet.Balance = balanceAfter;
+                        wallet.UpdatedAt = DateTime.UtcNow;
+                        await _walletRepository.UpdateWalletAsync(wallet, cancellationToken);
+
+                        await _walletRepository.AddTransactionAsync(new WalletTransaction
+                        {
+                            WalletId = wallet.WalletId,
+                            TransactionType = "Debit",
+                            SourceType = "AiUsage",
+                            Amount = upgradeDelta,
+                            BalanceBefore = balanceBefore,
+                            BalanceAfter = balanceAfter,
+                            ReferenceType = "Competition",
+                            ReferenceId = competition.CompetitionId,
+                            Description = $"Upgrade competition #{competition.CompetitionId} scale to {upgradedScale} ({upgradedRuleCode}) user #{currentUserId}",
+                            CreatedAt = DateTime.UtcNow
+                        }, cancellationToken);
+                    }
+
+                    ApplyPatchFields(competition, request);
+                    await _competitionRepository.UpdateAsync(competition, cancellationToken);
+                    await tx.CommitAsync(cancellationToken);
+
+                    return ApiResponse<CompetitionResponse>.SuccessResponse(
+                        MapToResponse(competition, upgradedScale, upgradeDelta, wallet.Balance),
+                        "Competition updated successfully.");
+                }
+                catch
+                {
+                    await tx.RollbackAsync(cancellationToken);
+                    throw;
+                }
+            }
+
+            ApplyPatchFields(competition, request);
+            await _competitionRepository.UpdateAsync(competition, cancellationToken);
+
+            var response = MapToResponse(competition, upgradedScale, 0, null);
+            return ApiResponse<CompetitionResponse>.SuccessResponse(response, "Competition updated successfully.");
+        }
+
+        private static void ApplyPatchFields(SystemService.DAL.Entities.Competition.Competition competition, PatchCompetitionRequest request)
+        {
             if (request.HasTitle)
             {
                 competition.Title = request.Title!.Trim();
@@ -301,11 +555,6 @@ namespace SystemService.BLL.Services.Competition.Implementations
             }
 
             competition.UpdatedAt = DateTime.UtcNow;
-
-            await _competitionRepository.UpdateAsync(competition, cancellationToken);
-
-            var response = MapToResponse(competition);
-            return ApiResponse<CompetitionResponse>.SuccessResponse(response, "Competition updated successfully.");
         }
 
         public async Task<ApiResponse<CompetitionDetailResponse>> GetByIdAsync(int competitionId, CancellationToken cancellationToken = default)
@@ -526,8 +775,19 @@ namespace SystemService.BLL.Services.Competition.Implementations
             return false;
         }
 
-        private static CompetitionResponse MapToResponse(SystemService.DAL.Entities.Competition.Competition c)
+        private static CompetitionResponse MapToResponse(
+            SystemService.DAL.Entities.Competition.Competition c,
+            string? scale = null,
+            long creditsCharged = 0,
+            long? remainingCredits = null)
         {
+            if (scale == null && c.MaxParticipants.HasValue
+                && CreditRuleCodes.TryResolveCompetitionScale(
+                    c.CompetitionType, c.MaxParticipants, null, out var resolvedScale, out _, out _, out _, out _))
+            {
+                scale = resolvedScale;
+            }
+
             return new CompetitionResponse
             {
                 CompetitionId = c.CompetitionId,
@@ -544,7 +804,10 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 Status = c.Status,
                 IsPublic = c.IsPublic,
                 CreatedAt = c.CreatedAt,
-                UpdatedAt = c.UpdatedAt
+                UpdatedAt = c.UpdatedAt,
+                Scale = scale,
+                CreditsCharged = creditsCharged,
+                RemainingCredits = remainingCredits
             };
         }
     }

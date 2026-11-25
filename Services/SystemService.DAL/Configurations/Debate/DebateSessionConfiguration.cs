@@ -17,6 +17,7 @@ namespace SystemService.DAL.Configurations.Debate
                    .IsRequired();
 
             builder.Property(e => e.Difficulty).HasMaxLength(50);
+            builder.Property(e => e.EnableRag).HasDefaultValue(true);
 
             builder.Ignore(e => e.TurnTimeLimitSeconds);
 

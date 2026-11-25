@@ -8,6 +8,23 @@ namespace SystemService.Controllers.Competition
     {
         internal static IActionResult Map<T>(ControllerBase controller, ApiResponse<T> response)
         {
+            if (response.Errors is InsufficientCreditsErrorDetail insufficient)
+            {
+                return controller.BadRequest(new ApiResponse<InsufficientCreditsData>
+                {
+                    Success = false,
+                    Code = InsufficientCreditsErrorDetail.ErrorCode,
+                    Message = response.Message,
+                    Data = new InsufficientCreditsData
+                    {
+                        RequiredCredits = insufficient.RequiredCredits,
+                        CurrentCredits = insufficient.CurrentCredits,
+                        MissingCredits = insufficient.MissingCredits
+                    },
+                    Errors = insufficient
+                });
+            }
+
             return response.Errors switch
             {
                 CompetitionErrorCodes.Forbidden => controller.StatusCode(403, response),

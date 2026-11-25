@@ -143,7 +143,7 @@ namespace SystemService.BLL.Services.Identity.Implementations
                 return ApiResponse<object>.FailureResponse("One or more invalid Role IDs provided.");
             }
 
-            // Business Rule: Admin cannot revoke their own Admin role if they are the last active Admin
+            // Business Rule: Admin cannot revoke their own Admin role
             if (adminRole != null)
             {
                 bool userCurrentlyHasAdmin = user.UserRoles.Any(ur => ur.RoleId == adminRole.RoleId);
@@ -151,6 +151,11 @@ namespace SystemService.BLL.Services.Identity.Implementations
 
                 if (userCurrentlyHasAdmin && !willHaveAdmin)
                 {
+                    if (currentAdminId == targetUserId)
+                    {
+                        return ApiResponse<object>.FailureResponse("Quản trị viên không thể tự gỡ bỏ quyền Quản trị viên của chính mình.");
+                    }
+
                     int totalActiveAdmins = await _userRepository.CountUsersInRoleAsync("Admin", cancellationToken);
                     if (totalActiveAdmins <= 1)
                     {

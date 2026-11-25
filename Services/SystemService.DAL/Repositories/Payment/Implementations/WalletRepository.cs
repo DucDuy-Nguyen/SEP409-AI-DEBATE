@@ -33,16 +33,28 @@ namespace SystemService.DAL.Repositories.Payment.Implementations
 
         public async Task<Wallet?> GetByIdForUpdateAsync(int walletId, CancellationToken cancellationToken = default)
         {
+            if (_context.Database.IsSqlServer())
+            {
+                return await _context.Wallets
+                    .FromSqlInterpolated($"SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE WalletId = {walletId}")
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
             return await _context.Wallets
-                .FromSqlInterpolated($"SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE WalletId = {walletId}")
-                .FirstOrDefaultAsync(cancellationToken);
+                .FirstOrDefaultAsync(w => w.WalletId == walletId, cancellationToken);
         }
 
         public async Task<Wallet?> GetByUserIdForUpdateAsync(int userId, CancellationToken cancellationToken = default)
         {
+            if (_context.Database.IsSqlServer())
+            {
+                return await _context.Wallets
+                    .FromSqlInterpolated($"SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE UserId = {userId}")
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
             return await _context.Wallets
-                .FromSqlInterpolated($"SELECT * FROM Wallets WITH (UPDLOCK, ROWLOCK) WHERE UserId = {userId}")
-                .FirstOrDefaultAsync(cancellationToken);
+                .FirstOrDefaultAsync(w => w.UserId == userId, cancellationToken);
         }
 
         public async Task<Wallet> CreateWalletAsync(Wallet wallet, CancellationToken cancellationToken = default)
@@ -94,6 +106,56 @@ namespace SystemService.DAL.Repositories.Payment.Implementations
         {
             await _context.WalletTransactions.AddAsync(transaction, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task<WalletTransaction?> GetTransactionByReferenceAsync(
+            int walletId,
+            string transactionType,
+            string sourceType,
+            string referenceType,
+            long referenceId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.WalletTransactions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    wt => wt.WalletId == walletId
+                          && wt.TransactionType == transactionType
+                          && wt.SourceType == sourceType
+                          && wt.ReferenceType == referenceType
+                          && wt.ReferenceId == referenceId,
+                    cancellationToken);
+        }
+
+        public async Task<List<WalletTransaction>> GetTransactionsByReferenceAsync(
+            int walletId,
+            string referenceType,
+            long referenceId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.WalletTransactions
+                .AsNoTracking()
+                .Where(wt => wt.WalletId == walletId
+                             && wt.ReferenceType == referenceType
+                             && wt.ReferenceId == referenceId)
+                .OrderBy(wt => wt.CreatedAt)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<WalletTransaction?> GetTransactionByIdempotencyAsync(
+            int walletId,
+            string referenceType,
+            string descriptionMarker,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.WalletTransactions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    wt => wt.WalletId == walletId
+                          && wt.ReferenceType == referenceType
+                          && wt.Description != null
+                          && wt.Description.Contains(descriptionMarker),
+                    cancellationToken);
         }
 
         public async Task<(List<WalletTransaction> Items, int TotalCount)> GetTransactionsAsync(int walletId, int page, int pageSize, CancellationToken cancellationToken = default)

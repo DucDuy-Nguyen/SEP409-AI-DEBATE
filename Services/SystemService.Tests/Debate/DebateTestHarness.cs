@@ -6,12 +6,15 @@ using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.AI.Interfaces;
 using SystemService.BLL.Services.Debate.Implementations;
 using SystemService.BLL.Services.Debate.Interfaces;
+using SystemService.BLL.Services.Payment.Implementations;
 using SystemService.DAL.Context;
 using SystemService.DAL.Entities.Debate;
 using SystemService.DAL.Entities.Debate.Enums;
 using SystemService.DAL.Entities.Identity;
+using SystemService.DAL.Entities.Payment;
 using SystemService.DAL.Repositories.Debate.Implementations;
 using SystemService.DAL.Repositories.Identity.Implementations;
+using SystemService.DAL.Repositories.Payment.Implementations;
 
 namespace SystemService.Tests.Debate
 {
@@ -38,6 +41,10 @@ namespace SystemService.Tests.Debate
             context.DebateFormats.AddRange(
                 new DebateFormat { FormatId = 1, FormatName = "User vs AI", MaxParticipants = 2 },
                 new DebateFormat { FormatId = 2, FormatName = "1 vs 1", MaxParticipants = 2 });
+            context.Wallets.AddRange(
+                new Wallet { UserId = UserA, Balance = 10000, CreatedAt = DateTime.UtcNow },
+                new Wallet { UserId = UserB, Balance = 10000, CreatedAt = DateTime.UtcNow },
+                new Wallet { UserId = Outsider, Balance = 10000, CreatedAt = DateTime.UtcNow });
             context.SaveChanges();
         }
 
@@ -100,8 +107,13 @@ namespace SystemService.Tests.Debate
             {
                 _contexts.Add(context);
             }
-            return new DebateService(new DebateRepository(context), new UserRepository(context),
-                evaluator, logger: null, evaluationCoordinator: Coordinator, realtimeNotifier: Notifier);
+            var debateRepo = new DebateRepository(context);
+            var walletRepo = new WalletRepository(context);
+            var rewardRepo = new RewardRepository(context);
+            var creditService = new CreditService(context, rewardRepo, walletRepo, debateRepo, evaluator);
+            return new DebateService(debateRepo, new UserRepository(context),
+                evaluator, logger: null, evaluationCoordinator: Coordinator, realtimeNotifier: Notifier,
+                walletRepository: walletRepo, creditService: creditService);
         }
 
         public async Task<int> StartAiSessionAsync(DebateSide userSide, bool endPreparation = true)
