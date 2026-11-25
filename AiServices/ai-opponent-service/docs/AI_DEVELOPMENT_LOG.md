@@ -1321,3 +1321,7 @@ dài mềm). Đọc tay 1 lượt rebuttal mỗi cấu hình: v3 / v4-medium cù
   reviewer_inverted_suspect` (chấp nhận, ghi `reviewer_detail.side_check`); ngược phe / không rõ / lỗi 2 lần → giữ
   side_flip. Lỗi 502 / 504 của `POST .../turns` và sự kiện `error` của stream kèm `code` (= failure_kind lần thử cuối,
   vd `side_flip`, `budget_exceeded`). CHƯA chạy LLM thật; test DB chưa chạy được (Postgres tắt), test không cần DB pass.
+- 2026-11-25: `turn_full_v4_stream` không viết lại chỉ vì độ dài. Trận thật (be-36, lượt 2): lần 1 dài 530 từ (chấp
+  nhận [280, 500]) → thử lại → người học thấy bài hiện ra, mất đi, hiện lại (bài đã stream, có khi đang được đọc to).
+  Độ dài là lỗi mềm: với stream `max_length_retries = 0` → `length_soft_accept` ngay. Lỗi cứng (side_flip, banned_phrase,
+  JSON…) vẫn thử lại như cũ; `POST .../turns` (không stream) vẫn thử lại 1 lần vì độ dài.

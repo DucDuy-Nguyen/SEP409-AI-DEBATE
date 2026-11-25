@@ -13,6 +13,7 @@ from app.opponent import turn_full as tf
 from app.opponent.match_format import TurnMode
 from app.opponent.models import OpponentLLMCall, OpponentTurn
 from app.opponent.turn_generators import FULL_V4_STREAM, TurnFailure
+from tests.conftest import FakeLLMClient, FakeStanceReviewer
 from tests.test_turn_full import TARGET, _ctx, _out, _words
 from tests.test_turns_api import _learner, _ready_session, _session_id
 
@@ -81,6 +82,39 @@ def test_extractor_emits_only_the_speech_even_when_the_delimiter_is_split():
     assert "".join(ex.feed(p) for p in pieces) == "Xin chào bạn."
     # Khong co dong phan cach: khong day gi
     assert tf.SpeechStreamExtractor().feed('{"speech_text": "Xin chào"}') == ""
+
+
+# ---------------- do dai: khong viet lai bai da stream ----------------
+
+
+async def _generate_with_length(cls, n_words: int, n_outputs: int = 3):
+    from app.opponent.models import DebateSide
+
+    out = _stream_out if cls is tf.FullTurnGeneratorV4Stream else (lambda m, n_words: _out(m, n_words=n_words))
+    gen = cls(FakeLLMClient([out(TurnMode.OPENING_FIRST, n_words=n_words)] * n_outputs), Settings(_env_file=None),
+              FakeStanceReviewer("ung_ho_kien_nghi"))
+    events: list[dict] = []
+    gen.on_event = events.append
+    result = await gen.generate(TurnMode.OPENING_FIRST, _ctx(DebateSide.PRO, 1))
+    return result, events
+
+
+async def test_stream_turn_keeps_a_speech_that_is_only_too_long():
+    # 530 tu > khoang chap nhan [280, 500]: nguoi hoc da thay bai stream, khong viet lai (hien -> mat -> hien lai)
+    result, events = await _generate_with_length(tf.FullTurnGeneratorV4Stream, 530)
+
+    assert result.text is not None and result.failure_kind is None
+    assert [e["attempt"] for e in events if e["type"] == "attempt"] == [1]
+    (turn,) = [c for c in result.calls if c.purpose.value == "turn"]
+    assert turn.success and turn.speech_checks[tf.LENGTH_SOFT_ACCEPT] == {
+        "word_count": 530, "accept_min": 280, "accept_max": 500}
+
+
+async def test_non_stream_turn_still_retries_once_for_length():
+    result, events = await _generate_with_length(tf.FullTurnGeneratorV3, 530)
+
+    assert result.text is not None
+    assert [e["attempt"] for e in events if e["type"] == "attempt"] == [1, 2]
 
 
 # ---------------- API ----------------

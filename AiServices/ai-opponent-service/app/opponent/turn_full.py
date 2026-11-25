@@ -540,6 +540,8 @@ class FullTurnGenerator:
     """
 
     version = FULL_V1
+    # Lan thu lai chi vi do dai (loi mem) truoc khi chap nhan ban gan khoang nhat
+    max_length_retries = MAX_LENGTH_RETRIES
 
     def __init__(self, client: LLMClient, settings: Settings, reviewer_client: LLMClient | None = None):
         # on_event(dict): turn_service gan cho endpoint stream. {"type": "attempt", "attempt", "previous_failure"} o dau
@@ -633,7 +635,7 @@ class FullTurnGenerator:
             call.success, call.failure_kind = False, TurnFailure.WORD_COUNT
             call.error = f"word_count {n} ngoai khoang chap nhan [{lo}, {hi}]"
             candidates.append((distance, attempt_no, out, call))
-            if length_retries >= MAX_LENGTH_RETRIES or last:
+            if length_retries >= self.max_length_retries or last:
                 return self._soft_accept(result, candidates, context)
             length_retries += 1
             feedback = build_retry_feedback([length_issue(n, context.target_words)])
@@ -892,6 +894,9 @@ class FullTurnGeneratorV4Stream(FullTurnGeneratorV3):
     """
 
     version = FULL_V4_STREAM
+    # Nguoi hoc DA THAY (va dang nghe doc) bai noi khi no stream xong: viet lai chi vi dai/ngan hon khoang chap nhan
+    # (loi mem) la bai hien ra roi mat roi hien lai. Chap nhan luon (length_soft_accept); loi cung van thu lai.
+    max_length_retries = 0
 
     def __init__(self, client: LLMClient, settings: Settings, reviewer_client: LLMClient | None = None):
         super().__init__(
