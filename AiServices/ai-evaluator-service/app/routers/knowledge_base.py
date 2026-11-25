@@ -123,7 +123,14 @@ def create_knowledge_source(req: CreateKnowledgeSourceRequest) -> dict:
     status: FactStatus = "approved" if req.auto_approve else "pending"
 
     try:
-        embeddings = _encode_texts(segments)
+        embedding_generated = True
+        try:
+            embeddings: list[Optional[list[float]]] = _encode_texts(segments)
+        except ImportError as imp_err:
+            logger.warning("RAG embedder chua duoc cai dat (%s); luu fact khong co vector.", imp_err)
+            embeddings = [None for _ in segments]
+            embedding_generated = False
+
         cards = [
             FactCard(
                 content=text,
@@ -149,6 +156,7 @@ def create_knowledge_source(req: CreateKnowledgeSourceRequest) -> dict:
             "topic": req.topic,
             "status": status,
             "created_facts": len(cards),
+            "embedding_generated": embedding_generated,
         }
     except HTTPException:
         raise
@@ -201,7 +209,12 @@ def list_facts(
 @router.patch("/facts/{fact_id}")
 def update_fact(fact_id: UUID, req: UpdateFactRequest) -> dict:
     try:
-        embedding = _encode_texts([req.content])[0] if req.content is not None else None
+        embedding = None
+        if req.content is not None:
+            try:
+                embedding = _encode_texts([req.content])[0]
+            except ImportError as imp_err:
+                logger.warning("RAG embedder chua duoc cai dat (%s); cap nhat text khong co vector.", imp_err)
         with _get_store() as store:
             updated = store.update_fact(
                 fact_id,
