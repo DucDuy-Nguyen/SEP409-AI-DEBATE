@@ -1583,6 +1583,18 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 CurrentTurnSide = turn.Side.ToString(),
                 Timestamp = DateTime.UtcNow
             }, CancellationToken.None);
+            ScheduleTeamCallEnd(session);
+        }
+
+        // A side with two humans may call during the preparation minute (DebateTeamCall): end the call with it
+        private void ScheduleTeamCallEnd(DebateSessionResponse session)
+        {
+            if (_realtimeNotifier == null || session.CurrentTurn == null || !session.IsPreparing
+                || session.PreparationEndsAt is not { } endsAt || !DebateTeamCall.HasHumanTeam(session))
+            {
+                return;
+            }
+            _realtimeNotifier.ScheduleTeamCallEnd(session.SessionId, session.CurrentTurn.TurnOrder, endsAt);
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> StartDebateSessionAsync(
@@ -1729,6 +1741,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 {
                     _ = _realtimeNotifier.NotifySessionStartedAsync(sessionId, mapped, CancellationToken.None);
                 }
+                ScheduleTeamCallEnd(mapped); // Round 1's preparation minute
                 return ApiResponse<DebateSessionResponse>.SuccessResponse(mapped, "Bắt đầu cuộc tranh biện thành công.");
             }
             catch (DbUpdateConcurrencyException)

@@ -17,5 +17,8 @@ namespace SystemService.BLL.Common.Debate
         public const string SessionCompleted = "SESSION_COMPLETED";
         public const string ConcurrentSubmission = "CONCURRENT_SUBMISSION";
         public const string PreparationInProgress = "PREPARATION_IN_PROGRESS";
+        // Team call (2v2): the caller has no human teammate / the preparation minute (the only time to call) is over
+        public const string NoTeammate = "NO_TEAMMATE";
+        public const string TeamCallClosed = "TEAM_CALL_CLOSED";
     }
 }

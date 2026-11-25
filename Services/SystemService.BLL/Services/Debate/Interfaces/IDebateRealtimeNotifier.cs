@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,6 +12,12 @@ namespace SystemService.BLL.Services.Debate.Interfaces
         Task NotifySessionStartedAsync(int sessionId, object sessionData, CancellationToken cancellationToken = default);
         Task NotifySessionStatusChangedAsync(int sessionId, string status, string? reason = null, CancellationToken cancellationToken = default);
         Task NotifyRoundStartedAsync(int sessionId, object roundData, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// At <paramref name="endsAtUtc"/> (the end of this round's preparation minute) tells the room "TeamCallEnded",
+        /// so both teammates hang up together whatever their own clocks say.
+        /// </summary>
+        void ScheduleTeamCallEnd(int sessionId, int roundNumber, DateTime endsAtUtc);
     }
 }
 

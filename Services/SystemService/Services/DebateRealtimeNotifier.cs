@@ -107,6 +107,35 @@ namespace SystemService.Services
             }
         }
 
+        public void ScheduleTeamCallEnd(int sessionId, int roundNumber, DateTime endsAtUtc)
+        {
+            // IHubContext and the logger outlive this scoped notifier; a restart loses the timer, and then the
+            // browsers still hang up on their own at PreparationEndsAt
+            var hubContext = _hubContext;
+            var logger = _logger;
+            var delay = endsAtUtc - DateTime.UtcNow;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (delay > TimeSpan.Zero)
+                    {
+                        await Task.Delay(delay);
+                    }
+                    await hubContext.Clients.Group(DebateHub.GetGroupName(sessionId)).SendAsync("TeamCallEnded", new
+                    {
+                        SessionId = sessionId,
+                        RoundNumber = roundNumber,
+                        EndedAt = DateTime.UtcNow
+                    });
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to broadcast TeamCallEnded for session {SessionId}", sessionId);
+                }
+            });
+        }
+
         public async Task NotifySessionStatusChangedAsync(int sessionId, string status, string? reason = null, CancellationToken cancellationToken = default)
         {
             try
