@@ -120,10 +120,27 @@ if ($env:DEEPGRAM_API_KEY -or $mmCfg["DEEPGRAM_API_KEY"]) {
   Write-Host "Cảnh báo: multimodal\.env thiếu DEEPGRAM_API_KEY -> không có chữ khi đang nói (chỉ có Whisper sau khi dừng ghi)." -ForegroundColor Yellow
 }
 Start-AdppWindow "ADPP Multimodal 8003" "$ai\ai-multimodal-service" ".\venv\Scripts\python -m uvicorn app.main:app --port 8003" $multimodalVars
-Start-AdppWindow "ADPP SystemService 5001" $root "dotnet run --project Services/SystemService --urls http://localhost:5001" @{
+$systemVars = @{
   "ConnectionStrings__DefaultConnection" = $sqlConnection
   "AiServices__EvaluatorUrl"             = "http://localhost:8000"
 }
+# Gọi đồng đội (2v2, phút chuẩn bị): TURN miễn phí của Cloudflare Realtime, key đọc từ .azure-db.env ở cả hai chế độ DB.
+# Thiếu key -> cuộc gọi chỉ dùng STUN (đa số mạng vẫn nối được).
+$secretsFile = Join-Path $root ".azure-db.env"
+$secrets = @{}
+if (Test-Path $secretsFile) {
+  Get-Content $secretsFile -Encoding UTF8 | Where-Object { $_ -match '^\s*TEAMCALL_[A-Z_]+\s*=' } | ForEach-Object {
+    $k, $v = $_ -split '=', 2; $secrets[$k.Trim()] = $v.Trim().Trim('"')
+  }
+}
+if ($secrets["TEAMCALL_TURN_KEY_ID"] -and $secrets["TEAMCALL_TURN_API_TOKEN"]) {
+  $systemVars["TeamCall__Cloudflare__TurnKeyId"] = $secrets["TEAMCALL_TURN_KEY_ID"]
+  $systemVars["TeamCall__Cloudflare__TurnKeyApiToken"] = $secrets["TEAMCALL_TURN_API_TOKEN"]
+  Write-Host "  SystemService: gọi đồng đội có TURN (Cloudflare)" -ForegroundColor Gray
+} else {
+  Write-Host "  SystemService: gọi đồng đội chỉ STUN (.azure-db.env chưa có TEAMCALL_TURN_KEY_ID / TEAMCALL_TURN_API_TOKEN)" -ForegroundColor Yellow
+}
+Start-AdppWindow "ADPP SystemService 5001" $root "dotnet run --project Services/SystemService --urls http://localhost:5001" $systemVars
 Start-AdppWindow "ADPP Gateway 5000" "$root\Gateway" "dotnet run"
 if (-not $NoFrontend) {
   $fe = (Resolve-Path $FrontendPath).Path
