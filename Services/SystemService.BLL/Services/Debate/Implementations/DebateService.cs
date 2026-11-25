@@ -1177,6 +1177,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
                 EvidenceTopic = MapEvidenceTopic(session.Topic?.Category),
                 DebateType = debateType,
+                MaxParticipants = GetMaxArgsPerRound(session),
+                IsTeamDebate = GetMaxArgsPerRound(session) > 2,
                 Difficulty = session.Difficulty ?? session.Topic?.Difficulty,
                 CurrentStage = currentRound != null ? MapRoundTypeToStage(currentRound.RoundType) : DebateStage.Closing,
                 CurrentTurnSide = currentTurnSide,
