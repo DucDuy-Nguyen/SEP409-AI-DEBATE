@@ -15,6 +15,8 @@ namespace SystemService.DAL.Entities.Debate
         public SessionStatus Status { get; set; } = SessionStatus.Waiting;
         // Chosen for this session; null falls back to the topic's difficulty.
         public string? Difficulty { get; set; }
+        // Controls whether AI practice rounds use RAG retrieval (150 credits) or pure LLM evaluation (110 credits).
+        public bool? EnableRag { get; set; } = true;
         [NotMapped]
         public int TurnTimeLimitSeconds { get; set; } = 180;
         public DateTime? StartTime { get; set; }

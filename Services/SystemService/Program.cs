@@ -105,6 +105,7 @@ builder.Services.AddScoped<IWalletService, WalletService>();
 builder.Services.AddScoped<ICreditPackageService, CreditPackageService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IRewardService, RewardService>();
+builder.Services.AddScoped<ICreditService, CreditService>();
 
 // Singleton: one evaluation per debate session at a time, shared by every request (DebateService is scoped)
 builder.Services.AddSingleton<DebateEvaluationCoordinator>();

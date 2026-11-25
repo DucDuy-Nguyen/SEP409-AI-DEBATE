@@ -265,6 +265,22 @@ namespace SystemService.Controllers.Debate
             var result = await _debateService.StartDebateSessionAsync(userId.Value, sessionId, cancellationToken);
             if (!result.Success)
             {
+                if (result.Errors is InsufficientCreditsErrorDetail insufficient)
+                {
+                    return BadRequest(new ApiResponse<InsufficientCreditsData>
+                    {
+                        Success = false,
+                        Code = InsufficientCreditsErrorDetail.ErrorCode,
+                        Message = result.Message,
+                        Data = new InsufficientCreditsData
+                        {
+                            RequiredCredits = insufficient.RequiredCredits,
+                            CurrentCredits = insufficient.CurrentCredits,
+                            MissingCredits = insufficient.MissingCredits
+                        },
+                        Errors = insufficient
+                    });
+                }
                 return BadRequest(result);
             }
             return Ok(result);

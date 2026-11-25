@@ -54,7 +54,13 @@ namespace SystemService.Controllers.Competition
                 return Unauthorized(ApiResponse<CompetitionResponse>.FailureResponse("Unauthorized access."));
             }
 
-            var result = await _competitionService.CreateAsync(userId, request, cancellationToken);
+            if (request != null && string.IsNullOrWhiteSpace(request.RequestId)
+                && Request.Headers.TryGetValue("X-Idempotency-Key", out var headerKey))
+            {
+                request.RequestId = headerKey.ToString();
+            }
+
+            var result = await _competitionService.CreateAsync(userId, request!, cancellationToken);
             if (!result.Success)
             {
                 return CompetitionHttpErrors.Map(this, result);

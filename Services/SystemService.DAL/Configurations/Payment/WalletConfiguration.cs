@@ -8,7 +8,10 @@ namespace SystemService.DAL.Configurations.Payment
     {
         public void Configure(EntityTypeBuilder<Wallet> builder)
         {
-            builder.ToTable("Wallets");
+            builder.ToTable("Wallets", t =>
+            {
+                t.HasCheckConstraint("CK_Wallets_Balance_NonNegative", "[Balance] >= 0");
+            });
             builder.HasKey(w => w.WalletId);
 
             builder.Property(w => w.Balance)

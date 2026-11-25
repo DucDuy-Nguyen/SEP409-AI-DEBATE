@@ -73,21 +73,26 @@ namespace SystemService.BLL.Services.Payment.Implementations
             };
 
             await _paymentRepository.CreateAsync(payment, cancellationToken);
-var allowedOrigins = new HashSet<string>(
-    StringComparer.OrdinalIgnoreCase
-)
-{
-    "http://localhost:5173",
-    "http://localhost:5174"
-};
+            var allowedOrigins = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase
+            )
+            {
+                "http://localhost:5173",
+                "http://localhost:5174"
+            };
 
-var frontendOrigin = request.FrontendOrigin?.Trim().TrimEnd('/');
+            var configuredOrigin = _configuration["PayOS:FrontendOrigin"]?.Trim().TrimEnd('/');
+            if (!string.IsNullOrWhiteSpace(configuredOrigin))
+            {
+                allowedOrigins.Add(configuredOrigin);
+            }
 
-if (string.IsNullOrWhiteSpace(frontendOrigin))
-{
-    frontendOrigin = _configuration["PayOS:FrontendOrigin"]?
-        .Trim().TrimEnd('/');
-}
+            var frontendOrigin = request.FrontendOrigin?.Trim().TrimEnd('/');
+
+            if (string.IsNullOrWhiteSpace(frontendOrigin))
+            {
+                frontendOrigin = configuredOrigin;
+            }
 
 if (string.IsNullOrWhiteSpace(frontendOrigin) ||
     !allowedOrigins.Contains(frontendOrigin))
@@ -192,6 +197,33 @@ var cancelUrl = $"{frontendOrigin}/payment/cancel";
                     return ApiResponse<object>.SuccessResponse(new { }, "Payment already settled.");
                 }
 
+                // Do not credit cancelled/expired/failed transactions
+                if (payment.Status is "Cancelled" or "Expired" or "Failed")
+                {
+                    _logger.LogWarning("PaymentTransaction {PaymentId} has terminal status {Status}. Ignoring settlement.", payment.PaymentId, payment.Status);
+                    await transaction.RollbackAsync(cancellationToken);
+                    return ApiResponse<object>.FailureResponse($"Payment transaction is {payment.Status} and cannot be settled.");
+                }
+
+                // Verify PayOS payment result code ("00" means success)
+                if (!string.Equals(verification.Code, "00", StringComparison.OrdinalIgnoreCase))
+                {
+                    payment.Status = "Failed";
+                    await _paymentRepository.UpdateAsync(payment, cancellationToken);
+                    await transaction.CommitAsync(cancellationToken);
+                    _logger.LogWarning("PayOS webhook for OrderCode {OrderCode} returned non-success code {Code}.", verification.OrderCode, verification.Code);
+                    return ApiResponse<object>.FailureResponse($"Payment was not successful (Code: {verification.Code}).");
+                }
+
+                // Server-side amount verification against snapshot
+                if (verification.Amount > 0 && verification.Amount != payment.Amount)
+                {
+                    _logger.LogWarning("PayOS webhook amount mismatch for OrderCode {OrderCode}: expected {Expected}, got {Actual}.",
+                        verification.OrderCode, payment.Amount, verification.Amount);
+                    await transaction.RollbackAsync(cancellationToken);
+                    return ApiResponse<object>.FailureResponse("Webhook payment amount does not match expected package price.");
+                }
+
                 // Settle payment
                 payment.Status = "Paid";
                 payment.PaidAt = DateTime.UtcNow;
@@ -206,6 +238,16 @@ var cancelUrl = $"{frontendOrigin}/payment/cancel";
                 if (wallet == null)
                 {
                     throw new InvalidOperationException($"Wallet {payment.WalletId} not found for payment {payment.PaymentId}.");
+                }
+
+                // Secondary idempotency guard against duplicate ledger entry
+                var existingLedger = await _walletRepository.GetTransactionByReferenceAsync(
+                    wallet.WalletId, "Credit", "TopUp", "PaymentTransaction", payment.PaymentId, cancellationToken);
+                if (existingLedger != null)
+                {
+                    _logger.LogInformation("WalletTransaction already exists for PaymentTransaction {PaymentId}. Skipping credit.", payment.PaymentId);
+                    await transaction.CommitAsync(cancellationToken);
+                    return ApiResponse<object>.SuccessResponse(new { }, "Payment already settled.");
                 }
 
                 long balanceBefore = wallet.Balance;

@@ -14,5 +14,6 @@ namespace SystemService.BLL.DTOs.Competition.Management
         public DateTime StartDate { get; set; }
         public DateTime? EndDate { get; set; }
         public bool IsPublic { get; set; } = true;
+        public string? RequestId { get; set; }
     }
 }

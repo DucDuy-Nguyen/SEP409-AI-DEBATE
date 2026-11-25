@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +16,21 @@ namespace SystemService.DAL.Repositories.Payment.Implementations
         public RewardRepository(SystemDbContext context)
         {
             _context = context;
+        }
+
+        public async Task<List<CreditRule>> GetAllRulesAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.CreditRules
+                .AsNoTracking()
+                .OrderBy(cr => cr.RuleId)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<CreditRule?> GetRuleByCodeAsync(string ruleCode, CancellationToken cancellationToken = default)
+        {
+            return await _context.CreditRules
+                .AsNoTracking()
+                .FirstOrDefaultAsync(cr => cr.RuleCode == ruleCode, cancellationToken);
         }
 
         public async Task<CreditRule?> GetActiveRuleByCodeAsync(string ruleCode, CancellationToken cancellationToken = default)

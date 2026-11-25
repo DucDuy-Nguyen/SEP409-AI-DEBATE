@@ -15,6 +15,9 @@ namespace SystemService.DAL.Repositories.Payment.Interfaces
         Task<Wallet> GetOrCreateWalletByUserIdAsync(int userId, CancellationToken cancellationToken = default);
         Task UpdateWalletAsync(Wallet wallet, CancellationToken cancellationToken = default);
         Task AddTransactionAsync(WalletTransaction transaction, CancellationToken cancellationToken = default);
+        Task<WalletTransaction?> GetTransactionByReferenceAsync(int walletId, string transactionType, string sourceType, string referenceType, long referenceId, CancellationToken cancellationToken = default);
+        Task<List<WalletTransaction>> GetTransactionsByReferenceAsync(int walletId, string referenceType, long referenceId, CancellationToken cancellationToken = default);
+        Task<WalletTransaction?> GetTransactionByIdempotencyAsync(int walletId, string referenceType, string descriptionMarker, CancellationToken cancellationToken = default);
         Task<(List<WalletTransaction> Items, int TotalCount)> GetTransactionsAsync(int walletId, int page, int pageSize, CancellationToken cancellationToken = default);
     }
 }
