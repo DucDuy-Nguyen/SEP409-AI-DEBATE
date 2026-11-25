@@ -257,6 +257,14 @@ namespace SystemService.Tests.Debate
         public Task NotifySessionStatusChangedAsync(int sessionId, string status, string? reason = null, CancellationToken cancellationToken = default) => Record("SessionStatusChanged", sessionId, status);
         public Task NotifyRoundStartedAsync(int sessionId, object roundData, CancellationToken cancellationToken = default) => Record("RoundStarted", sessionId, roundData);
 
+        /// <summary>Every ScheduleTeamCallEnd call: (session, round, when the call ends).</summary>
+        public List<(int SessionId, int RoundNumber, DateTime EndsAt)> TeamCallEnds { get; } = new();
+
+        public void ScheduleTeamCallEnd(int sessionId, int roundNumber, DateTime endsAtUtc)
+        {
+            lock (TeamCallEnds) TeamCallEnds.Add((sessionId, roundNumber, endsAtUtc));
+        }
+
         /// <summary>RoundNumber of every RoundStarted sent, in order.</summary>
         public List<int> RoundsStarted()
         {

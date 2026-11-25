@@ -320,8 +320,13 @@ namespace SystemService.BLL.Services.Competition.Implementations
             var currentRound = session.DebateRounds.FirstOrDefault(r => r.RoundNumber == 1);
             var now = DateTime.UtcNow;
             bool isPreparing = DebatePreparation.IsPreparing(session, now);
+            int maxParticipants = session.Format?.MaxParticipants > 0
+                ? session.Format.MaxParticipants
+                : (session.Participants.Count > 2 ? 4 : 2);
             return new DebateSessionResponse
             {
+                MaxParticipants = maxParticipants,
+                IsTeamDebate = maxParticipants > 2,
                 SessionId = session.DebateSessionId,
                 Title = session.Topic?.Title ?? "Competition Match",
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,

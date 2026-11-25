@@ -35,6 +35,31 @@ namespace SystemService.Tests.Debate
             Assert.Equal("education", details.EvidenceTopic);
         }
 
+        // The title sent ("[2v2] ...") is dropped for the topic's own title, so the room's kind must come from the
+        // session itself: a 2v2 with only its creator is still a team debate, for the creator and a joiner alike
+        [Theory]
+        [InlineData(Room.OneVsOne, 2, false)]
+        [InlineData(Room.TwoVsTwo, 4, true)]
+        public async Task TheRoomSays_HowManySeats_AndWhetherItIsATeamDebate(Room room, int seats, bool isTeam)
+        {
+            int topicId = SeedTopic("Học qua chơi", "Mô tả", "Education");
+
+            var created = ApiResponseAssert.Succeeds(await CreateAsync(room, topicId, title: "[2v2] Học qua chơi", topic: "Mô tả"));
+            Assert.Equal((seats, isTeam), (created.MaxParticipants, created.IsTeamDebate));
+            Assert.Single(created.Participants);
+
+            var details = ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionDetailsAsync(UserB, created.SessionId));
+            Assert.Equal((seats, isTeam), (details.MaxParticipants, details.IsTeamDebate));
+        }
+
+        [Fact]
+        public async Task AnAiPractice_IsNoTeamDebate()
+        {
+            int sessionId = await _harness.StartAiSessionAsync(DebateSide.PRO);
+            var details = ApiResponseAssert.Succeeds(await _harness.NewService().GetSessionDetailsAsync(UserA, sessionId));
+            Assert.Equal((2, false), (details.MaxParticipants, details.IsTeamDebate));
+        }
+
         [Theory]
         [InlineData(Room.OneVsOne)]
         [InlineData(Room.TwoVsTwo)]

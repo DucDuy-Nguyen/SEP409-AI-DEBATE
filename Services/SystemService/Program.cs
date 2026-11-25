@@ -111,6 +111,12 @@ builder.Services.AddSingleton<DebateEvaluationCoordinator>();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IDebateRealtimeNotifier, DebateRealtimeNotifier>();
 builder.Services.AddScoped<IDebateService, DebateService>();
+// Team call (2v2, preparation minute): STUN / Cloudflare TURN (TeamCall:Cloudflare:TurnKeyId / TurnKeyApiToken)
+builder.Services.AddHttpClient<IIceServerProvider, CloudflareIceServerProvider>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddScoped<ITeamCallService, TeamCallService>();
 builder.Services.AddScoped<IDebateChallengeService, DebateChallengeService>();
 builder.Services.AddScoped<ITopicService, TopicService>();
 builder.Services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
