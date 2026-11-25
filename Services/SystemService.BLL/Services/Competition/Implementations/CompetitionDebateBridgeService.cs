@@ -59,7 +59,7 @@ namespace SystemService.BLL.Services.Competition.Implementations
             {
                 var existingSession = await _debateRepository.GetSessionWithDetailsAsync(
                     matchCheck.DebateSessionId.Value, cancellationToken);
-                if (existingSession != null)
+                if (existingSession != null && existingSession.Status != SessionStatus.Cancelled)
                 {
                     return ApiResponse<DebateSessionResponse>.SuccessResponse(
                         MapSession(existingSession, userId), "Phiên tranh biện đã tồn tại cho trận đấu này.");
@@ -95,11 +95,24 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 // In-transaction idempotency re-check
                 if (match.DebateSessionId.HasValue)
                 {
-                    await transaction.RollbackAsync(cancellationToken);
                     var existingSession = await _debateRepository.GetSessionWithDetailsAsync(
                         match.DebateSessionId.Value, cancellationToken);
-                    return ApiResponse<DebateSessionResponse>.SuccessResponse(
-                        MapSession(existingSession!, userId), "Phiên tranh biện đã tồn tại cho trận đấu này.");
+                    if (existingSession != null && existingSession.Status != SessionStatus.Cancelled)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        return ApiResponse<DebateSessionResponse>.SuccessResponse(
+                            MapSession(existingSession, userId), "Phiên tranh biện đã tồn tại cho trận đấu này.");
+                    }
+
+                    // Recover a match that was left pointing to a cancelled session
+                    match.DebateSessionId = null;
+                    if (match.Status == "Ongoing")
+                    {
+                        match.Status = "Ready";
+                        match.StartedAt = null;
+                        match.EvaluationStatus = "Pending";
+                        match.EvaluationError = null;
+                    }
                 }
 
                 if (match.Status != "Ready")

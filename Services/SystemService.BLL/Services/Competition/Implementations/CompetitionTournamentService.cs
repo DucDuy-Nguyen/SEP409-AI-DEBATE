@@ -114,6 +114,7 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
         await _db.SaveChangesAsync(ct);
 
         // Exactly one live entrant in a first-round match is an automatic BYE.
+        var promotedCounts = new Dictionary<int, int>();
         foreach (var match in matches[0])
         {
             var participants = await _db.MatchParticipants.Where(p => p.CompetitionMatchId == match.CompetitionMatchId).ToListAsync(ct);
@@ -129,6 +130,12 @@ public sealed class CompetitionTournamentService : ICompetitionTournamentService
             _db.MatchParticipants.Add(new MatchParticipant { CompetitionMatchId = next.CompetitionMatchId,
                 Side = match.BracketPosition % 2 == 1 ? "PRO" : "CON",
                 SeedNumber = winner.SeedNumber, UserId = winner.UserId, TeamId = winner.TeamId });
+            promotedCounts[next.CompetitionMatchId] = promotedCounts.GetValueOrDefault(next.CompetitionMatchId) + 1;
+            if (promotedCounts[next.CompetitionMatchId] == 2 && next.Status == "Scheduled")
+            {
+                next.Status = "Ready";
+                next.UpdatedAt = match.CompletedAt;
+            }
         }
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);

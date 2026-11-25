@@ -119,6 +119,74 @@ namespace SystemService.Tests.Debate
             Assert.Equal(1, JudgementCount(sessionId));
         }
 
+        [Fact]
+        public async Task LeavingOngoingCompetitionSession_ResetsLinkedMatchToReady_AndUnlinksSession()
+        {
+            int sessionId = await _harness.StartP2pSessionAsync(DebateSide.PRO);
+            int matchId = SeedOngoingMatch(sessionId);
+
+            var left = ApiResponseAssert.Succeeds(await _harness.NewService().LeaveSessionAsync(UserA, sessionId));
+
+            Assert.Equal(SessionStatus.Cancelled, left.Status);
+            using var context = _harness.CreateContext();
+            var match = context.CompetitionMatches.Single(m => m.CompetitionMatchId == matchId);
+            Assert.Equal("Ready", match.Status);
+            Assert.Null(match.DebateSessionId);
+            Assert.Null(match.StartedAt);
+        }
+
+        [Fact]
+        public async Task GenerateBracket_FiveEntrants_MarksDoubleByeNextMatchReady()
+        {
+            using var context = _harness.CreateContext();
+            var competition = new Competition
+            {
+                Title = "Giải 5 người",
+                CreatedBy = Outsider,
+                CompetitionType = "INDIVIDUAL",
+                Status = "RegistrationClosed",
+                RegistrationStart = DateTime.UtcNow.AddDays(-3),
+                RegistrationEnd = DateTime.UtcNow.AddDays(-1),
+                StartDate = DateTime.UtcNow.AddHours(1),
+            };
+            context.Competitions.Add(competition);
+            var entrantIds = new List<int> { UserA, UserB };
+            for (int i = 0; i < 3; i++)
+            {
+                var u = new SystemService.DAL.Entities.Identity.User
+                {
+                    Email = $"entrant_{i}@test.local",
+                    PasswordHash = "x",
+                    FullName = $"Entrant {i}",
+                    IsActive = true
+                };
+                context.Users.Add(u);
+                context.SaveChanges();
+                entrantIds.Add(u.UserId);
+            }
+            foreach (var uid in entrantIds)
+            {
+                context.CompetitionRegistrations.Add(new CompetitionRegistration
+                {
+                    Competition = competition,
+                    UserId = uid,
+                    Status = "Approved"
+                });
+            }
+            context.SaveChanges();
+
+            var tournamentService = new SystemService.BLL.Services.Competition.Implementations.CompetitionTournamentService(context);
+            var bracket = ApiResponseAssert.Succeeds(await tournamentService.GenerateBracketAsync(competition.CompetitionId, Outsider));
+
+            var round1 = bracket.Rounds.Single(r => r.RoundNumber == 1);
+            var round2 = bracket.Rounds.Single(r => r.RoundNumber == 2);
+            Assert.Equal(3, round1.Matches.Count(m => m.Status == "Bye"));
+            var doubleByeTarget = round2.Matches.Single(m => m.BracketPosition == 2);
+            Assert.NotNull(doubleByeTarget.ProUserId);
+            Assert.NotNull(doubleByeTarget.ConUserId);
+            Assert.Equal("Ready", doubleByeTarget.Status);
+        }
+
         private int SeedOngoingMatch(int sessionId)
         {
             using var context = _harness.CreateContext();

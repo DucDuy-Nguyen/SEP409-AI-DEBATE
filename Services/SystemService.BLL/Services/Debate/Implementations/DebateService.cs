@@ -582,6 +582,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             session.EndTime = DateTime.UtcNow;
             session.UpdatedAt = session.EndTime;
             await _debateRepository.UpdateSessionAsync(session, cancellationToken);
+            await _debateRepository.ResetLinkedMatchOnSessionCancelAsync(sessionId, session.EndTime.Value, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
             if (_realtimeNotifier != null)

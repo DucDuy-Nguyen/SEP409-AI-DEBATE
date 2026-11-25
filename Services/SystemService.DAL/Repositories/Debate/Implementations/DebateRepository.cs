@@ -250,6 +250,24 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
             }
         }
 
+        public async Task ResetLinkedMatchOnSessionCancelAsync(int debateSessionId, DateTime cancelledAt, CancellationToken cancellationToken = default)
+        {
+            var linkedMatch = await _context.CompetitionMatches
+                .FirstOrDefaultAsync(
+                    m => m.DebateSessionId == debateSessionId && (m.Status == "Ready" || m.Status == "Ongoing"),
+                    cancellationToken);
+            if (linkedMatch != null)
+            {
+                linkedMatch.DebateSessionId = null;
+                linkedMatch.Status = "Ready";
+                linkedMatch.StartedAt = null;
+                linkedMatch.EvaluationStatus = "Pending";
+                linkedMatch.EvaluationError = null;
+                linkedMatch.UpdatedAt = cancelledAt;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         public async Task<bool> ClaimAndStartSessionAsync(int debateSessionId, DateTime startTime, DateTime firstRoundStartTime, int? linkedMatchId = null, CancellationToken cancellationToken = default)
         {
             if (!_context.Database.IsRelational())

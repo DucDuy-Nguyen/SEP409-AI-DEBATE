@@ -29,7 +29,7 @@ namespace SystemService.DAL.Entities.Competition
         public int? WinnerTeamId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
-        public byte[] RowVersion { get; set; } = null!;
+        public byte[] RowVersion { get; set; } = new byte[8];
 
         // Navigation Properties
         public Competition Competition { get; set; } = null!;
