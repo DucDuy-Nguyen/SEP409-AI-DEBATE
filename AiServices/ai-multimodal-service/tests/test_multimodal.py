@@ -178,7 +178,11 @@ def test_realtime_stt_preset_and_ws_helpers():
     assert code == "DEEPGRAM_QUOTA_EXCEEDED"
 
 
-def test_realtime_stt_config_endpoint_and_missing_key_ws():
+def test_realtime_stt_config_endpoint_and_missing_key_ws(monkeypatch):
+    from app.config import Settings
+    from app.routers import multimodal as mm_router
+
+    monkeypatch.setattr(mm_router, "get_settings", lambda: Settings(deepgram_api_key=""))
     client = TestClient(app)
 
     cfg_resp = client.get("/multimodal/realtime-stt/config")

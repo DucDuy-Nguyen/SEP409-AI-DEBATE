@@ -155,7 +155,10 @@ builder.Services.AddHttpClient(KnowledgeBaseService.EvaluatorKbClientName, clien
 builder.Services.AddHostedService<StartupWarmupService>();
 
 // 6. Authentication & JWT
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "development-secret-key-super-secret-1234567890";
+var configuredJwtKey = builder.Configuration["Jwt:Key"];
+var jwtKey = string.IsNullOrWhiteSpace(configuredJwtKey)
+    ? "development-secret-key-super-secret-1234567890"
+    : configuredJwtKey;
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AIDebatePlatform";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AIDebatePlatform";
 
