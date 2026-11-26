@@ -1019,14 +1019,19 @@ namespace SystemService.BLL.Services.Debate.Implementations
             var history = sessions.Select(s =>
             {
                 var myParticipant = s.Participants.FirstOrDefault(p => p.UserId == userId);
+                var maxParticipants = GetMaxArgsPerRound(s);
                 return new DebateHistoryItemDto
                 {
                     SessionId = s.DebateSessionId,
+                    RoomCode = s.RoomCode,
                     Title = s.Topic?.Title ?? "Debate Session",
                     Topic = s.Topic?.Description ?? s.Topic?.Title ?? string.Empty,
                     DebateType = InferDebateType(s),
                     Status = s.Status,
                     UserSide = myParticipant?.Side ?? DebateSide.PRO,
+                    MaxParticipants = maxParticipants,
+                    ParticipantCount = s.Participants.Count,
+                    IsTeamDebate = maxParticipants > 2,
                     CreatedAt = s.CreatedAt,
                     EndedAt = s.EndTime
                 };
