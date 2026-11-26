@@ -1188,6 +1188,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 Title = session.Topic?.Title ?? "Debate Session",
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
                 EvidenceTopic = MapEvidenceTopic(session.Topic?.Category),
+                ProGuide = DebateSideGuide.For(session.Topic, DebateSide.PRO),
+                ConGuide = DebateSideGuide.For(session.Topic, DebateSide.CON),
                 DebateType = debateType,
                 MaxParticipants = GetMaxArgsPerRound(session),
                 IsTeamDebate = GetMaxArgsPerRound(session) > 2,

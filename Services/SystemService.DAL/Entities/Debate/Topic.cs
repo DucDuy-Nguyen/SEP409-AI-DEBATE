@@ -11,6 +11,9 @@ namespace SystemService.DAL.Entities.Debate
         public string? Description { get; set; }
         public string? Category { get; set; }
         public string Difficulty { get; set; } = "Medium";
+        // What each side has to do in this debate, written for the topic (null = the generic text of DebateSideGuide)
+        public string? ProGuide { get; set; }
+        public string? ConGuide { get; set; }
         public int? CreatedBy { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

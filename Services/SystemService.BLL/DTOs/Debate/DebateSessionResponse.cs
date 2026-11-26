@@ -11,6 +11,9 @@ namespace SystemService.BLL.DTOs.Debate
         public string Topic { get; set; } = null!;
         // Chu de kho fact de FE gui `topic` cho AI Evaluator (education|environment|technology|society), null neu Category khac
         public string? EvidenceTopic { get; set; }
+        // What PRO / CON have to do in this debate (DebateSideGuide), to show each debater their task
+        public string ProGuide { get; set; } = string.Empty;
+        public string ConGuide { get; set; } = string.Empty;
         public DebateType DebateType { get; set; }
         // Seats of the room, from its format (1v1 = 2, 2v2 = 4), not the people already in it: a 2v2 that has only
         // its creator yet is still a team debate. DebateType does not tell (2v2 reports P2pMatch).
