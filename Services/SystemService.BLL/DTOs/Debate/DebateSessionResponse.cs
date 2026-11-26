@@ -7,6 +7,7 @@ namespace SystemService.BLL.DTOs.Debate
     public class DebateSessionResponse
     {
         public int SessionId { get; set; }
+        public string? RoomCode { get; set; }
         public string Title { get; set; } = null!;
         public string Topic { get; set; } = null!;
         // Chu de kho fact de FE gui `topic` cho AI Evaluator (education|environment|technology|society), null neu Category khac

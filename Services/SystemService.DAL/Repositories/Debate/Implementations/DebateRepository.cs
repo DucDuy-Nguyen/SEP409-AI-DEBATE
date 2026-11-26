@@ -36,6 +36,22 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
                 .FirstOrDefaultAsync(s => s.DebateSessionId == debateSessionId, cancellationToken);
         }
 
+        public async Task<DebateSession?> GetSessionByRoomCodeAsync(string roomCode, CancellationToken cancellationToken = default)
+        {
+            var normalized = roomCode.Trim().ToUpperInvariant();
+            return await _context.DebateSessions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.RoomCode == normalized, cancellationToken);
+        }
+
+        public async Task<bool> RoomCodeExistsAsync(string roomCode, CancellationToken cancellationToken = default)
+        {
+            var normalized = roomCode.Trim().ToUpperInvariant();
+            return await _context.DebateSessions
+                .AsNoTracking()
+                .AnyAsync(s => s.RoomCode == normalized, cancellationToken);
+        }
+
         public async Task<DebateSession?> GetSessionWithDetailsAsync(int debateSessionId, CancellationToken cancellationToken = default)
         {
             return await _context.DebateSessions
