@@ -33,6 +33,9 @@ os.environ["yunet_score_threshold"] = str(_get_settings().yunet_score_threshold)
 
 from deepface import DeepFace
 
+# OpenCV YuNet (cv2.FaceDetectorYN) is not thread-safe: serialize concurrent DeepFace.analyze calls
+_deepface_lock = threading.Lock()
+
 try:
     from faster_whisper import WhisperModel
 except ImportError:
@@ -134,24 +137,26 @@ def analyze_single_frame(
     frame_h, frame_w = frame.shape[:2]
 
     try:
-        results = DeepFace.analyze(
-            frame,
-            actions=["emotion"],
-            detector_backend=backend,
-            enforce_detection=False,
-            silent=True,
-        )
+        with _deepface_lock:
+            results = DeepFace.analyze(
+                frame,
+                actions=["emotion"],
+                detector_backend=backend,
+                enforce_detection=False,
+                silent=True,
+            )
     except Exception as exc:
         logger.debug("DeepFace analyze error on backend %s: %s", backend, exc)
         if backend != "opencv":
             try:
-                results = DeepFace.analyze(
-                    frame,
-                    actions=["emotion"],
-                    detector_backend="opencv",
-                    enforce_detection=False,
-                    silent=True,
-                )
+                with _deepface_lock:
+                    results = DeepFace.analyze(
+                        frame,
+                        actions=["emotion"],
+                        detector_backend="opencv",
+                        enforce_detection=False,
+                        silent=True,
+                    )
             except Exception:
                 results = []
         else:

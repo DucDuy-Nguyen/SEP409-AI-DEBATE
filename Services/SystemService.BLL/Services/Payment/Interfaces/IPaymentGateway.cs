@@ -31,10 +31,22 @@ namespace SystemService.BLL.Services.Payment.Interfaces
         public string? ErrorMessage { get; set; }
     }
 
+    public class PaymentGatewayOrderInfo
+    {
+        public bool Success { get; set; }
+        public long OrderCode { get; set; }
+        public decimal Amount { get; set; }
+        public decimal AmountPaid { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? Reference { get; set; }
+        public string? ErrorMessage { get; set; }
+    }
+
     public interface IPaymentGateway
     {
         string ProviderName { get; }
         Task<PaymentGatewayResult> CreatePaymentLinkAsync(PaymentLinkArgs args, CancellationToken cancellationToken = default);
         Task<WebhookVerificationResult> VerifyWebhookAsync(Webhook webhook, CancellationToken cancellationToken = default);
+        Task<PaymentGatewayOrderInfo> GetPaymentLinkInformationAsync(long orderCode, CancellationToken cancellationToken = default);
     }
 }

@@ -27,6 +27,7 @@ namespace SystemService.BLL.Services.Payment.Implementations
         private readonly IConfiguration _configuration;
         private readonly ILogger<PaymentService> _logger;
         private readonly IRewardRepository? _rewardRepository;
+        private readonly ICreditRealtimeNotifier? _creditNotifier;
 
         public PaymentService(
             SystemDbContext context,
@@ -36,7 +37,8 @@ namespace SystemService.BLL.Services.Payment.Implementations
             IPaymentGateway paymentGateway,
             IConfiguration configuration,
             ILogger<PaymentService> logger,
-            IRewardRepository? rewardRepository = null)
+            IRewardRepository? rewardRepository = null,
+            ICreditRealtimeNotifier? creditNotifier = null)
         {
             _context = context;
             _walletRepository = walletRepository;
@@ -46,6 +48,7 @@ namespace SystemService.BLL.Services.Payment.Implementations
             _configuration = configuration;
             _logger = logger;
             _rewardRepository = rewardRepository;
+            _creditNotifier = creditNotifier;
         }
 
         public async Task<ApiResponse<CustomTopUpQuoteResponse>> GetCustomTopUpQuoteAsync(
@@ -228,8 +231,348 @@ namespace SystemService.BLL.Services.Payment.Implementations
                 return ApiResponse<PaymentStatusResponse>.FailureResponse("Access denied.");
             }
 
+            if (payment.Status == "Pending")
+            {
+                try
+                {
+                    var gatewayInfo = await _paymentGateway.GetPaymentLinkInformationAsync(payment.ProviderOrderCode, cancellationToken);
+                    if (gatewayInfo.Success && !string.IsNullOrWhiteSpace(gatewayInfo.Status))
+                    {
+                        var upperStatus = gatewayInfo.Status.ToUpperInvariant();
+                        if (upperStatus == "PAID")
+                        {
+                            payment = await SettlePaymentInternalAsync(payment, gatewayInfo.Reference, cancellationToken);
+                        }
+                        else if (upperStatus is "CANCELLED" or "CANCELED")
+                        {
+                            payment = await CancelPaymentInternalAsync(payment, cancellationToken);
+                        }
+                        else if (upperStatus == "EXPIRED")
+                        {
+                            payment = await ExpirePaymentInternalAsync(payment, cancellationToken);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to query PayOS payment link status for PaymentId {PaymentId}. Returning current DB status.", paymentId);
+                }
+            }
+
+            var response = await MapToStatusResponseAsync(payment, cancellationToken);
+            return ApiResponse<PaymentStatusResponse>.SuccessResponse(response);
+        }
+
+        public async Task<ApiResponse<PaymentStatusResponse>> GetPaymentStatusByOrderCodeAsync(int userId, long orderCode, CancellationToken cancellationToken = default)
+        {
+            var payment = await _paymentRepository.GetByProviderOrderCodeAsync(_paymentGateway.ProviderName, orderCode, cancellationToken);
+            if (payment == null)
+            {
+                return ApiResponse<PaymentStatusResponse>.FailureResponse("Payment not found.");
+            }
+
+            if (payment.UserId != userId)
+            {
+                return ApiResponse<PaymentStatusResponse>.FailureResponse("Access denied.");
+            }
+
+            if (payment.Status == "Pending")
+            {
+                try
+                {
+                    var gatewayInfo = await _paymentGateway.GetPaymentLinkInformationAsync(orderCode, cancellationToken);
+                    if (gatewayInfo.Success && !string.IsNullOrWhiteSpace(gatewayInfo.Status))
+                    {
+                        var upperStatus = gatewayInfo.Status.ToUpperInvariant();
+                        if (upperStatus == "PAID")
+                        {
+                            payment = await SettlePaymentInternalAsync(payment, gatewayInfo.Reference, cancellationToken);
+                        }
+                        else if (upperStatus is "CANCELLED" or "CANCELED")
+                        {
+                            payment = await CancelPaymentInternalAsync(payment, cancellationToken);
+                        }
+                        else if (upperStatus == "EXPIRED")
+                        {
+                            payment = await ExpirePaymentInternalAsync(payment, cancellationToken);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to query PayOS payment link status for OrderCode {OrderCode}. Returning current DB status {Status}.",
+                        orderCode, payment.Status);
+                }
+            }
+
+            var response = await MapToStatusResponseAsync(payment, cancellationToken);
+            return ApiResponse<PaymentStatusResponse>.SuccessResponse(response);
+        }
+
+        public async Task<ApiResponse<PaymentStatusResponse>> CancelPaymentByOrderCodeAsync(int userId, long orderCode, CancellationToken cancellationToken = default)
+        {
+            var payment = await _paymentRepository.GetByProviderOrderCodeAsync(_paymentGateway.ProviderName, orderCode, cancellationToken);
+            if (payment == null)
+            {
+                return ApiResponse<PaymentStatusResponse>.FailureResponse("Payment not found.");
+            }
+
+            if (payment.UserId != userId)
+            {
+                return ApiResponse<PaymentStatusResponse>.FailureResponse("Access denied.");
+            }
+
+            if (payment.Status == "Paid")
+            {
+                return ApiResponse<PaymentStatusResponse>.FailureResponse("Cannot cancel a completed payment.");
+            }
+
+            if (payment.Status == "Pending")
+            {
+                payment = await CancelPaymentInternalAsync(payment, cancellationToken);
+            }
+
+            var response = await MapToStatusResponseAsync(payment, cancellationToken);
+            return ApiResponse<PaymentStatusResponse>.SuccessResponse(response, "Payment cancelled successfully.");
+        }
+
+        public async Task<ApiResponse<object>> ProcessPayOSWebhookAsync(Webhook webhook, CancellationToken cancellationToken = default)
+        {
+            var verification = await _paymentGateway.VerifyWebhookAsync(webhook, cancellationToken);
+            if (!verification.IsValid)
+            {
+                _logger.LogWarning("Invalid PayOS webhook signature: {Error}", verification.ErrorMessage);
+                return ApiResponse<object>.FailureResponse($"Invalid webhook signature: {verification.ErrorMessage}");
+            }
+
+            var payment = await _paymentRepository.GetByProviderOrderCodeAsync(_paymentGateway.ProviderName, verification.OrderCode, cancellationToken);
+            if (payment == null)
+            {
+                _logger.LogWarning("PaymentTransaction not found for ProviderOrderCode {OrderCode}", verification.OrderCode);
+                return ApiResponse<object>.FailureResponse($"Payment transaction not found for order code {verification.OrderCode}.");
+            }
+
+            // Idempotency check: if already Paid, acknowledge without duplicate credit
+            if (payment.Status == "Paid")
+            {
+                _logger.LogInformation("PaymentTransaction {PaymentId} is already Paid. Idempotent return.", payment.PaymentId);
+                return ApiResponse<object>.SuccessResponse(new { }, "Payment already settled.");
+            }
+
+            // Do not credit cancelled/expired/failed transactions
+            if (payment.Status is "Cancelled" or "Expired" or "Failed")
+            {
+                _logger.LogWarning("PaymentTransaction {PaymentId} has terminal status {Status}. Ignoring settlement.", payment.PaymentId, payment.Status);
+                return ApiResponse<object>.FailureResponse($"Payment transaction is {payment.Status} and cannot be settled.");
+            }
+
+            // Verify PayOS payment result code ("00" means success)
+            if (!string.Equals(verification.Code, "00", StringComparison.OrdinalIgnoreCase))
+            {
+                using var failTx = await _context.Database.BeginTransactionAsync(cancellationToken);
+                var lockedPayment = await _paymentRepository.GetByProviderOrderCodeForUpdateAsync(_paymentGateway.ProviderName, verification.OrderCode, cancellationToken) ?? payment;
+                lockedPayment.Status = "Failed";
+                await _paymentRepository.UpdateAsync(lockedPayment, cancellationToken);
+                await failTx.CommitAsync(cancellationToken);
+                _logger.LogWarning("PayOS webhook for OrderCode {OrderCode} returned non-success code {Code}.", verification.OrderCode, verification.Code);
+                return ApiResponse<object>.FailureResponse($"Payment was not successful (Code: {verification.Code}).");
+            }
+
+            // Server-side amount verification against snapshot
+            if (verification.Amount != payment.Amount)
+            {
+                _logger.LogWarning("PayOS webhook amount mismatch for OrderCode {OrderCode}: expected {Expected}, got {Actual}.",
+                    verification.OrderCode, payment.Amount, verification.Amount);
+                return ApiResponse<object>.FailureResponse("Webhook payment amount does not match expected payment amount.");
+            }
+
+            await SettlePaymentInternalAsync(payment, verification.Reference, cancellationToken);
+            return ApiResponse<object>.SuccessResponse(new { }, "Payment settled successfully.");
+        }
+
+        private async Task<PaymentTransaction> SettlePaymentInternalAsync(
+            PaymentTransaction payment,
+            string? providerTransactionId,
+            CancellationToken cancellationToken)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var lockedPayment = await _paymentRepository.GetByProviderOrderCodeForUpdateAsync(
+                    payment.Provider, payment.ProviderOrderCode, cancellationToken) ?? payment;
+
+                if (lockedPayment.Status == "Paid")
+                {
+                    _logger.LogInformation("PaymentTransaction {PaymentId} is already Paid. Idempotent return.", lockedPayment.PaymentId);
+                    await transaction.CommitAsync(cancellationToken);
+                    return lockedPayment;
+                }
+
+                lockedPayment.Status = "Paid";
+                lockedPayment.PaidAt = DateTime.UtcNow;
+                if (!string.IsNullOrWhiteSpace(providerTransactionId))
+                {
+                    lockedPayment.ProviderTransactionId = providerTransactionId;
+                }
+                await _paymentRepository.UpdateAsync(lockedPayment, cancellationToken);
+
+                var wallet = await _walletRepository.GetByIdForUpdateAsync(lockedPayment.WalletId, cancellationToken);
+                if (wallet == null)
+                {
+                    throw new InvalidOperationException($"Wallet {lockedPayment.WalletId} not found for payment {lockedPayment.PaymentId}.");
+                }
+
+                var existingLedger = await _walletRepository.GetTransactionByReferenceAsync(
+                    wallet.WalletId, "Credit", "TopUp", "PaymentTransaction", lockedPayment.PaymentId, cancellationToken);
+
+                if (existingLedger != null)
+                {
+                    _logger.LogInformation("WalletTransaction already exists for PaymentTransaction {PaymentId}. Skipping duplicate credit.", lockedPayment.PaymentId);
+                    await transaction.CommitAsync(cancellationToken);
+                    return lockedPayment;
+                }
+
+                long balanceBefore = wallet.Balance;
+                long balanceAfter = balanceBefore + lockedPayment.CreditAmount;
+
+                wallet.Balance = balanceAfter;
+                wallet.UpdatedAt = DateTime.UtcNow;
+                await _walletRepository.UpdateWalletAsync(wallet, cancellationToken);
+
+                var walletTx = new WalletTransaction
+                {
+                    WalletId = wallet.WalletId,
+                    TransactionType = "Credit",
+                    SourceType = "TopUp",
+                    Amount = lockedPayment.CreditAmount,
+                    BalanceBefore = balanceBefore,
+                    BalanceAfter = balanceAfter,
+                    ReferenceType = "PaymentTransaction",
+                    ReferenceId = lockedPayment.PaymentId,
+                    Description = lockedPayment.PackageId.HasValue
+                        ? $"Top up via PayOS - Order #{lockedPayment.ProviderOrderCode}"
+                        : $"Custom top up {lockedPayment.CreditAmount} credits via PayOS - Order #{lockedPayment.ProviderOrderCode}",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await _walletRepository.AddTransactionAsync(walletTx, cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                if (_creditNotifier != null)
+                {
+                    _ = _creditNotifier.NotifyCreditBalanceUpdatedAsync(
+                        wallet.UserId, balanceAfter, balanceBefore, lockedPayment.CreditAmount, walletTx.WalletTransactionId, lockedPayment.PaymentId.ToString(), "PAYOS_TOPUP", CancellationToken.None);
+                    _ = _creditNotifier.NotifyCreditTransactionCreatedAsync(
+                        wallet.UserId,
+                        new
+                        {
+                            transactionId = walletTx.WalletTransactionId,
+                            walletId = wallet.WalletId,
+                            amount = lockedPayment.CreditAmount,
+                            type = "Credit",
+                            sourceType = "TopUp",
+                            balanceAfter = balanceAfter,
+                            description = walletTx.Description,
+                            createdAt = walletTx.CreatedAt
+                        },
+                        CancellationToken.None);
+                }
+
+                _logger.LogInformation("PaymentTransaction {PaymentId} successfully settled. Wallet {WalletId} credited {Credits} credits.",
+                    lockedPayment.PaymentId, wallet.WalletId, lockedPayment.CreditAmount);
+
+                return lockedPayment;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                _logger.LogError(ex, "Error occurred during payment settlement for PaymentId {PaymentId}", payment.PaymentId);
+                throw;
+            }
+        }
+
+        private async Task<PaymentTransaction> CancelPaymentInternalAsync(
+            PaymentTransaction payment,
+            CancellationToken cancellationToken)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var lockedPayment = await _paymentRepository.GetByProviderOrderCodeForUpdateAsync(
+                    payment.Provider, payment.ProviderOrderCode, cancellationToken) ?? payment;
+
+                if (lockedPayment.Status == "Paid")
+                {
+                    _logger.LogWarning("Attempted to cancel payment {PaymentId} which is already Paid. Keeping Paid status.", lockedPayment.PaymentId);
+                    await transaction.CommitAsync(cancellationToken);
+                    return lockedPayment;
+                }
+
+                if (lockedPayment.Status != "Cancelled")
+                {
+                    lockedPayment.Status = "Cancelled";
+                    lockedPayment.CancelledAt = DateTime.UtcNow;
+                    await _paymentRepository.UpdateAsync(lockedPayment, cancellationToken);
+                    _logger.LogInformation("PaymentTransaction {PaymentId} (OrderCode {OrderCode}) marked as Cancelled.",
+                        lockedPayment.PaymentId, lockedPayment.ProviderOrderCode);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+                return lockedPayment;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                _logger.LogError(ex, "Error occurred during payment cancellation for PaymentId {PaymentId}", payment.PaymentId);
+                throw;
+            }
+        }
+
+        private async Task<PaymentTransaction> ExpirePaymentInternalAsync(
+            PaymentTransaction payment,
+            CancellationToken cancellationToken)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var lockedPayment = await _paymentRepository.GetByProviderOrderCodeForUpdateAsync(
+                    payment.Provider, payment.ProviderOrderCode, cancellationToken) ?? payment;
+
+                if (lockedPayment.Status == "Paid")
+                {
+                    await transaction.CommitAsync(cancellationToken);
+                    return lockedPayment;
+                }
+
+                if (lockedPayment.Status != "Expired")
+                {
+                    lockedPayment.Status = "Expired";
+                    lockedPayment.ExpiredAt = DateTime.UtcNow;
+                    await _paymentRepository.UpdateAsync(lockedPayment, cancellationToken);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+                return lockedPayment;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                _logger.LogError(ex, "Error occurred while expiring PaymentId {PaymentId}", payment.PaymentId);
+                throw;
+            }
+        }
+
+        private async Task<PaymentStatusResponse> MapToStatusResponseAsync(
+            PaymentTransaction payment,
+            CancellationToken cancellationToken)
+        {
             bool isPackage = payment.PackageId.HasValue;
-            var response = new PaymentStatusResponse
+            if (isPackage && payment.Package == null)
+            {
+                payment.Package = await _packageRepository.GetByIdAsync(payment.PackageId.Value, cancellationToken);
+            }
+
+            return new PaymentStatusResponse
             {
                 PaymentId = payment.PaymentId,
                 TopUpType = isPackage ? "Package" : "Custom",
@@ -246,130 +589,6 @@ namespace SystemService.BLL.Services.Payment.Implementations
                 CancelledAt = payment.CancelledAt,
                 ExpiredAt = payment.ExpiredAt
             };
-
-            return ApiResponse<PaymentStatusResponse>.SuccessResponse(response);
-        }
-
-        public async Task<ApiResponse<object>> ProcessPayOSWebhookAsync(Webhook webhook, CancellationToken cancellationToken = default)
-        {
-            var verification = await _paymentGateway.VerifyWebhookAsync(webhook, cancellationToken);
-            if (!verification.IsValid)
-            {
-                _logger.LogWarning("Invalid PayOS webhook signature: {Error}", verification.ErrorMessage);
-                return ApiResponse<object>.FailureResponse($"Invalid webhook signature: {verification.ErrorMessage}");
-            }
-
-            // Begin atomic transaction for idempotent settlement
-            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-            try
-            {
-                var payment = await _paymentRepository.GetByProviderOrderCodeForUpdateAsync(_paymentGateway.ProviderName, verification.OrderCode, cancellationToken);
-                if (payment == null)
-                {
-                    _logger.LogWarning("PaymentTransaction not found for ProviderOrderCode {OrderCode}", verification.OrderCode);
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ApiResponse<object>.FailureResponse($"Payment transaction not found for order code {verification.OrderCode}.");
-                }
-
-                // Idempotency check: if already Paid, acknowledge without duplicate credit
-                if (payment.Status == "Paid")
-                {
-                    _logger.LogInformation("PaymentTransaction {PaymentId} is already Paid. Idempotent return.", payment.PaymentId);
-                    await transaction.CommitAsync(cancellationToken);
-                    return ApiResponse<object>.SuccessResponse(new { }, "Payment already settled.");
-                }
-
-                // Do not credit cancelled/expired/failed transactions
-                if (payment.Status is "Cancelled" or "Expired" or "Failed")
-                {
-                    _logger.LogWarning("PaymentTransaction {PaymentId} has terminal status {Status}. Ignoring settlement.", payment.PaymentId, payment.Status);
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ApiResponse<object>.FailureResponse($"Payment transaction is {payment.Status} and cannot be settled.");
-                }
-
-                // Verify PayOS payment result code ("00" means success)
-                if (!string.Equals(verification.Code, "00", StringComparison.OrdinalIgnoreCase))
-                {
-                    payment.Status = "Failed";
-                    await _paymentRepository.UpdateAsync(payment, cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-                    _logger.LogWarning("PayOS webhook for OrderCode {OrderCode} returned non-success code {Code}.", verification.OrderCode, verification.Code);
-                    return ApiResponse<object>.FailureResponse($"Payment was not successful (Code: {verification.Code}).");
-                }
-
-                // Server-side amount verification against snapshot
-                if (verification.Amount != payment.Amount)
-                {
-                    _logger.LogWarning("PayOS webhook amount mismatch for OrderCode {OrderCode}: expected {Expected}, got {Actual}.",
-                        verification.OrderCode, payment.Amount, verification.Amount);
-                    await transaction.RollbackAsync(cancellationToken);
-                    return ApiResponse<object>.FailureResponse("Webhook payment amount does not match expected payment amount.");
-                }
-
-                // Settle payment
-                payment.Status = "Paid";
-                payment.PaidAt = DateTime.UtcNow;
-                if (!string.IsNullOrWhiteSpace(verification.Reference))
-                {
-                    payment.ProviderTransactionId = verification.Reference;
-                }
-                await _paymentRepository.UpdateAsync(payment, cancellationToken);
-
-                // Lock wallet and credit balance
-                var wallet = await _walletRepository.GetByIdForUpdateAsync(payment.WalletId, cancellationToken);
-                if (wallet == null)
-                {
-                    throw new InvalidOperationException($"Wallet {payment.WalletId} not found for payment {payment.PaymentId}.");
-                }
-
-                // Secondary idempotency guard against duplicate ledger entry
-                var existingLedger = await _walletRepository.GetTransactionByReferenceAsync(
-                    wallet.WalletId, "Credit", "TopUp", "PaymentTransaction", payment.PaymentId, cancellationToken);
-                if (existingLedger != null)
-                {
-                    _logger.LogInformation("WalletTransaction already exists for PaymentTransaction {PaymentId}. Skipping credit.", payment.PaymentId);
-                    await transaction.CommitAsync(cancellationToken);
-                    return ApiResponse<object>.SuccessResponse(new { }, "Payment already settled.");
-                }
-
-                long balanceBefore = wallet.Balance;
-                long balanceAfter = balanceBefore + payment.CreditAmount;
-
-                wallet.Balance = balanceAfter;
-                wallet.UpdatedAt = DateTime.UtcNow;
-                await _walletRepository.UpdateWalletAsync(wallet, cancellationToken);
-
-                // Create ledger entry
-                var walletTx = new WalletTransaction
-                {
-                    WalletId = wallet.WalletId,
-                    TransactionType = "Credit",
-                    SourceType = "TopUp",
-                    Amount = payment.CreditAmount,
-                    BalanceBefore = balanceBefore,
-                    BalanceAfter = balanceAfter,
-                    ReferenceType = "PaymentTransaction",
-                    ReferenceId = payment.PaymentId,
-                    Description = payment.PackageId.HasValue
-                        ? $"Top up via PayOS - Order #{payment.ProviderOrderCode}"
-                        : $"Custom top up {payment.CreditAmount} credits via PayOS - Order #{payment.ProviderOrderCode}",
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                await _walletRepository.AddTransactionAsync(walletTx, cancellationToken);
-
-                await transaction.CommitAsync(cancellationToken);
-                _logger.LogInformation("PaymentTransaction {PaymentId} successfully settled. Wallet {WalletId} credited {Credits} credits.",
-                    payment.PaymentId, wallet.WalletId, payment.CreditAmount);
-
-                return ApiResponse<object>.SuccessResponse(new { }, "Payment settled successfully.");
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                _logger.LogError(ex, "Error occurred during payment settlement for OrderCode {OrderCode}", verification.OrderCode);
-                throw;
-            }
         }
 
         private async Task<(decimal UnitPriceVnd, long MinCredits, long MaxCredits)> ResolveCustomTopUpPricingAsync(

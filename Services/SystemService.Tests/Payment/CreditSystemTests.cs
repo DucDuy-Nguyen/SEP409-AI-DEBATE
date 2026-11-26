@@ -551,7 +551,7 @@ namespace SystemService.Tests.Payment
         [Fact]
         public async Task AiPractice_InsufficientCredits_RejectedWithDetails_AndSessionRemainsWaiting()
         {
-            SetBalance(Member1Id, 100);
+            SetBalance(Member1Id, 150);
 
             int sessionId;
             using (var ctx = CreateContext())
@@ -562,6 +562,9 @@ namespace SystemService.Tests.Payment
                 });
                 sessionId = created.Data!.SessionId;
             }
+
+            // Simulate balance dropping below required cost before entering the room
+            SetBalance(Member1Id, 100);
 
             using (var ctx = CreateContext())
             {
@@ -669,7 +672,7 @@ namespace SystemService.Tests.Payment
         [Fact]
         public async Task AiPractice_NoRag_InsufficientCredits_RejectedWith110Required()
         {
-            SetBalance(Member1Id, 100);
+            SetBalance(Member1Id, 110);
 
             int sessionId;
             using (var ctx = CreateContext())
@@ -680,6 +683,8 @@ namespace SystemService.Tests.Payment
                 });
                 sessionId = created.Data!.SessionId;
             }
+
+            SetBalance(Member1Id, 100);
 
             using (var ctx = CreateContext())
             {
@@ -1648,6 +1653,16 @@ namespace SystemService.Tests.Payment
             public Task<WebhookVerificationResult> VerifyWebhookAsync(Webhook webhook, CancellationToken cancellationToken = default)
             {
                 return Task.FromResult(NextVerification);
+            }
+
+            public Task<PaymentGatewayOrderInfo> GetPaymentLinkInformationAsync(long orderCode, CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(new PaymentGatewayOrderInfo
+                {
+                    Success = false,
+                    OrderCode = orderCode,
+                    ErrorMessage = "Not configured in FakePaymentGateway"
+                });
             }
         }
     }

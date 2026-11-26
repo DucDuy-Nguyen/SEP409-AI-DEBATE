@@ -123,6 +123,9 @@ CREATE TABLE Topics (
 
     Category NVARCHAR(100) NULL,
 
+    ProGuide NVARCHAR(1000) NULL,
+    ConGuide NVARCHAR(1000) NULL,
+
     Difficulty NVARCHAR(20) NOT NULL DEFAULT 'Medium'
         CHECK (Difficulty IN ('Easy', 'Medium', 'Hard')),
 
@@ -175,10 +178,11 @@ GO
 CREATE TABLE DebateCriteria (
     CriteriaId INT IDENTITY(1,1) PRIMARY KEY,
 
+    CriterionCode NVARCHAR(50) NOT NULL,
     CriteriaName NVARCHAR(100) NOT NULL UNIQUE,
     Description NVARCHAR(500) NULL,
 
-    MaxScore DECIMAL(5,2) NOT NULL DEFAULT 10
+    MaxScore DECIMAL(5,2) NOT NULL DEFAULT 5.00
         CHECK (MaxScore > 0),
 
     Weight DECIMAL(5,4) NOT NULL DEFAULT 1
@@ -186,7 +190,9 @@ CREATE TABLE DebateCriteria (
 
     IsActive BIT NOT NULL DEFAULT 1,
 
-    CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
+    CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
+
+    CONSTRAINT UQ_DebateCriteria_Code UNIQUE (CriterionCode)
 );
 GO
 
@@ -1650,7 +1656,7 @@ CREATE TABLE JudgeScores (
 
     CompetitionMatchId INT NOT NULL,
 
-    JudgeUserId INT NOT NULL,
+    JudgeUserId INT NULL,
 
     MatchParticipantId BIGINT NOT NULL,
 
@@ -1660,6 +1666,11 @@ CREATE TABLE JudgeScores (
         CHECK (Score >= 0),
 
     Feedback NVARCHAR(MAX) NULL,
+
+    ScoreSource NVARCHAR(10) NOT NULL DEFAULT 'JUDGE'
+        CHECK (ScoreSource IN ('JUDGE', 'AI')),
+
+    DebateRoundId INT NULL,
 
     CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
 
@@ -1678,6 +1689,20 @@ CREATE TABLE JudgeScores (
     CONSTRAINT FK_JudgeScores_Criteria
         FOREIGN KEY (CriteriaId)
         REFERENCES DebateCriteria(CriteriaId),
+
+    CONSTRAINT FK_JudgeScores_DebateRound
+        FOREIGN KEY (DebateRoundId)
+        REFERENCES DebateRounds(RoundId),
+
+    CONSTRAINT CK_JudgeScores_ScoreSource
+        CHECK (ScoreSource IN ('JUDGE', 'AI')),
+    CONSTRAINT CK_JudgeScores_AI_JudgeUserId
+        CHECK (ScoreSource != 'AI' OR JudgeUserId IS NULL),
+    CONSTRAINT CK_JudgeScores_Judge_JudgeUserId
+        CHECK (ScoreSource != 'JUDGE' OR JudgeUserId IS NOT NULL),
+    CONSTRAINT CK_JudgeScores_AI_RoundId
+        CHECK (ScoreSource != 'AI' OR DebateRoundId IS NOT NULL)
+);
 
     CONSTRAINT UQ_JudgeScores
         UNIQUE (

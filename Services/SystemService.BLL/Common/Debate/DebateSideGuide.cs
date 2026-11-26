@@ -14,10 +14,52 @@ namespace SystemService.BLL.Common.Debate
     /// </summary>
     public static class DebateSideGuide
     {
+        private static readonly string[] MetaDescriptionPrefixes =
+        {
+            "discuss ",
+            "debate whether ",
+            "analyze ",
+            "explore ",
+            "examine "
+        };
+
+        /// <summary>
+        /// Resolves the canonical debate Motion (resolution) from a Topic entity so the UI, PRO/CON guides,
+        /// AI Opponent, AI Hint, and AI Evaluator all debate the exact same proposition.
+        /// </summary>
+        public static string ResolveMotion(Topic? topic)
+        {
+            if (topic == null) return "Debate motion";
+            var title = topic.Title?.Trim();
+            var description = topic.Description?.Trim();
+
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                return string.IsNullOrWhiteSpace(title) ? "Debate motion" : title;
+            }
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return description;
+            }
+
+            // Standard seeded topics store the debatable Motion in Title (e.g. "Social media does more harm than good")
+            // and a meta-prompt/context in Description (e.g. "Discuss the positive and negative social impacts of social media.").
+            foreach (var prefix in MetaDescriptionPrefixes)
+            {
+                if (description.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return title;
+                }
+            }
+
+            // Otherwise, Description holds the full motion proposition (e.g. "AI cần luật quốc tế" when Title is "Luật AI").
+            return description;
+        }
+
         public static string For(Topic? topic, DebateSide side)
         {
             var custom = Clean(side == DebateSide.PRO ? topic?.ProGuide : topic?.ConGuide);
-            return custom ?? Generic(topic?.Title, side);
+            return custom ?? Generic(ResolveMotion(topic), side);
         }
 
         public static string Generic(string? title, DebateSide side)

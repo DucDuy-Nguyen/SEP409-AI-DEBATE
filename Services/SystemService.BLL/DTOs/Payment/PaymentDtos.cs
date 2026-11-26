@@ -183,6 +183,8 @@ namespace SystemService.BLL.DTOs.Payment
         public string Provider { get; set; } = "PayOS";
         public long ProviderOrderCode { get; set; }
         public string Status { get; set; } = "Pending";
+        public bool IsCompleted => string.Equals(Status, "Paid", StringComparison.OrdinalIgnoreCase);
+        public bool IsCancelled => string.Equals(Status, "Cancelled", StringComparison.OrdinalIgnoreCase);
         public DateTime CreatedAt { get; set; }
         public DateTime? PaidAt { get; set; }
         public DateTime? CancelledAt { get; set; }

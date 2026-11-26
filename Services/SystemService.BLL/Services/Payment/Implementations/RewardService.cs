@@ -18,6 +18,7 @@ namespace SystemService.BLL.Services.Payment.Implementations
         private readonly IRewardRepository _rewardRepository;
         private readonly IWalletRepository _walletRepository;
         private readonly ILogger<RewardService> _logger;
+        private readonly ICreditRealtimeNotifier? _creditNotifier;
 
         public const string RuleDailyLogin = "DAILY_LOGIN";
         public const string RuleFirstLogin = "FIRST_LOGIN";
@@ -26,12 +27,14 @@ namespace SystemService.BLL.Services.Payment.Implementations
             SystemDbContext context,
             IRewardRepository rewardRepository,
             IWalletRepository walletRepository,
-            ILogger<RewardService> logger)
+            ILogger<RewardService> logger,
+            ICreditRealtimeNotifier? creditNotifier = null)
         {
             _context = context;
             _rewardRepository = rewardRepository;
             _walletRepository = walletRepository;
             _logger = logger;
+            _creditNotifier = creditNotifier;
         }
 
         public async Task<ApiResponse<RewardStatusResponse>> GetRewardStatusAsync(int userId, CancellationToken cancellationToken = default)
@@ -137,6 +140,26 @@ namespace SystemService.BLL.Services.Payment.Implementations
 
                 await transaction.CommitAsync(cancellationToken);
 
+                if (_creditNotifier != null)
+                {
+                    _ = _creditNotifier.NotifyCreditBalanceUpdatedAsync(
+                        userId, balanceAfter, balanceBefore, rule.CreditAmount, walletTx.WalletTransactionId, claim.RewardClaimId.ToString(), "CLAIM_DAILY_LOGIN", CancellationToken.None);
+                    _ = _creditNotifier.NotifyCreditTransactionCreatedAsync(
+                        userId,
+                        new
+                        {
+                            transactionId = walletTx.WalletTransactionId,
+                            walletId = wallet.WalletId,
+                            amount = rule.CreditAmount,
+                            type = "Credit",
+                            sourceType = "RewardClaim",
+                            balanceAfter = balanceAfter,
+                            description = walletTx.Description,
+                            createdAt = walletTx.CreatedAt
+                        },
+                        CancellationToken.None);
+                }
+
                 var response = new RewardClaimResponse
                 {
                     RewardClaimId = claim.RewardClaimId,
@@ -227,6 +250,26 @@ namespace SystemService.BLL.Services.Payment.Implementations
                 await _walletRepository.AddTransactionAsync(walletTx, cancellationToken);
 
                 await transaction.CommitAsync(cancellationToken);
+
+                if (_creditNotifier != null)
+                {
+                    _ = _creditNotifier.NotifyCreditBalanceUpdatedAsync(
+                        userId, balanceAfter, balanceBefore, rule.CreditAmount, walletTx.WalletTransactionId, claim.RewardClaimId.ToString(), "CLAIM_DAILY_LOGIN", CancellationToken.None);
+                    _ = _creditNotifier.NotifyCreditTransactionCreatedAsync(
+                        userId,
+                        new
+                        {
+                            transactionId = walletTx.WalletTransactionId,
+                            walletId = wallet.WalletId,
+                            amount = rule.CreditAmount,
+                            type = "Credit",
+                            sourceType = "RewardClaim",
+                            balanceAfter = balanceAfter,
+                            description = walletTx.Description,
+                            createdAt = walletTx.CreatedAt
+                        },
+                        CancellationToken.None);
+                }
 
                 var response = new RewardClaimResponse
                 {

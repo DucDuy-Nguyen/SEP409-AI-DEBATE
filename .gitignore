@@ -18,20 +18,33 @@ x86/
 packages/
 *.nupkg
 
-# Logs
+# Logs & temporary files
 *.log
+*.tmp
+*.bak
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Environment / secrets
+# Local databases
+*.db
+*.sqlite3
+ai_generation.db
+
+# Environment / secrets / local settings
 .env
 .env.*
 !.env.example
 !**/.env.example
 !**/.env.*.example
+appsettings.Development.json
+start-services.ps1
+
 # Python / AI Services
+.venv/
+venv/
+__pycache__/
 AiServices/**/venv/
 AiServices/**/__pycache__/
 AiServices/**/.pytest_cache/
@@ -48,6 +61,7 @@ AiServices/**/experiments/case_plan/
 # Secrets / local settings (real values: dotnet user-secrets or environment variables, see docs/SECRETS.md)
 **/appsettings.Local.json
 **/appsettings.*.local.json
+appsettings.Local.json
 *.pfx
 *.p12
 *.pem

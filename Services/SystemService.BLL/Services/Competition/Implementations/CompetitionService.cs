@@ -30,6 +30,7 @@ namespace SystemService.BLL.Services.Competition.Implementations
         private readonly IWalletRepository? _walletRepository;
         private readonly ICreditService? _creditService;
         private readonly SystemDbContext? _dbContext;
+        private readonly ICreditRealtimeNotifier? _creditNotifier;
 
         public CompetitionService(
             ICompetitionRepository competitionRepository,
@@ -39,7 +40,8 @@ namespace SystemService.BLL.Services.Competition.Implementations
             ICompetitionTeamRepository teamRepository,
             IWalletRepository? walletRepository = null,
             ICreditService? creditService = null,
-            SystemDbContext? dbContext = null)
+            SystemDbContext? dbContext = null,
+            ICreditRealtimeNotifier? creditNotifier = null)
         {
             _competitionRepository = competitionRepository;
             _debateFormatRepository = debateFormatRepository;
@@ -49,6 +51,7 @@ namespace SystemService.BLL.Services.Competition.Implementations
             _walletRepository = walletRepository;
             _creditService = creditService;
             _dbContext = dbContext;
+            _creditNotifier = creditNotifier;
         }
 
         public async Task<ApiResponse<CompetitionResponse>> CreateAsync(int createdByUserId, CreateCompetitionRequest request, CancellationToken cancellationToken = default)
@@ -240,6 +243,26 @@ namespace SystemService.BLL.Services.Competition.Implementations
                     await _walletRepository.AddTransactionAsync(walletTx, cancellationToken);
 
                     await transaction.CommitAsync(cancellationToken);
+
+                    if (_creditNotifier != null)
+                    {
+                        _ = _creditNotifier.NotifyCreditBalanceUpdatedAsync(
+                            createdByUserId, balanceAfter, balanceBefore, -requiredCredits, walletTx.WalletTransactionId, competition.CompetitionId.ToString(), "CREATE_COMPETITION", CancellationToken.None);
+                        _ = _creditNotifier.NotifyCreditTransactionCreatedAsync(
+                            createdByUserId,
+                            new
+                            {
+                                transactionId = walletTx.WalletTransactionId,
+                                walletId = wallet.WalletId,
+                                amount = requiredCredits,
+                                type = "Debit",
+                                sourceType = "AiUsage",
+                                balanceAfter = balanceAfter,
+                                description = walletTx.Description,
+                                createdAt = walletTx.CreatedAt
+                            },
+                            CancellationToken.None);
+                    }
 
                     var response = MapToResponse(competition, scale, requiredCredits, balanceAfter);
                     return ApiResponse<CompetitionResponse>.SuccessResponse(response, "Competition created successfully.");
@@ -456,6 +479,10 @@ namespace SystemService.BLL.Services.Competition.Implementations
                     long coveredFee = Math.Max(paidFromLedger, oldScaleFee);
                     upgradeDelta = newFee > coveredFee ? newFee - coveredFee : 0;
 
+                    WalletTransaction? upgradeTx = null;
+                    long balanceBefore = 0;
+                    long balanceAfter = 0;
+
                     if (upgradeDelta > 0)
                     {
                         if (wallet.Balance < upgradeDelta)
@@ -464,13 +491,13 @@ namespace SystemService.BLL.Services.Competition.Implementations
                             return ApiResponse<CompetitionResponse>.InsufficientCreditsResponse(upgradeDelta, wallet.Balance);
                         }
 
-                        long balanceBefore = wallet.Balance;
-                        long balanceAfter = balanceBefore - upgradeDelta;
+                        balanceBefore = wallet.Balance;
+                        balanceAfter = balanceBefore - upgradeDelta;
                         wallet.Balance = balanceAfter;
                         wallet.UpdatedAt = DateTime.UtcNow;
                         await _walletRepository.UpdateWalletAsync(wallet, cancellationToken);
 
-                        await _walletRepository.AddTransactionAsync(new WalletTransaction
+                        upgradeTx = new WalletTransaction
                         {
                             WalletId = wallet.WalletId,
                             TransactionType = "Debit",
@@ -482,12 +509,33 @@ namespace SystemService.BLL.Services.Competition.Implementations
                             ReferenceId = competition.CompetitionId,
                             Description = $"Upgrade competition #{competition.CompetitionId} scale to {upgradedScale} ({upgradedRuleCode}) user #{currentUserId}",
                             CreatedAt = DateTime.UtcNow
-                        }, cancellationToken);
+                        };
+                        await _walletRepository.AddTransactionAsync(upgradeTx, cancellationToken);
                     }
 
                     ApplyPatchFields(competition, request);
                     await _competitionRepository.UpdateAsync(competition, cancellationToken);
                     await tx.CommitAsync(cancellationToken);
+
+                    if (upgradeDelta > 0 && upgradeTx != null && _creditNotifier != null)
+                    {
+                        _ = _creditNotifier.NotifyCreditBalanceUpdatedAsync(
+                            currentUserId, balanceAfter, balanceBefore, -upgradeDelta, upgradeTx.WalletTransactionId, competition.CompetitionId.ToString(), "UPGRADE_COMPETITION", CancellationToken.None);
+                        _ = _creditNotifier.NotifyCreditTransactionCreatedAsync(
+                            currentUserId,
+                            new
+                            {
+                                transactionId = upgradeTx.WalletTransactionId,
+                                walletId = wallet.WalletId,
+                                amount = upgradeDelta,
+                                type = "Debit",
+                                sourceType = "AiUsage",
+                                balanceAfter = balanceAfter,
+                                description = upgradeTx.Description,
+                                createdAt = upgradeTx.CreatedAt
+                            },
+                            CancellationToken.None);
+                    }
 
                     return ApiResponse<CompetitionResponse>.SuccessResponse(
                         MapToResponse(competition, upgradedScale, upgradeDelta, wallet.Balance),
