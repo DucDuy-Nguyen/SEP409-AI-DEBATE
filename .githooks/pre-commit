@@ -1,0 +1,33 @@
+#!/bin/sh
+# Blocks a commit that adds a secret (key, token, password, connection string with a password).
+# Enable once per clone:   git config core.hooksPath .githooks
+# Needs gitleaks (winget install gitleaks / brew install gitleaks / scoop install gitleaks) or Docker.
+# A false positive: see .gitleaks.toml. Bypassing with --no-verify still hits the CI scan (secret-scan.yml).
+
+GITLEAKS_IMAGE="zricethezav/gitleaks:v8.21.2"
+ROOT=$(git rev-parse --show-toplevel) || exit 1
+cd "$ROOT" || exit 1
+
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --config .gitleaks.toml --redact --no-banner -v
+  status=$?
+elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  # The container sees the repo (and its index) read-only; another uid owns it there, so trust it for git
+  MSYS_NO_PATHCONV=1 docker run --rm -v "$ROOT:/repo:ro" -w /repo \
+    -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0="*" "$GITLEAKS_IMAGE" \
+    protect --staged --source /repo --config /repo/.gitleaks.toml --redact --no-banner -v
+  status=$?
+else
+  echo "pre-commit: gitleaks not found (and Docker not running): secret scan SKIPPED." >&2
+  echo "            Install it: winget install gitleaks   (the CI scan still runs on push)" >&2
+  exit 0
+fi
+
+if [ "$status" -ne 0 ]; then
+  echo "" >&2
+  echo "pre-commit: possible secret in the staged changes, commit blocked." >&2
+  echo "  Move the value to dotnet user-secrets / a git-ignored .env / an environment variable (docs/SECRETS.md)," >&2
+  echo "  unstage it (git restore --staged <file>) and commit again." >&2
+  exit 1
+fi
+exit 0

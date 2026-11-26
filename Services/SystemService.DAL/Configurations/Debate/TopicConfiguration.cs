@@ -14,6 +14,8 @@ namespace SystemService.DAL.Configurations.Debate
             builder.Property(e => e.Title).HasMaxLength(300).IsRequired();
             builder.Property(e => e.Description).IsRequired(false);
             builder.Property(e => e.Category).HasMaxLength(100).IsRequired(false);
+            builder.Property(e => e.ProGuide).HasMaxLength(1000).IsRequired(false);
+            builder.Property(e => e.ConGuide).HasMaxLength(1000).IsRequired(false);
             builder.Property(e => e.Difficulty).HasMaxLength(20).IsRequired().HasDefaultValue("Medium");
 
             builder.HasOne(e => e.CreatedByUser)

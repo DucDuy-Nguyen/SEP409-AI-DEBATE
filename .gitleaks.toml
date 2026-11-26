@@ -1,0 +1,51 @@
+# Secret scan (gitleaks, https://github.com/gitleaks/gitleaks): the default rules plus the allowlist below.
+# Run by .githooks/pre-commit on every commit and by .github/workflows/secret-scan.yml on every push / PR.
+# See docs/SECRETS.md. A false positive: add the exact value or path here in a reviewed PR, never a broad pattern.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "sqlserver-connection-password"
+description = "SQL Server connection string with a password"
+# a ${VAR} / $VAR reference is not a value
+regex = '''(?i)(?:password|pwd)\s*=\s*([^$;'"\s{<*][^;'"\s]{5,})'''
+secretGroup = 1
+keywords = ["password=", "pwd="]
+
+[[rules]]
+id = "settings-secret-field"
+description = "Non-empty secret field in a JSON settings file (appsettings.json ships them empty)"
+# e.g. "Password": "abcd efgh ijkl mnop" (a Gmail app password), "ApiKey": "...", "Key": "..."
+regex = '''(?i)"(?:password|pwd|apikey|api_key|checksumkey|clientsecret|client_secret|secret|secretkey|token|turnkeyapitoken|key)"\s*:\s*"([^"$<{*][^"]{7,})"'''
+secretGroup = 1
+# settings files only: data files (e.g. rag_results/*.json) have plain "key" fields
+path = '''(?i)(?:^|/)(?:appsettings[^/]*|secrets?|local\.settings)\.json$'''
+keywords = ["password", "pwd", "apikey", "api_key", "checksumkey", "secret", "token", "\"key\""]
+
+[[rules]]
+id = "postgres-url-password"
+description = "PostgreSQL URL with a password"
+# the match runs on to the host, for the allowlist below
+regex = '''postgres(?:ql)?(?:\+\w+)?://[^:/\s'"]+:([^$@/\s'"<*][^@/\s'"]{3,})@[^\s'"/:]+'''
+secretGroup = 1
+keywords = ["postgres"]
+[[rules.allowlists]]
+# Local Docker databases (docker-compose dev defaults), never a server: a server URL comes from the environment
+regexTarget = "match"
+regexes = ['''@(?:localhost|127\.0\.0\.1|host\.docker\.internal)$''']
+
+[allowlist]
+description = "Known non-secrets"
+regexes = [
+  # The public Development-only JWT fallback (Program.cs refuses it outside Development)
+  '''development-secret-key-super-secret-1234567890''',
+  # placeholders in examples / docs (matched against the secret itself)
+  '''(?i)^(?:<[^>]+>|\*{3,}|changeme|password|pass|postgres|your[_-]?password)$''',
+]
+paths = [
+  '''(?:^|/)\.gitleaks\.toml$''',
+  '''(?:^|/)[^/]*\.example$''',
+  '''(?:^|/)node_modules/''',
+  '''(?:^|/)(?:bin|obj)/''',
+]

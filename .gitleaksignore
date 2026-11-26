@@ -1,0 +1,8 @@
+# Findings already in the history: they stay public whatever we do, so the value itself must be rotated (docs/SECRETS.md).
+# Listed so a full-history scan stays usable; a NEW finding is never added here, it is moved out of the repo.
+# EmailSettings:Password (SMTP app password) committed 2026-09-27 .. 2026-10-12, blank since: ROTATE IT
+99b0e1c53954173fb1630d4055103150e3ee1d4b:Services/SystemService/appsettings.json:settings-secret-field:31
+2e98f78f9106e282ec809affe5a2f243b7f93a48:Services/SystemService/appsettings.json:settings-secret-field:27
+c247dcbbff75796aa761b6e36f0a28104a842078:Services/SystemService/appsettings.json:settings-secret-field:27
+# Jwt:Key of the old IdentityService (2026-09-15): never use it again
+11dd6e45b83cf1e4c80a115611f1fbd6f14a06a4:Services/IdentityService/appsettings.json:settings-secret-field:13

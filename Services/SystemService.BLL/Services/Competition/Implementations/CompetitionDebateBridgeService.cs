@@ -330,6 +330,8 @@ namespace SystemService.BLL.Services.Competition.Implementations
                 SessionId = session.DebateSessionId,
                 Title = session.Topic?.Title ?? "Competition Match",
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
+                ProGuide = DebateSideGuide.For(session.Topic, DebateSide.PRO),
+                ConGuide = DebateSideGuide.For(session.Topic, DebateSide.CON),
                 DebateType = DebateType.Competition,
                 Difficulty = session.Topic?.Difficulty,
                 CurrentStage = DebateStage.Opening,

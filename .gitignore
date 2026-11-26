@@ -28,14 +28,28 @@ Thumbs.db
 # Environment / secrets
 .env
 .env.*
+!.env.example
+!**/.env.example
+!**/.env.*.example
 # Python / AI Services
 AiServices/**/venv/
 AiServices/**/__pycache__/
 AiServices/**/.pytest_cache/
 AiServices/**/.env
 AiServices/**/.env.*
+!AiServices/**/.env.example
+!AiServices/**/.env.*.example
 AiServices/**/experiments/matches/
 AiServices/**/experiments/case_plan/
 
 # Connection string DB tren Azure cho run-all.ps1 -Azure
 .azure-db.env
+
+# Secrets / local settings (real values: dotnet user-secrets or environment variables, see docs/SECRETS.md)
+**/appsettings.Local.json
+**/appsettings.*.local.json
+*.pfx
+*.p12
+*.pem
+*.key
+secrets.json

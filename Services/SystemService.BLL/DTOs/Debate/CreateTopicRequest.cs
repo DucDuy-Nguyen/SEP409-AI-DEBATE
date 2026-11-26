@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using SystemService.BLL.Common.Debate;
 
 namespace SystemService.BLL.DTOs.Debate
 {
@@ -9,6 +10,13 @@ namespace SystemService.BLL.DTOs.Debate
         public string Title { get; set; } = null!;
 
         public string? Description { get; set; }
+
+        // What PRO / CON have to do in this topic (optional, see DebateSideGuide).
+        [MaxLength(DebateSideGuideLimits.MaxLength, ErrorMessage = "A side guide cannot exceed 1000 characters.")]
+        public string? ProGuide { get; set; }
+
+        [MaxLength(DebateSideGuideLimits.MaxLength, ErrorMessage = "A side guide cannot exceed 1000 characters.")]
+        public string? ConGuide { get; set; }
 
         [MaxLength(100, ErrorMessage = "Category cannot exceed 100 characters.")]
         public string? Category { get; set; }

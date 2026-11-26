@@ -8,6 +8,7 @@ using SystemService.BLL.Common.Responses;
 using SystemService.BLL.DTOs.Debate;
 using SystemService.BLL.Services.Debate.Interfaces;
 using SystemService.DAL.Entities.Debate;
+using SystemService.DAL.Entities.Debate.Enums;
 using SystemService.DAL.Repositories.Debate.Interfaces;
 
 namespace SystemService.BLL.Services.Debate.Implementations
@@ -80,6 +81,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 Description = request.Description?.Trim(),
                 Category = category,
                 Difficulty = string.IsNullOrWhiteSpace(request.Difficulty) ? "Medium" : request.Difficulty.Trim(),
+                ProGuide = DebateSideGuide.Clean(request.ProGuide),
+                ConGuide = DebateSideGuide.Clean(request.ConGuide),
                 CreatedBy = userId,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
@@ -129,6 +132,16 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 topic.Difficulty = request.Difficulty.Trim();
             }
 
+            if (request.ProGuide != null)
+            {
+                topic.ProGuide = DebateSideGuide.Clean(request.ProGuide);
+            }
+
+            if (request.ConGuide != null)
+            {
+                topic.ConGuide = DebateSideGuide.Clean(request.ConGuide);
+            }
+
             if (request.IsActive.HasValue)
             {
                 topic.IsActive = request.IsActive.Value;
@@ -163,6 +176,9 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 Description = topic.Description,
                 Category = topic.Category,
                 Difficulty = topic.Difficulty,
+                ProGuide = DebateSideGuide.For(topic, DebateSide.PRO),
+                ConGuide = DebateSideGuide.For(topic, DebateSide.CON),
+                HasCustomGuides = DebateSideGuide.Clean(topic.ProGuide) != null || DebateSideGuide.Clean(topic.ConGuide) != null,
                 CreatedBy = topic.CreatedBy,
                 CreatedByUserName = topic.CreatedByUser?.FullName,
                 IsActive = topic.IsActive,
