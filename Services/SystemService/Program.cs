@@ -44,7 +44,19 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 // 2. DbContext
+// Real values never live in appsettings.json (public repo): user-secrets on a dev machine, environment variables
+// (ConnectionStrings__DefaultConnection) on a server, see docs/SECRETS.md. A Development run falls back to the local
+// SQL Server; anywhere else a missing value stops the start instead of failing on the first query.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    if (!builder.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException(
+            "ConnectionStrings:DefaultConnection is not configured (set the ConnectionStrings__DefaultConnection environment variable).");
+    }
+    connectionString = "Server=localhost;Database=DebatePracticePlatformDB;Trusted_Connection=True;TrustServerCertificate=True";
+}
 builder.Services.AddDbContext<SystemDbContext>(options =>
     options.UseSqlServer(connectionString));
 
@@ -124,10 +136,12 @@ builder.Services.AddScoped<ITopicService, TopicService>();
 builder.Services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
 
 // 5. AI Services Clients
-var evaluatorUrl = builder.Configuration["AiServices:EvaluatorUrl"] 
-    ?? "https://adpp-ai-evaluator.greenstone-4d67d46a.indonesiacentral.azurecontainerapps.io";
-var opponentUrl = builder.Configuration["AiServices:OpponentUrl"] 
-    ?? "http://localhost:8002";
+// An empty value (as appsettings.json ships them) means "not set", like a missing one: `??` alone would keep "" and
+// every call would then fail on an invalid base address
+static string OrDefault(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
+var evaluatorUrl = OrDefault(builder.Configuration["AiServices:EvaluatorUrl"],
+    "https://adpp-ai-evaluator.greenstone-4d67d46a.indonesiacentral.azurecontainerapps.io");
+var opponentUrl = OrDefault(builder.Configuration["AiServices:OpponentUrl"], "http://localhost:8002");
 var aiTimeoutSeconds = builder.Configuration.GetValue<int>("AiServices:TimeoutSeconds", 120);
 
 builder.Services.AddHttpClient<IAiEvaluatorClient, AiEvaluatorClient>(client =>
@@ -156,10 +170,24 @@ builder.Services.AddHttpClient(KnowledgeBaseService.EvaluatorKbClientName, clien
 builder.Services.AddHostedService<StartupWarmupService>();
 
 // 6. Authentication & JWT
+const string DevelopmentJwtKey = "development-secret-key-super-secret-1234567890";
 var configuredJwtKey = builder.Configuration["Jwt:Key"];
-var jwtKey = string.IsNullOrWhiteSpace(configuredJwtKey)
-    ? "development-secret-key-super-secret-1234567890"
-    : configuredJwtKey;
+// The fallback key is in the public repo (as are older keys in its history): anyone could sign a token with it, so
+// only a Development run may use it. Elsewhere the key must be set, private, and long enough for HMAC-SHA256.
+if (!builder.Environment.IsDevelopment())
+{
+    if (string.IsNullOrWhiteSpace(configuredJwtKey))
+    {
+        throw new InvalidOperationException("Jwt:Key is not configured (set the Jwt__Key environment variable).");
+    }
+    if (configuredJwtKey == DevelopmentJwtKey || System.Text.Encoding.UTF8.GetByteCount(configuredJwtKey) < 32)
+    {
+        throw new InvalidOperationException("Jwt:Key must be a private key of at least 32 bytes, not the development key.");
+    }
+}
+var jwtKey = string.IsNullOrWhiteSpace(configuredJwtKey) ? DevelopmentJwtKey : configuredJwtKey!;
+// TokenService signs with Jwt:Key: give it the same key the validation below uses, an empty one fails every login
+builder.Configuration["Jwt:Key"] = jwtKey;
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "AIDebatePlatform";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "AIDebatePlatform";
 
