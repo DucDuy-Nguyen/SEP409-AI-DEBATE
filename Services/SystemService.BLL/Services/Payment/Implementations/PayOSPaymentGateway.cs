@@ -121,5 +121,40 @@ namespace SystemService.BLL.Services.Payment.Implementations
                 };
             }
         }
+
+        public async Task<PaymentGatewayOrderInfo> GetPaymentLinkInformationAsync(long orderCode, CancellationToken cancellationToken = default)
+        {
+            if (_client == null)
+            {
+                return new PaymentGatewayOrderInfo
+                {
+                    Success = false,
+                    ErrorMessage = "PayOS credentials not configured"
+                };
+            }
+
+            try
+            {
+                var info = await _client.PaymentRequests.GetAsync(orderCode.ToString());
+                return new PaymentGatewayOrderInfo
+                {
+                    Success = true,
+                    OrderCode = info.OrderCode,
+                    Amount = info.Amount,
+                    AmountPaid = info.AmountPaid,
+                    Status = info.Status.ToString(),
+                    ErrorMessage = null
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to get payment link info from PayOS for order {OrderCode}", orderCode);
+                return new PaymentGatewayOrderInfo
+                {
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
     }
 }

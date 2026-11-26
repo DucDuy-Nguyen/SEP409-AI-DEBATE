@@ -12,6 +12,8 @@ namespace SystemService.BLL.Services.Payment.Interfaces
         Task<ApiResponse<PaymentLinkResponse>> CreateCustomTopUpPaymentAsync(int userId, CustomTopUpRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<PaymentLinkResponse>> CreateTopUpPaymentAsync(int userId, TopUpRequest request, CancellationToken cancellationToken = default);
         Task<ApiResponse<PaymentStatusResponse>> GetPaymentStatusAsync(int userId, long paymentId, CancellationToken cancellationToken = default);
+        Task<ApiResponse<PaymentStatusResponse>> GetPaymentStatusByOrderCodeAsync(int userId, long orderCode, CancellationToken cancellationToken = default);
+        Task<ApiResponse<PaymentStatusResponse>> CancelPaymentByOrderCodeAsync(int userId, long orderCode, CancellationToken cancellationToken = default);
         Task<ApiResponse<object>> ProcessPayOSWebhookAsync(Webhook webhook, CancellationToken cancellationToken = default);
     }
 }

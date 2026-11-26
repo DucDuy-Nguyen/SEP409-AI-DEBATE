@@ -109,6 +109,58 @@ namespace SystemService.Controllers.Payment
             return Ok(result);
         }
 
+        [Authorize]
+        [HttpGet("order/{orderCode:long}/status")]
+        public async Task<IActionResult> GetPaymentStatusByOrderCode(long orderCode, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized(ApiResponse<PaymentStatusResponse>.FailureResponse("Unauthorized access."));
+            }
+
+            var result = await _paymentService.GetPaymentStatusByOrderCodeAsync(userId.Value, orderCode, cancellationToken);
+            if (!result.Success)
+            {
+                if (result.Message == "Access denied.")
+                {
+                    return Forbid();
+                }
+                if (result.Message == "Payment not found.")
+                {
+                    return NotFound(result);
+                }
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
+        [Authorize]
+        [HttpPost("order/{orderCode:long}/cancel")]
+        public async Task<IActionResult> CancelPaymentByOrderCode(long orderCode, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized(ApiResponse<PaymentStatusResponse>.FailureResponse("Unauthorized access."));
+            }
+
+            var result = await _paymentService.CancelPaymentByOrderCodeAsync(userId.Value, orderCode, cancellationToken);
+            if (!result.Success)
+            {
+                if (result.Message == "Access denied.")
+                {
+                    return Forbid();
+                }
+                if (result.Message == "Payment not found.")
+                {
+                    return NotFound(result);
+                }
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
         [AllowAnonymous]
         [HttpPost("payos/webhook")]
         public async Task<IActionResult> PayOSWebhook([FromBody] Webhook webhook, CancellationToken cancellationToken)

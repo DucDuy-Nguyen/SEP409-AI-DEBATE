@@ -10,6 +10,7 @@ namespace SystemService.BLL.DTOs.Debate
         public string? RoomCode { get; set; }
         public string Title { get; set; } = null!;
         public string Topic { get; set; } = null!;
+        public string Motion { get; set; } = string.Empty;
         // Chu de kho fact de FE gui `topic` cho AI Evaluator (education|environment|technology|society), null neu Category khac
         public string? EvidenceTopic { get; set; }
         // What PRO / CON have to do in this debate (DebateSideGuide), to show each debater their task
@@ -40,6 +41,7 @@ namespace SystemService.BLL.DTOs.Debate
         public bool CanSkipPreparation { get; set; }
         public int TotalRounds { get; set; }
         public DateTime ServerTime { get; set; }
+        public long? CurrentUserBalance { get; set; }
 
         public List<ParticipantDto> Participants { get; set; } = new List<ParticipantDto>();
         public TurnDto? CurrentTurn { get; set; }
