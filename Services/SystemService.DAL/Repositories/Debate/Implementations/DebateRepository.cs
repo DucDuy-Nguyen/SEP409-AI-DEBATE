@@ -55,6 +55,7 @@ namespace SystemService.DAL.Repositories.Debate.Implementations
         public async Task<DebateSession?> GetSessionWithDetailsAsync(int debateSessionId, CancellationToken cancellationToken = default)
         {
             return await _context.DebateSessions
+                .AsSplitQuery()
                 .Include(s => s.Topic)
                 .Include(s => s.Format)
                 .Include(s => s.CreatedByUser)
