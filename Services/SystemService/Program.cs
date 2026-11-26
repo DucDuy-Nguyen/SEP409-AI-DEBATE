@@ -123,10 +123,14 @@ builder.Services.AddScoped<ITopicService, TopicService>();
 builder.Services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
 
 // 5. AI Services Clients
-var evaluatorUrl = builder.Configuration["AiServices:EvaluatorUrl"] 
-    ?? "https://adpp-ai-evaluator.greenstone-4d67d46a.indonesiacentral.azurecontainerapps.io";
-var opponentUrl = builder.Configuration["AiServices:OpponentUrl"] 
-    ?? "http://localhost:8002";
+var configuredEvaluatorUrl = builder.Configuration["AiServices:EvaluatorUrl"];
+var evaluatorUrl = string.IsNullOrWhiteSpace(configuredEvaluatorUrl)
+    ? "https://adpp-ai-evaluator.greenstone-4d67d46a.indonesiacentral.azurecontainerapps.io"
+    : configuredEvaluatorUrl;
+var configuredOpponentUrl = builder.Configuration["AiServices:OpponentUrl"];
+var opponentUrl = string.IsNullOrWhiteSpace(configuredOpponentUrl)
+    ? "http://localhost:8002"
+    : configuredOpponentUrl;
 var aiTimeoutSeconds = builder.Configuration.GetValue<int>("AiServices:TimeoutSeconds", 120);
 
 builder.Services.AddHttpClient<IAiEvaluatorClient, AiEvaluatorClient>(client =>
