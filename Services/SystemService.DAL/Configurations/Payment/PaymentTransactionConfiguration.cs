@@ -69,6 +69,7 @@ namespace SystemService.DAL.Configurations.Payment
             builder.HasOne(pt => pt.Package)
                    .WithMany(cp => cp.PaymentTransactions)
                    .HasForeignKey(pt => pt.PackageId)
+                   .IsRequired(false)
                    .OnDelete(DeleteBehavior.Restrict);
         }
     }

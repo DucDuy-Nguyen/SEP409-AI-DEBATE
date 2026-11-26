@@ -8,7 +8,7 @@ namespace SystemService.DAL.Entities.Payment
         public long PaymentId { get; set; }
         public int UserId { get; set; }
         public int WalletId { get; set; }
-        public int PackageId { get; set; }
+        public int? PackageId { get; set; }
         public decimal Amount { get; set; }
         public string Currency { get; set; } = "VND";
         public long CreditAmount { get; set; }

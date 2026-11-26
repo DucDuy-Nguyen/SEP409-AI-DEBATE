@@ -31,6 +31,40 @@ namespace SystemService.Controllers.Payment
             return null;
         }
 
+        [AllowAnonymous]
+        [HttpGet("custom-topup/quote")]
+        public async Task<IActionResult> GetCustomTopUpQuote(
+            [FromQuery] long creditAmount,
+            CancellationToken cancellationToken)
+        {
+            var result = await _paymentService.GetCustomTopUpQuoteAsync(creditAmount, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
+        [Authorize]
+        [HttpPost("custom-topup")]
+        public async Task<IActionResult> CreateCustomTopUpPayment(
+            [FromBody] CustomTopUpRequest request,
+            CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized(ApiResponse<PaymentLinkResponse>.FailureResponse("Unauthorized access."));
+            }
+
+            var result = await _paymentService.CreateCustomTopUpPaymentAsync(userId.Value, request, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
         [Authorize]
         [HttpPost("top-up")]
         public async Task<IActionResult> CreateTopUpPayment([FromBody] TopUpRequest request, CancellationToken cancellationToken)

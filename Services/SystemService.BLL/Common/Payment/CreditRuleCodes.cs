@@ -18,6 +18,11 @@ namespace SystemService.BLL.Common.Payment
 
         public const string DailyLogin = "DAILY_LOGIN";
         public const string FirstLogin = "FIRST_LOGIN";
+        public const string CustomTopUpUnitPriceVnd = "CUSTOM_TOPUP_UNIT_PRICE_VND";
+
+        public const decimal DefaultCustomTopUpUnitPriceVnd = 12m;
+        public const long DefaultCustomTopUpMinCredits = 100;
+        public const long DefaultCustomTopUpMaxCredits = 100000;
 
         // Legacy rule disabled from all fee deduction logic.
         public const string P2pMatchPerUser = "P2P_MATCH_PER_USER";
@@ -45,6 +50,7 @@ namespace SystemService.BLL.Common.Payment
                 [CompetitionLarge] = 2500,
                 [DailyLogin] = 20,
                 [FirstLogin] = 200,
+                [CustomTopUpUnitPriceVnd] = 12,
                 [P2pMatchPerUser] = 0
             };
 

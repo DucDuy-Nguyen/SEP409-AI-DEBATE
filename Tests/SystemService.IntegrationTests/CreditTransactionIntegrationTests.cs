@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -90,7 +91,8 @@ namespace SystemService.IntegrationTests
                 new CreditRule { RuleCode = CreditRuleCodes.AiPracticeMatch, CreditAmount = 150, IsActive = true },
                 new CreditRule { RuleCode = CreditRuleCodes.CompetitionSmall, CreditAmount = 500, IsActive = true },
                 new CreditRule { RuleCode = CreditRuleCodes.CompetitionMedium, CreditAmount = 1200, IsActive = true },
-                new CreditRule { RuleCode = CreditRuleCodes.CompetitionLarge, CreditAmount = 2500, IsActive = true });
+                new CreditRule { RuleCode = CreditRuleCodes.CompetitionLarge, CreditAmount = 2500, IsActive = true },
+                new CreditRule { RuleCode = CreditRuleCodes.CustomTopUpUnitPriceVnd, CreditAmount = 12, IsActive = true });
             ctx.CreditPackages.Add(new CreditPackage
             {
                 PackageCode = "STANDARD", PackageName = "Standard", Price = 50000m, Currency = "VND", CreditAmount = 5200, BonusCredit = 0, IsActive = true
@@ -222,10 +224,199 @@ namespace SystemService.IntegrationTests
             Assert.Equal(1, await verify.WalletTransactions.CountAsync());
         }
 
+        [Fact]
+        public async Task CustomTopUp_PayOSWebhook_SqliteTransaction_CreditsOnceOnReplay_AndSharesWalletWithPackageTopUp()
+        {
+            var (_, memberId) = await SeedAsync();
+            var gateway = new StubGateway();
+
+            long customOrderCode;
+            long packageOrderCode;
+            using (var ctx = CreateContext())
+            {
+                var paymentService = NewPaymentService(ctx, gateway);
+
+                var customRes = await paymentService.CreateCustomTopUpPaymentAsync(memberId, new CustomTopUpRequest
+                {
+                    CreditAmount = 750,
+                    FrontendOrigin = "http://localhost:5173"
+                });
+                Assert.True(customRes.Success, customRes.Message);
+                Assert.Equal(9000m, customRes.Data!.Amount);
+                Assert.Equal(750, customRes.Data.CreditAmount);
+                customOrderCode = customRes.Data.ProviderOrderCode;
+
+                var pkg = await ctx.CreditPackages.SingleAsync();
+                var pkgRes = await paymentService.CreateTopUpPaymentAsync(memberId, new TopUpRequest
+                {
+                    PackageId = pkg.PackageId,
+                    FrontendOrigin = "http://localhost:5173"
+                });
+                Assert.True(pkgRes.Success, pkgRes.Message);
+                packageOrderCode = pkgRes.Data!.ProviderOrderCode;
+            }
+
+            gateway.Result = new WebhookVerificationResult
+            {
+                IsValid = true,
+                OrderCode = customOrderCode,
+                Amount = 9000m,
+                Code = "00",
+                Reference = "SQLITE-CUSTOM-1"
+            };
+            using (var ctx = CreateContext())
+            {
+                Assert.True((await NewPaymentService(ctx, gateway).ProcessPayOSWebhookAsync(new Webhook())).Success);
+            }
+            using (var ctx = CreateContext())
+            {
+                Assert.True((await NewPaymentService(ctx, gateway).ProcessPayOSWebhookAsync(new Webhook())).Success);
+            }
+
+            gateway.Result = new WebhookVerificationResult
+            {
+                IsValid = true,
+                OrderCode = packageOrderCode,
+                Amount = 50000m,
+                Code = "00",
+                Reference = "SQLITE-PKG-1"
+            };
+            using (var ctx = CreateContext())
+            {
+                Assert.True((await NewPaymentService(ctx, gateway).ProcessPayOSWebhookAsync(new Webhook())).Success);
+            }
+
+            using var verify = CreateContext();
+            Assert.Equal(1, await verify.Wallets.CountAsync(w => w.UserId == memberId));
+            Assert.Equal(300 + 750 + 5200, (await verify.Wallets.SingleAsync(w => w.UserId == memberId)).Balance);
+            Assert.Equal(2, await verify.WalletTransactions.CountAsync());
+        }
+
+        [Fact]
+        public async Task CustomTopUp_ConcurrentCreate_GeneratesUniqueOrderCodes()
+        {
+            var (_, memberId) = await SeedAsync();
+            var dbPath = Path.Combine(Path.GetTempPath(), $"custom_topup_conc_{Guid.NewGuid():N}.db");
+            var opts = new DbContextOptionsBuilder<SystemDbContext>().UseSqlite($"Data Source={dbPath}").Options;
+
+            try
+            {
+                using (var setup = new TestSystemDbContext(opts))
+                {
+                    setup.Database.EnsureCreated();
+                    setup.Users.Add(new User { UserId = memberId, FullName = "Mem", Email = "c@test.com", IsActive = true });
+                    setup.Wallets.Add(new Wallet { UserId = memberId, Balance = 0 });
+                    setup.CreditRules.Add(new CreditRule { RuleCode = CreditRuleCodes.CustomTopUpUnitPriceVnd, CreditAmount = 12, IsActive = true });
+                    await setup.SaveChangesAsync();
+                }
+
+                using var gate = new ManualResetEventSlim(false);
+                var tasks = Enumerable.Range(0, 2).Select(_ => Task.Run(async () =>
+                {
+                    using var ctx = new TestSystemDbContext(opts);
+                    var svc = NewPaymentService(ctx, new StubGateway());
+                    gate.Wait();
+                    return await svc.CreateCustomTopUpPaymentAsync(memberId, new CustomTopUpRequest
+                    {
+                        CreditAmount = 100,
+                        FrontendOrigin = "http://localhost:5173"
+                    });
+                })).ToArray();
+
+                gate.Set();
+                var results = await Task.WhenAll(tasks);
+
+                Assert.All(results, r => Assert.True(r.Success, r.Message));
+                Assert.Equal(2, results.Select(r => r.Data!.ProviderOrderCode).Distinct().Count());
+            }
+            finally
+            {
+                if (File.Exists(dbPath))
+                {
+                    try { File.Delete(dbPath); } catch { }
+                }
+            }
+        }
+
+        [Fact]
+        public async Task AiPracticeStart_ConcurrentRequests_ChargesOnceAndNeverNegativeBalance()
+        {
+            var dbPath = Path.Combine(Path.GetTempPath(), $"ai_practice_conc_{Guid.NewGuid():N}.db");
+            var opts = new DbContextOptionsBuilder<SystemDbContext>().UseSqlite($"Data Source={dbPath}").Options;
+
+            try
+            {
+                int userId;
+                int sessionId;
+                using (var setup = new TestSystemDbContext(opts))
+                {
+                    setup.Database.EnsureCreated();
+                    var user = new User { FullName = "Debater", Email = "debater@test.com", IsActive = true };
+                    setup.Users.Add(user);
+                    var fmt = new DebateFormat { FormatName = "User vs AI", MaxParticipants = 2, TotalRounds = 3, RoundDurationSeconds = 180, IsActive = true };
+                    setup.DebateFormats.Add(fmt);
+                    var topic = new Topic { Title = "Topic", Description = "Desc", Category = "education", Difficulty = "Medium", IsActive = true };
+                    setup.Topics.Add(topic);
+                    setup.CreditRules.Add(new CreditRule { RuleCode = CreditRuleCodes.AiPracticeMatch, CreditAmount = 150, IsActive = true });
+                    await setup.SaveChangesAsync();
+
+                    userId = user.UserId;
+                    setup.Wallets.Add(new Wallet { UserId = userId, Balance = 200 });
+                    await setup.SaveChangesAsync();
+
+                    var debateSvc = new DebateService(new DebateRepository(setup), new UserRepository(setup));
+                    var created = await debateSvc.CreateAiPracticeSessionAsync(userId, new CreateAiPracticeSessionRequest
+                    {
+                        TopicId = topic.TopicId, Title = "AI", Topic = "AI", UserSide = DebateSide.PRO, IsAI = true
+                    });
+                    Assert.True(created.Success, created.Message);
+                    sessionId = created.Data!.SessionId;
+                }
+
+                using var gate = new ManualResetEventSlim(false);
+                var tasks = Enumerable.Range(0, 2).Select(_ => Task.Run(async () =>
+                {
+                    using var ctx = new TestSystemDbContext(opts);
+                    var creditSvc = new CreditService(ctx, new RewardRepository(ctx), new WalletRepository(ctx), new DebateRepository(ctx));
+                    var debateSvc = new DebateService(
+                        new DebateRepository(ctx),
+                        new UserRepository(ctx),
+                        walletRepository: new WalletRepository(ctx),
+                        creditService: creditSvc);
+                    gate.Wait();
+                    return await debateSvc.StartDebateSessionAsync(userId, sessionId);
+                })).ToArray();
+
+                gate.Set();
+                var results = await Task.WhenAll(tasks);
+
+                Assert.Single(results, r => r.Success);
+                Assert.Single(results, r => !r.Success);
+
+                using var verify = new TestSystemDbContext(opts);
+                var wallet = await verify.Wallets.SingleAsync(w => w.UserId == userId);
+                Assert.Equal(50, wallet.Balance);
+                Assert.Equal(1, await verify.WalletTransactions.CountAsync(wt => wt.WalletId == wallet.WalletId));
+            }
+            finally
+            {
+                if (File.Exists(dbPath))
+                {
+                    try { File.Delete(dbPath); } catch { }
+                }
+            }
+        }
+
         private PaymentService NewPaymentService(SystemDbContext ctx, IPaymentGateway gateway)
         {
             var cfg = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?> { ["PayOS:FrontendOrigin"] = "http://localhost:5173" })
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["PayOS:FrontendOrigin"] = "http://localhost:5173",
+                    ["CustomTopUp:UnitPriceVnd"] = "12",
+                    ["CustomTopUp:MinCredits"] = "100",
+                    ["CustomTopUp:MaxCredits"] = "100000"
+                })
                 .Build();
             return new PaymentService(
                 ctx,
@@ -234,7 +425,8 @@ namespace SystemService.IntegrationTests
                 new PaymentRepository(ctx),
                 gateway,
                 cfg,
-                NullLogger<PaymentService>.Instance);
+                NullLogger<PaymentService>.Instance,
+                new RewardRepository(ctx));
         }
 
         private sealed class FailOnWalletTransactionSaveInterceptor : SaveChangesInterceptor

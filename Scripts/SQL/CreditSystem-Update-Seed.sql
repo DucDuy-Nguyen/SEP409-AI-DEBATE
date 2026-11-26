@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    ADPP CREDIT SYSTEM UPDATE & SEED SCRIPT (NON-DESTRUCTIVE)
    - Preserves all Wallets, WalletTransactions, PaymentTransactions, RewardClaims
    - Updates / inserts the 3 official CreditPackages (BASIC, STANDARD, PREMIUM)
@@ -56,7 +56,8 @@ BEGIN TRY
         (N'AI_HINT',            CAST(5 AS BIGINT),    N'Phí sử dụng AI Hint / Hướng dẫn lập luận (mỗi lần)',          CAST(1 AS BIT)),
         (N'COMPETITION_SMALL',  CAST(500 AS BIGINT),  N'Phí tạo Competition nhỏ (tối đa 8 cá nhân hoặc 4 đội)',       CAST(1 AS BIT)),
         (N'COMPETITION_MEDIUM', CAST(1200 AS BIGINT), N'Phí tạo Competition vừa (tối đa 16 cá nhân hoặc 8 đội)',      CAST(1 AS BIT)),
-        (N'COMPETITION_LARGE',  CAST(2500 AS BIGINT), N'Phí tạo Competition lớn (tối đa 32 cá nhân hoặc 16 đội)',     CAST(1 AS BIT))
+        (N'COMPETITION_LARGE',  CAST(2500 AS BIGINT), N'Phí tạo Competition lớn (tối đa 32 cá nhân hoặc 16 đội)',     CAST(1 AS BIT)),
+        (N'CUSTOM_TOPUP_UNIT_PRICE_VND', CAST(12 AS BIGINT), N'Đơn giá mua Credit tự do (VNĐ / 1 Credit)',            CAST(1 AS BIT))
     ) AS source (RuleCode, CreditAmount, Description, IsActive)
     ON target.RuleCode = source.RuleCode
     WHEN MATCHED THEN
@@ -98,6 +99,16 @@ BEGIN TRY
     IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_Wallets_Balance_NonNegative')
     BEGIN
         ALTER TABLE dbo.Wallets ADD CONSTRAINT CK_Wallets_Balance_NonNegative CHECK ([Balance] >= 0);
+    END;
+
+    IF EXISTS (
+        SELECT 1 FROM sys.columns
+        WHERE object_id = OBJECT_ID('dbo.PaymentTransactions')
+          AND name = 'PackageId'
+          AND is_nullable = 0
+    )
+    BEGIN
+        ALTER TABLE dbo.PaymentTransactions ALTER COLUMN PackageId INT NULL;
     END;
 
     COMMIT TRANSACTION;

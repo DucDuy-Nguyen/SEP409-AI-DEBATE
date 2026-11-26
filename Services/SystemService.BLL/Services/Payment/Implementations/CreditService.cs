@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SystemService.BLL.Common.Debate;
 using SystemService.BLL.Common.Payment;
@@ -36,6 +37,7 @@ namespace SystemService.BLL.Services.Payment.Implementations
         private readonly IDebateRepository _debateRepository;
         private readonly IAiEvaluatorClient? _aiEvaluatorClient;
         private readonly ILogger<CreditService>? _logger;
+        private readonly IConfiguration? _configuration;
 
         public CreditService(
             SystemDbContext context,
@@ -43,7 +45,8 @@ namespace SystemService.BLL.Services.Payment.Implementations
             IWalletRepository walletRepository,
             IDebateRepository debateRepository,
             IAiEvaluatorClient? aiEvaluatorClient = null,
-            ILogger<CreditService>? logger = null)
+            ILogger<CreditService>? logger = null,
+            IConfiguration? configuration = null)
         {
             _context = context;
             _rewardRepository = rewardRepository;
@@ -51,6 +54,7 @@ namespace SystemService.BLL.Services.Payment.Implementations
             _debateRepository = debateRepository;
             _aiEvaluatorClient = aiEvaluatorClient;
             _logger = logger;
+            _configuration = configuration;
         }
 
         public async Task<long> GetRulePriceAsync(string ruleCode, CancellationToken cancellationToken = default)
@@ -143,6 +147,24 @@ namespace SystemService.BLL.Services.Payment.Implementations
                 }
             }
 
+            var customUnitPrice = ResolveCustomTopUpUnitPrice(ruleLookup);
+            var configuredMin = _configuration?.GetValue<long?>("CustomTopUp:MinCredits");
+            long customMin = configuredMin.HasValue && configuredMin.Value > 0
+                ? configuredMin.Value
+                : CreditRuleCodes.DefaultCustomTopUpMinCredits;
+            var configuredMax = _configuration?.GetValue<long?>("CustomTopUp:MaxCredits");
+            long customMax = configuredMax.HasValue && configuredMax.Value >= customMin
+                ? configuredMax.Value
+                : Math.Max(customMin, CreditRuleCodes.DefaultCustomTopUpMaxCredits);
+
+            items.Add(BuildRuleItem(
+                ruleLookup,
+                CreditRuleCodes.CustomTopUpUnitPriceVnd,
+                (long)customUnitPrice,
+                $"Đơn giá mua Credit tự do ({customUnitPrice:0} VNĐ / 1 Credit)",
+                true,
+                "TopUp"));
+
             var response = new CreditPricesResponse
             {
                 AiPracticeRag = aiPracticeRag,
@@ -156,10 +178,31 @@ namespace SystemService.BLL.Services.Payment.Implementations
                 P2p2v2 = 0,
                 CompetitionJoin = 0,
                 AiEvaluatorP2p = 0,
+                CustomTopUpUnitPriceVnd = customUnitPrice,
+                CustomTopUpMinCredits = customMin,
+                CustomTopUpMaxCredits = customMax,
                 Rules = items
             };
 
             return ApiResponse<CreditPricesResponse>.SuccessResponse(response, "Lấy bảng giá Credit thành công.");
+        }
+
+        private decimal ResolveCustomTopUpUnitPrice(IReadOnlyDictionary<string, CreditRule> ruleLookup)
+        {
+            if (ruleLookup.TryGetValue(CreditRuleCodes.CustomTopUpUnitPriceVnd, out var dbRule)
+                && dbRule.IsActive
+                && dbRule.CreditAmount > 0)
+            {
+                return dbRule.CreditAmount;
+            }
+
+            var configured = _configuration?.GetValue<decimal?>("CustomTopUp:UnitPriceVnd");
+            if (configured.HasValue && configured.Value > 0)
+            {
+                return configured.Value;
+            }
+
+            return CreditRuleCodes.DefaultCustomTopUpUnitPriceVnd;
         }
 
         public async Task<ApiResponse<CompetitionPriceQuoteResponse>> GetCompetitionPriceQuoteAsync(

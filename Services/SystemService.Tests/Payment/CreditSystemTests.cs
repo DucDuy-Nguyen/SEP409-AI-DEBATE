@@ -101,7 +101,8 @@ namespace SystemService.Tests.Payment
                 new CreditRule { RuleCode = CreditRuleCodes.CompetitionLarge, CreditAmount = 2500, Description = "Large Comp", IsActive = true },
                 new CreditRule { RuleCode = CreditRuleCodes.P2pMatchPerUser, CreditAmount = 40, Description = "Legacy disabled", IsActive = false },
                 new CreditRule { RuleCode = CreditRuleCodes.DailyLogin, CreditAmount = 20, Description = "Daily Login", IsActive = true },
-                new CreditRule { RuleCode = CreditRuleCodes.FirstLogin, CreditAmount = 200, Description = "First Login", IsActive = true });
+                new CreditRule { RuleCode = CreditRuleCodes.FirstLogin, CreditAmount = 200, Description = "First Login", IsActive = true },
+                new CreditRule { RuleCode = CreditRuleCodes.CustomTopUpUnitPriceVnd, CreditAmount = 12, Description = "Custom Top-Up VND/Credit", IsActive = true });
 
             ctx.CreditPackages.AddRange(
                 new CreditPackage { PackageId = 1, PackageCode = "BASIC", PackageName = "Basic", Price = 20000m, Currency = "VND", CreditAmount = 2000, BonusCredit = 0, IsActive = true },
@@ -262,6 +263,9 @@ namespace SystemService.Tests.Payment
             Assert.Equal(0, res.Data.P2p2v2);
             Assert.Equal(0, res.Data.CompetitionJoin);
             Assert.Equal(0, res.Data.AiEvaluatorP2p);
+            Assert.Equal(12m, res.Data.CustomTopUpUnitPriceVnd);
+            Assert.Equal(100, res.Data.CustomTopUpMinCredits);
+            Assert.Equal(100000, res.Data.CustomTopUpMaxCredits);
         }
 
         [Fact]
@@ -1257,12 +1261,247 @@ namespace SystemService.Tests.Payment
             Assert.Empty(GetTransactions(Member1Id));
         }
 
+        [Theory]
+        [InlineData(100, 1200)]
+        [InlineData(750, 9000)]
+        [InlineData(2000, 24000)]
+        public async Task CustomTopUp_QuoteCreateAndWebhook_CalculatesExactVnd_AndCreditsWalletOnce(
+            long creditAmount, decimal expectedVnd)
+        {
+            SetBalance(Member1Id, 50);
+            var fakeGateway = new FakePaymentGateway();
+
+            long paymentId;
+            long orderCode;
+            using (var ctx = CreateContext())
+            {
+                var paymentService = NewPaymentService(ctx, fakeGateway);
+
+                var quote = await paymentService.GetCustomTopUpQuoteAsync(creditAmount);
+                Assert.True(quote.Success, quote.Message);
+                Assert.Equal(12m, quote.Data!.UnitPriceVnd);
+                Assert.Equal(expectedVnd, quote.Data.TotalAmountVnd);
+                Assert.Equal(100, quote.Data.MinCredits);
+                Assert.Equal(100000, quote.Data.MaxCredits);
+
+                var created = await paymentService.CreateCustomTopUpPaymentAsync(Member1Id, new CustomTopUpRequest
+                {
+                    CreditAmount = creditAmount,
+                    FrontendOrigin = "http://localhost:5173"
+                });
+                Assert.True(created.Success, created.Message);
+                Assert.Equal(expectedVnd, created.Data!.Amount);
+                Assert.Equal(creditAmount, created.Data.CreditAmount);
+                Assert.Equal("Custom", created.Data.TopUpType);
+                Assert.Equal(12m, created.Data.UnitPriceVnd);
+                Assert.NotNull(created.Data.PaymentUrl);
+                Assert.Equal(created.Data.CheckoutUrl, created.Data.PaymentUrl);
+
+                paymentId = created.Data.PaymentId;
+                orderCode = created.Data.ProviderOrderCode;
+
+                var stored = await ctx.PaymentTransactions.SingleAsync(p => p.PaymentId == paymentId);
+                Assert.Null(stored.PackageId);
+                Assert.Equal("Pending", stored.Status);
+            }
+
+            fakeGateway.NextVerification = new WebhookVerificationResult
+            {
+                IsValid = true,
+                OrderCode = orderCode,
+                Amount = expectedVnd,
+                Code = "00",
+                Reference = $"PAYOS-CUSTOM-{orderCode}"
+            };
+
+            using (var ctx = CreateContext())
+            {
+                var settled = await NewPaymentService(ctx, fakeGateway).ProcessPayOSWebhookAsync(new Webhook());
+                Assert.True(settled.Success, settled.Message);
+            }
+            Assert.Equal(50 + creditAmount, GetBalance(Member1Id));
+
+            // Replay webhook does not double credit
+            using (var ctx = CreateContext())
+            {
+                var replay = await NewPaymentService(ctx, fakeGateway).ProcessPayOSWebhookAsync(new Webhook());
+                Assert.True(replay.Success, replay.Message);
+            }
+            Assert.Equal(50 + creditAmount, GetBalance(Member1Id));
+            var tx = Assert.Single(GetTransactions(Member1Id));
+            Assert.Equal(creditAmount, tx.Amount);
+
+            using (var ctx = CreateContext())
+            {
+                var status = await NewPaymentService(ctx, fakeGateway).GetPaymentStatusAsync(Member1Id, paymentId);
+                Assert.True(status.Success, status.Message);
+                Assert.Equal("Custom", status.Data!.TopUpType);
+                Assert.Equal("CUSTOM", status.Data.PackageCode);
+                Assert.Equal("Paid", status.Data.Status);
+                Assert.Equal(expectedVnd, status.Data.Amount);
+                Assert.Equal(creditAmount, status.Data.CreditAmount);
+            }
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-50)]
+        [InlineData(99)]
+        [InlineData(100001)]
+        public async Task CustomTopUp_InvalidCreditAmount_IsRejectedWithoutCreatingPayment(long invalidCredits)
+        {
+            var fakeGateway = new FakePaymentGateway();
+            using var ctx = CreateContext();
+            var paymentService = NewPaymentService(ctx, fakeGateway);
+
+            var quote = await paymentService.GetCustomTopUpQuoteAsync(invalidCredits);
+            Assert.False(quote.Success);
+
+            var create = await paymentService.CreateCustomTopUpPaymentAsync(Member1Id, new CustomTopUpRequest
+            {
+                CreditAmount = invalidCredits,
+                FrontendOrigin = "http://localhost:5173"
+            });
+            Assert.False(create.Success);
+            Assert.Empty(ctx.PaymentTransactions);
+        }
+
+        [Fact]
+        public async Task CustomTopUp_PriceSnapshotIsImmutableAfterRuleChange_AndSharesSingleWalletWithPackageTopUp()
+        {
+            SetBalance(Member1Id, 0);
+            var fakeGateway = new FakePaymentGateway();
+
+            long customOrderCode;
+            long packageOrderCode;
+
+            // Create 750 custom credits at 12 VND (= 9000 VND) and BASIC package (20000 VND -> 2000 credits)
+            using (var ctx = CreateContext())
+            {
+                var paymentService = NewPaymentService(ctx, fakeGateway);
+
+                var customController = CreatePaymentsController(paymentService, Member1Id);
+                var quoteAction = await customController.GetCustomTopUpQuote(750, CancellationToken.None);
+                var quoteOk = Assert.IsType<OkObjectResult>(quoteAction);
+                var quoteRes = Assert.IsType<ApiResponse<CustomTopUpQuoteResponse>>(quoteOk.Value);
+                Assert.Equal(9000m, quoteRes.Data!.TotalAmountVnd);
+
+                var customAction = await customController.CreateCustomTopUpPayment(new CustomTopUpRequest { CreditAmount = 750 }, CancellationToken.None);
+                var customOk = Assert.IsType<OkObjectResult>(customAction);
+                var customRes = Assert.IsType<ApiResponse<PaymentLinkResponse>>(customOk.Value);
+                Assert.Equal(9000m, customRes.Data!.Amount);
+                customOrderCode = customRes.Data.ProviderOrderCode;
+
+                var pkgRes = await paymentService.CreateTopUpPaymentAsync(Member1Id, new TopUpRequest
+                {
+                    PackageId = 1,
+                    FrontendOrigin = "http://localhost:5173"
+                });
+                Assert.True(pkgRes.Success, pkgRes.Message);
+                packageOrderCode = pkgRes.Data!.ProviderOrderCode;
+            }
+
+            // Admin updates custom unit price in DB to 20 VND AFTER pending order was created
+            using (var ctx = CreateContext())
+            {
+                var rule = ctx.CreditRules.Single(r => r.RuleCode == CreditRuleCodes.CustomTopUpUnitPriceVnd);
+                rule.CreditAmount = 20;
+                ctx.SaveChanges();
+            }
+
+            // Webhook with mismatched amount (e.g. wrong price) is rejected
+            fakeGateway.NextVerification = new WebhookVerificationResult
+            {
+                IsValid = true,
+                OrderCode = customOrderCode,
+                Amount = 15000m,
+                Code = "00",
+                Reference = "MISMATCH"
+            };
+            using (var ctx = CreateContext())
+            {
+                var badAmount = await NewPaymentService(ctx, fakeGateway).ProcessPayOSWebhookAsync(new Webhook());
+                Assert.False(badAmount.Success);
+            }
+
+            // Webhook with original snapshot amount 9000 VND succeeds & credits 750
+            fakeGateway.NextVerification = new WebhookVerificationResult
+            {
+                IsValid = true,
+                OrderCode = customOrderCode,
+                Amount = 9000m,
+                Code = "00",
+                Reference = "CUSTOM-OK"
+            };
+            using (var ctx = CreateContext())
+            {
+                Assert.True((await NewPaymentService(ctx, fakeGateway).ProcessPayOSWebhookAsync(new Webhook())).Success);
+            }
+
+            // Package payment settles into the EXACT SAME wallet
+            fakeGateway.NextVerification = new WebhookVerificationResult
+            {
+                IsValid = true,
+                OrderCode = packageOrderCode,
+                Amount = 20000m,
+                Code = "00",
+                Reference = "PKG-OK"
+            };
+            using (var ctx = CreateContext())
+            {
+                Assert.True((await NewPaymentService(ctx, fakeGateway).ProcessPayOSWebhookAsync(new Webhook())).Success);
+                Assert.Equal(1, await ctx.Wallets.CountAsync(w => w.UserId == Member1Id));
+            }
+
+            Assert.Equal(750 + 2000, GetBalance(Member1Id));
+            Assert.Equal(2, GetTransactions(Member1Id).Count);
+        }
+
+        [Fact]
+        public async Task CustomTopUp_FailedOrCancelledWebhook_DoesNotCreditWallet()
+        {
+            SetBalance(Member1Id, 100);
+            var fakeGateway = new FakePaymentGateway();
+
+            long orderCode;
+            using (var ctx = CreateContext())
+            {
+                var res = await NewPaymentService(ctx, fakeGateway).CreateCustomTopUpPaymentAsync(Member1Id, new CustomTopUpRequest
+                {
+                    CreditAmount = 750,
+                    FrontendOrigin = "http://localhost:5173"
+                });
+                Assert.True(res.Success, res.Message);
+                orderCode = res.Data!.ProviderOrderCode;
+            }
+
+            fakeGateway.NextVerification = new WebhookVerificationResult
+            {
+                IsValid = true,
+                OrderCode = orderCode,
+                Amount = 9000m,
+                Code = "01",
+                Reference = "CUSTOM-FAIL"
+            };
+            using (var ctx = CreateContext())
+            {
+                var webhookRes = await NewPaymentService(ctx, fakeGateway).ProcessPayOSWebhookAsync(new Webhook());
+                Assert.False(webhookRes.Success);
+            }
+
+            Assert.Equal(100, GetBalance(Member1Id));
+            Assert.Empty(GetTransactions(Member1Id));
+        }
+
         private PaymentService NewPaymentService(SystemDbContext ctx, IPaymentGateway gateway)
         {
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["PayOS:FrontendOrigin"] = "http://localhost:5173"
+                    ["PayOS:FrontendOrigin"] = "http://localhost:5173",
+                    ["CustomTopUp:UnitPriceVnd"] = "12",
+                    ["CustomTopUp:MinCredits"] = "100",
+                    ["CustomTopUp:MaxCredits"] = "100000"
                 })
                 .Build();
             return new PaymentService(
@@ -1272,7 +1511,23 @@ namespace SystemService.Tests.Payment
                 new PaymentRepository(ctx),
                 gateway,
                 config,
-                NullLogger<PaymentService>.Instance);
+                NullLogger<PaymentService>.Instance,
+                new RewardRepository(ctx));
+        }
+
+        private static PaymentsController CreatePaymentsController(IPaymentService service, int userId)
+        {
+            return new PaymentsController(service)
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = new DefaultHttpContext
+                    {
+                        User = new ClaimsPrincipal(new ClaimsIdentity(
+                            new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) }, "Test"))
+                    }
+                }
+            };
         }
 
         private static CreditsController CreateCreditsController(ICreditService service, int userId)
