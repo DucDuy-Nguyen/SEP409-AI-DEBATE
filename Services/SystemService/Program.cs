@@ -90,6 +90,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IFeaturedLearnerService, FeaturedLearnerService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
 builder.Services.AddScoped<ICompetitionService, CompetitionService>();
