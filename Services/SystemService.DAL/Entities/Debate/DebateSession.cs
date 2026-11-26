@@ -9,6 +9,7 @@ namespace SystemService.DAL.Entities.Debate
     public class DebateSession
     {
         public int DebateSessionId { get; set; }
+        public string? RoomCode { get; set; }
         public int TopicId { get; set; }
         public int FormatId { get; set; }
         public int CreatedBy { get; set; }

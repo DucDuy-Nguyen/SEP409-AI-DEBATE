@@ -77,6 +77,25 @@ namespace SystemService.Controllers.Debate
             return Ok(result);
         }
 
+        [HttpPost("join-by-code/{roomCode}")]
+        public async Task<IActionResult> JoinP2pSessionByCode(
+            string roomCode, [FromBody] JoinSessionRequest? request, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized(ApiResponse<object>.FailureResponse("Unauthorized access."));
+            }
+
+            var result = await _debateService.JoinP2pSessionByCodeAsync(
+                userId.Value, roomCode, request ?? new JoinSessionRequest(), cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
         [HttpPost("2v2")]
         public async Task<IActionResult> Create2v2Session(
             [FromBody] Create2v2SessionRequest request, CancellationToken cancellationToken)
@@ -106,6 +125,25 @@ namespace SystemService.Controllers.Debate
             }
 
             var result = await _debateService.Join2v2SessionAsync(userId.Value, sessionId, request, cancellationToken);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+            return Ok(result);
+        }
+
+        [HttpPost("join-2v2-by-code/{roomCode}")]
+        public async Task<IActionResult> Join2v2SessionByCode(
+            string roomCode, [FromBody] Join2v2SessionRequest? request, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized(ApiResponse<object>.FailureResponse("Unauthorized access."));
+            }
+
+            var result = await _debateService.Join2v2SessionByCodeAsync(
+                userId.Value, roomCode, request ?? new Join2v2SessionRequest(), cancellationToken);
             if (!result.Success)
             {
                 return BadRequest(result);

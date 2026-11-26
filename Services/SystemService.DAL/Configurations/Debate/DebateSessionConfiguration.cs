@@ -16,6 +16,11 @@ namespace SystemService.DAL.Configurations.Debate
                    .HasMaxLength(30)
                    .IsRequired();
 
+            builder.Property(e => e.RoomCode).HasMaxLength(16);
+            builder.HasIndex(e => e.RoomCode)
+                   .IsUnique()
+                   .HasFilter("[RoomCode] IS NOT NULL");
+
             builder.Property(e => e.Difficulty).HasMaxLength(50);
             builder.Property(e => e.EnableRag).HasDefaultValue(true);
 

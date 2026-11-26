@@ -14,6 +14,8 @@ namespace SystemService.DAL.Repositories.Debate.Interfaces
     {
         Task<DebateSession> AddSessionAsync(DebateSession session, CancellationToken cancellationToken = default);
         Task<DebateSession?> GetSessionByIdAsync(int debateSessionId, CancellationToken cancellationToken = default);
+        Task<DebateSession?> GetSessionByRoomCodeAsync(string roomCode, CancellationToken cancellationToken = default);
+        Task<bool> RoomCodeExistsAsync(string roomCode, CancellationToken cancellationToken = default);
         Task<DebateSession?> GetSessionWithDetailsAsync(int debateSessionId, CancellationToken cancellationToken = default);
         Task<List<DebateSession>> GetUserSessionsAsync(int userId, CancellationToken cancellationToken = default);
         Task UpdateSessionAsync(DebateSession session, CancellationToken cancellationToken = default);

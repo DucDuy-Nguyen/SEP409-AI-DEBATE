@@ -156,6 +156,75 @@ namespace SystemService.BLL.Services.Debate.Implementations
             return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(fullSession!, userId), message);
         }
 
+        private const string RoomCodeAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        private const int RoomCodeLength = 6;
+
+        private async Task<string> GenerateUniqueRoomCodeAsync(CancellationToken cancellationToken)
+        {
+            for (int attempt = 0; attempt < 15; attempt++)
+            {
+                var chars = new char[RoomCodeLength];
+                for (int i = 0; i < RoomCodeLength; i++)
+                {
+                    chars[i] = RoomCodeAlphabet[System.Security.Cryptography.RandomNumberGenerator.GetInt32(RoomCodeAlphabet.Length)];
+                }
+
+                var candidate = new string(chars);
+                if (!await _debateRepository.RoomCodeExistsAsync(candidate, cancellationToken))
+                {
+                    return candidate;
+                }
+            }
+
+            throw new InvalidOperationException("Unable to generate a unique room code. Please try again.");
+        }
+
+        private async Task<int?> ResolveSessionIdFromCodeAsync(string roomCode, CancellationToken cancellationToken)
+        {
+            var normalized = (roomCode ?? string.Empty).Trim().TrimStart('#').ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return null;
+            }
+
+            var byCode = await _debateRepository.GetSessionByRoomCodeAsync(normalized, cancellationToken);
+            if (byCode != null)
+            {
+                return byCode.DebateSessionId;
+            }
+
+            if (int.TryParse(normalized, out int numericId) && numericId > 0)
+            {
+                return numericId;
+            }
+
+            return null;
+        }
+
+        public async Task<ApiResponse<DebateSessionResponse>> JoinP2pSessionByCodeAsync(
+            int userId, string roomCode, JoinSessionRequest request, CancellationToken cancellationToken = default)
+        {
+            var sessionId = await ResolveSessionIdFromCodeAsync(roomCode, cancellationToken);
+            if (!sessionId.HasValue)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Không tìm thấy phòng tranh biện với mã phòng này.");
+            }
+
+            return await JoinP2pSessionAsync(userId, sessionId.Value, request, cancellationToken);
+        }
+
+        public async Task<ApiResponse<DebateSessionResponse>> Join2v2SessionByCodeAsync(
+            int userId, string roomCode, Join2v2SessionRequest request, CancellationToken cancellationToken = default)
+        {
+            var sessionId = await ResolveSessionIdFromCodeAsync(roomCode, cancellationToken);
+            if (!sessionId.HasValue)
+            {
+                return ApiResponse<DebateSessionResponse>.FailureResponse("Không tìm thấy phòng tranh biện 2 vs 2 với mã phòng này.");
+            }
+
+            return await Join2v2SessionAsync(userId, sessionId.Value, request, cancellationToken);
+        }
+
         public async Task<ApiResponse<DebateSessionResponse>> CreateP2pSessionAsync(
             int userId, CreateP2pSessionRequest request, CancellationToken cancellationToken = default)
         {
@@ -185,8 +254,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 timeLimit = 180;
             }
 
+            var roomCode = isAi ? null : await GenerateUniqueRoomCodeAsync(cancellationToken);
+
             var session = new DebateSession
             {
+                RoomCode = roomCode,
                 TopicId = topic.TopicId,
                 FormatId = format.FormatId,
                 CreatedBy = userId,
@@ -767,8 +839,11 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             var isAi = request.IsAI;
 
+            var roomCode = isAi ? null : await GenerateUniqueRoomCodeAsync(cancellationToken);
+
             var session = new DebateSession
             {
+                RoomCode = roomCode,
                 TopicId = topic.TopicId,
                 FormatId = format.FormatId,
                 CreatedBy = userId,
@@ -944,14 +1019,19 @@ namespace SystemService.BLL.Services.Debate.Implementations
             var history = sessions.Select(s =>
             {
                 var myParticipant = s.Participants.FirstOrDefault(p => p.UserId == userId);
+                var maxParticipants = GetMaxArgsPerRound(s);
                 return new DebateHistoryItemDto
                 {
                     SessionId = s.DebateSessionId,
+                    RoomCode = s.RoomCode,
                     Title = s.Topic?.Title ?? "Debate Session",
                     Topic = s.Topic?.Description ?? s.Topic?.Title ?? string.Empty,
                     DebateType = InferDebateType(s),
                     Status = s.Status,
                     UserSide = myParticipant?.Side ?? DebateSide.PRO,
+                    MaxParticipants = maxParticipants,
+                    ParticipantCount = s.Participants.Count,
+                    IsTeamDebate = maxParticipants > 2,
                     CreatedAt = s.CreatedAt,
                     EndedAt = s.EndTime
                 };
@@ -1185,6 +1265,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             return new DebateSessionResponse
             {
                 SessionId = session.DebateSessionId,
+                RoomCode = session.RoomCode,
                 Title = session.Topic?.Title ?? "Debate Session",
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
                 EvidenceTopic = MapEvidenceTopic(session.Topic?.Category),
