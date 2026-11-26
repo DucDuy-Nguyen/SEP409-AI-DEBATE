@@ -38,6 +38,7 @@ namespace SystemService.BLL.Services.Payment.Implementations
         private readonly IAiEvaluatorClient? _aiEvaluatorClient;
         private readonly ILogger<CreditService>? _logger;
         private readonly IConfiguration? _configuration;
+        private readonly ICreditRealtimeNotifier? _creditNotifier;
 
         public CreditService(
             SystemDbContext context,
@@ -46,7 +47,8 @@ namespace SystemService.BLL.Services.Payment.Implementations
             IDebateRepository debateRepository,
             IAiEvaluatorClient? aiEvaluatorClient = null,
             ILogger<CreditService>? logger = null,
-            IConfiguration? configuration = null)
+            IConfiguration? configuration = null,
+            ICreditRealtimeNotifier? creditNotifier = null)
         {
             _context = context;
             _rewardRepository = rewardRepository;
@@ -55,6 +57,7 @@ namespace SystemService.BLL.Services.Payment.Implementations
             _aiEvaluatorClient = aiEvaluatorClient;
             _logger = logger;
             _configuration = configuration;
+            _creditNotifier = creditNotifier;
         }
 
         public async Task<long> GetRulePriceAsync(string ruleCode, CancellationToken cancellationToken = default)
@@ -390,6 +393,26 @@ namespace SystemService.BLL.Services.Payment.Implementations
                             await _walletRepository.AddTransactionAsync(autoRefund, cancellationToken);
                             await debitTx.CommitAsync(cancellationToken);
 
+                            if (_creditNotifier != null)
+                            {
+                                _ = _creditNotifier.NotifyCreditBalanceUpdatedAsync(
+                                    userId, restoredBalance, wallet.Balance - existingDebit.Amount, existingDebit.Amount, autoRefund.WalletTransactionId, session.DebateSessionId.ToString(), "REFUND_ORPHANED_AI_HINT", CancellationToken.None);
+                                _ = _creditNotifier.NotifyCreditTransactionCreatedAsync(
+                                    userId,
+                                    new
+                                    {
+                                        transactionId = autoRefund.WalletTransactionId,
+                                        walletId = wallet.WalletId,
+                                        amount = existingDebit.Amount,
+                                        type = "Credit",
+                                        sourceType = "Refund",
+                                        balanceAfter = restoredBalance,
+                                        description = autoRefund.Description,
+                                        createdAt = autoRefund.CreatedAt
+                                    },
+                                    CancellationToken.None);
+                            }
+
                             _logger?.LogWarning("Auto-refunded orphaned AI Hint debit for user {UserId}, session {SessionId}, requestId {RequestId} after crash/timeout.",
                                 userId, session.DebateSessionId, requestId);
 
@@ -433,6 +456,26 @@ namespace SystemService.BLL.Services.Payment.Implementations
                     await _walletRepository.AddTransactionAsync(debitLedger, cancellationToken);
 
                     await debitTx.CommitAsync(cancellationToken);
+
+                    if (_creditNotifier != null)
+                    {
+                        _ = _creditNotifier.NotifyCreditBalanceUpdatedAsync(
+                            userId, balanceAfterDebit, balanceBefore, -hintCost, debitLedger.WalletTransactionId, session.DebateSessionId.ToString(), "AI_HINT", CancellationToken.None);
+                        _ = _creditNotifier.NotifyCreditTransactionCreatedAsync(
+                            userId,
+                            new
+                            {
+                                transactionId = debitLedger.WalletTransactionId,
+                                walletId = wallet.WalletId,
+                                amount = hintCost,
+                                type = "Debit",
+                                sourceType = "AiUsage",
+                                balanceAfter = balanceAfterDebit,
+                                description = debitLedger.Description,
+                                createdAt = debitLedger.CreatedAt
+                            },
+                            CancellationToken.None);
+                    }
                 }
 
                 // Call AI Evaluator outside the DB transaction so locks are not held across external HTTP calls.
@@ -560,6 +603,27 @@ namespace SystemService.BLL.Services.Payment.Implementations
                 await _walletRepository.AddTransactionAsync(refundLedger, CancellationToken.None);
 
                 await refundTx.CommitAsync(CancellationToken.None);
+
+                if (_creditNotifier != null)
+                {
+                    _ = _creditNotifier.NotifyCreditBalanceUpdatedAsync(
+                        userId, balanceAfter, balanceBefore, amount, refundLedger.WalletTransactionId, sessionId.ToString(), "REFUND_AI_HINT_ERROR", CancellationToken.None);
+                    _ = _creditNotifier.NotifyCreditTransactionCreatedAsync(
+                        userId,
+                        new
+                        {
+                            transactionId = refundLedger.WalletTransactionId,
+                            walletId = wallet.WalletId,
+                            amount = amount,
+                            type = "Credit",
+                            sourceType = "Refund",
+                            balanceAfter = balanceAfter,
+                            description = refundLedger.Description,
+                            createdAt = refundLedger.CreatedAt
+                        },
+                        CancellationToken.None);
+                }
+
                 return balanceAfter;
             }
             catch (Exception refundEx)
@@ -614,7 +678,7 @@ namespace SystemService.BLL.Services.Payment.Implementations
 
         private static HintTargetResult ResolveHintTarget(DebateSession session, DebateParticipant participant, AiHintRequest request)
         {
-            var motion = session.Topic?.Description ?? session.Topic?.Title ?? "Debate motion";
+            var motion = SystemService.BLL.Common.Debate.DebateSideGuide.ResolveMotion(session.Topic);
             var sideStr = (participant.Side == DebateSide.PRO || participant.Side == DebateSide.Affirmative) ? "pro" : "con";
 
             DebateRound? targetRound = null;

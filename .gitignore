@@ -18,24 +18,48 @@ x86/
 packages/
 *.nupkg
 
-# Logs
+# Logs & temporary files
 *.log
+*.tmp
+*.bak
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Environment / secrets
+# Local databases
+*.db
+*.sqlite3
+ai_generation.db
+
+# Environment / secrets / local settings
 .env
 .env.*
+!.env.example
+!**/.env.example
+!**/.env.*.example
+.azure-db.env
+**/appsettings.Local.json
+**/appsettings.*.local.json
+appsettings.Local.json
+appsettings.Development.json
+*.pfx
+*.p12
+*.pem
+*.key
+secrets.json
+start-services.ps1
+
 # Python / AI Services
+.venv/
+venv/
+__pycache__/
 AiServices/**/venv/
 AiServices/**/__pycache__/
 AiServices/**/.pytest_cache/
 AiServices/**/.env
 AiServices/**/.env.*
+!AiServices/**/.env.example
+!AiServices/**/.env.*.example
 AiServices/**/experiments/matches/
 AiServices/**/experiments/case_plan/
-
-# Connection string DB tren Azure cho run-all.ps1 -Azure
-.azure-db.env

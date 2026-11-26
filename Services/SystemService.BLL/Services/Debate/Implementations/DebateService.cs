@@ -44,6 +44,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
         private readonly IDebateRealtimeNotifier? _realtimeNotifier;
         private readonly IWalletRepository? _walletRepository;
         private readonly ICreditService? _creditService;
+        private readonly ICreditRealtimeNotifier? _creditNotifier;
 
         public DebateService(
             IDebateRepository debateRepository,
@@ -53,7 +54,8 @@ namespace SystemService.BLL.Services.Debate.Implementations
             DebateEvaluationCoordinator? evaluationCoordinator = null,
             IDebateRealtimeNotifier? realtimeNotifier = null,
             IWalletRepository? walletRepository = null,
-            ICreditService? creditService = null)
+            ICreditService? creditService = null,
+            ICreditRealtimeNotifier? creditNotifier = null)
         {
             _debateRepository = debateRepository;
             _userRepository = userRepository;
@@ -62,6 +64,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
             _realtimeNotifier = realtimeNotifier;
             _walletRepository = walletRepository;
             _creditService = creditService;
+            _creditNotifier = creditNotifier;
             // The API registers one singleton; without it the per-session lock only covers this service's own calls
             if (evaluationCoordinator == null && aiEvaluatorClient != null)
             {
@@ -114,46 +117,90 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 timeLimit = 180;
             }
 
-            var session = new DebateSession
-            {
-                TopicId = topic.TopicId,
-                FormatId = format.FormatId,
-                CreatedBy = userId,
-                Difficulty = isAi && !string.IsNullOrWhiteSpace(request.Difficulty) ? request.Difficulty.Trim() : null,
-                EnableRag = request.EnableRag ?? true,
-                TurnTimeLimitSeconds = timeLimit,
-                Status = SessionStatus.Waiting,
-                StartTime = null,
-                CreatedAt = DateTime.UtcNow
-            };
+            long aiPracticeCost = 0;
+            string aiPracticeRuleCode = (request.EnableRag ?? true)
+                ? CreditRuleCodes.AiPracticeMatch
+                : CreditRuleCodes.AiPracticeNoRag;
 
-            session.Participants.Add(new DebateParticipant
+            if (isAi && _walletRepository != null)
             {
-                UserId = userId,
-                ParticipantType = ParticipantType.USER,
-                Side = request.UserSide,
-                JoinedAt = DateTime.UtcNow
-            });
-
-            if (isAi)
-            {
-                var aiSide = request.UserSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
-                session.Participants.Add(new DebateParticipant
-                {
-                    UserId = null,
-                    ParticipantType = ParticipantType.AI,
-                    Side = aiSide,
-                    JoinedAt = DateTime.UtcNow
-                });
+                aiPracticeCost = _creditService != null
+                    ? await _creditService.GetRulePriceAsync(aiPracticeRuleCode, cancellationToken)
+                    : CreditRuleCodes.GetDefaultPrice(aiPracticeRuleCode);
             }
 
-            CreateStandardRounds(session);
+            using var transaction = await _debateRepository.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            try
+            {
+                Wallet? wallet = null;
 
-            await _debateRepository.AddSessionAsync(session, cancellationToken);
+                if (isAi && _walletRepository != null)
+                {
+                    wallet = await _walletRepository.GetByUserIdAsync(userId, cancellationToken)
+                        ?? await _walletRepository.GetOrCreateWalletByUserIdAsync(userId, cancellationToken);
 
-            var fullSession = await _debateRepository.GetSessionWithDetailsAsync(session.DebateSessionId, cancellationToken);
-            var message = isAi ? "AI practice debate session created. Waiting to start." : "P2P debate session created. Waiting for opponent to join.";
-            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(fullSession!, userId), message);
+                    // Check balance to warn early, but DO NOT debit here.
+                    // Debit ONLY happens when user enters the room and starts the match in StartDebateSessionAsync.
+                    if (wallet.Balance < aiPracticeCost)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        return ApiResponse<DebateSessionResponse>.InsufficientCreditsResponse(aiPracticeCost, wallet.Balance);
+                    }
+                }
+
+                var session = new DebateSession
+                {
+                    TopicId = topic.TopicId,
+                    FormatId = format.FormatId,
+                    CreatedBy = userId,
+                    Difficulty = isAi && !string.IsNullOrWhiteSpace(request.Difficulty) ? request.Difficulty.Trim() : null,
+                    EnableRag = request.EnableRag ?? true,
+                    TurnTimeLimitSeconds = timeLimit,
+                    Status = SessionStatus.Waiting,
+                    StartTime = null,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                session.Participants.Add(new DebateParticipant
+                {
+                    UserId = userId,
+                    ParticipantType = ParticipantType.USER,
+                    Side = request.UserSide,
+                    JoinedAt = DateTime.UtcNow
+                });
+
+                if (isAi)
+                {
+                    var aiSide = request.UserSide == DebateSide.PRO ? DebateSide.CON : DebateSide.PRO;
+                    session.Participants.Add(new DebateParticipant
+                    {
+                        UserId = null,
+                        ParticipantType = ParticipantType.AI,
+                        Side = aiSide,
+                        JoinedAt = DateTime.UtcNow
+                    });
+                }
+
+                CreateStandardRounds(session);
+
+                await _debateRepository.AddSessionAsync(session, cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                var fullSession = await _debateRepository.GetSessionWithDetailsAsync(session.DebateSessionId, cancellationToken);
+                var message = isAi ? "AI practice debate session created. Waiting to start." : "P2P debate session created. Waiting for opponent to join.";
+                var responseDto = MapToSessionResponse(fullSession!, userId);
+                if (isAi && wallet != null)
+                {
+                    responseDto.CurrentUserBalance = wallet.Balance;
+                }
+                return ApiResponse<DebateSessionResponse>.SuccessResponse(responseDto, message);
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                _logger?.LogError(ex, "Failed to create AI practice session for user {UserId}", userId);
+                return ApiResponse<DebateSessionResponse>.FailureResponse($"Failed to create AI practice session: {ex.Message}");
+            }
         }
 
         public async Task<ApiResponse<DebateSessionResponse>> CreateP2pSessionAsync(
@@ -589,11 +636,74 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Debate session was already cancelled.");
             }
 
+            // Refund if cancelled before any speech turn was submitted
+            bool noArgumentsSubmitted = session.DebateRounds.All(r => r.Arguments == null || r.Arguments.Count == 0);
+            (long newBalance, long oldBalance, long refundAmt, WalletTransaction refundTx)? refundInfo = null;
+
+            if (noArgumentsSubmitted && _walletRepository != null)
+            {
+                var wallet = await _walletRepository.GetByUserIdForUpdateAsync(userId, cancellationToken);
+                if (wallet != null)
+                {
+                    var debitTx = await _walletRepository.GetTransactionByReferenceAsync(
+                        wallet.WalletId, "Debit", "AiUsage", "DebateSession", sessionId, cancellationToken);
+                    var alreadyRefunded = await _walletRepository.GetTransactionByReferenceAsync(
+                        wallet.WalletId, "Credit", "Refund", "DebateSession", sessionId, cancellationToken);
+
+                    if (debitTx != null && alreadyRefunded == null && debitTx.Amount > 0)
+                    {
+                        long refundAmount = debitTx.Amount;
+                        long balanceBefore = wallet.Balance;
+                        long balanceAfter = balanceBefore + refundAmount;
+                        wallet.Balance = balanceAfter;
+                        wallet.UpdatedAt = DateTime.UtcNow;
+                        await _walletRepository.UpdateWalletAsync(wallet, cancellationToken);
+
+                        var refundTx = new WalletTransaction
+                        {
+                            WalletId = wallet.WalletId,
+                            TransactionType = "Credit",
+                            SourceType = "Refund",
+                            Amount = refundAmount,
+                            BalanceBefore = balanceBefore,
+                            BalanceAfter = balanceAfter,
+                            ReferenceType = "DebateSession",
+                            ReferenceId = sessionId,
+                            Description = $"Refund AI Practice debate session #{sessionId} due to cancellation before turn",
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        await _walletRepository.AddTransactionAsync(refundTx, cancellationToken);
+                        refundInfo = (balanceAfter, balanceBefore, refundAmount, refundTx);
+                    }
+                }
+            }
+
             session.Status = SessionStatus.Cancelled;
             session.EndTime = DateTime.UtcNow;
             session.UpdatedAt = session.EndTime;
             await _debateRepository.UpdateSessionAsync(session, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+
+            if (refundInfo.HasValue && _creditNotifier != null)
+            {
+                var (newBal, oldBal, refAmt, rTx) = refundInfo.Value;
+                _ = _creditNotifier.NotifyCreditBalanceUpdatedAsync(
+                    userId, newBal, oldBal, refAmt, rTx.WalletTransactionId, sessionId.ToString(), "REFUND_CANCELLED_SESSION", CancellationToken.None);
+                _ = _creditNotifier.NotifyCreditTransactionCreatedAsync(
+                    userId,
+                    new
+                    {
+                        transactionId = rTx.WalletTransactionId,
+                        walletId = rTx.WalletId,
+                        amount = refAmt,
+                        type = "Credit",
+                        sourceType = "Refund",
+                        balanceAfter = newBal,
+                        description = rTx.Description,
+                        createdAt = rTx.CreatedAt
+                    },
+                    CancellationToken.None);
+            }
 
             if (_realtimeNotifier != null)
             {
@@ -602,7 +712,12 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 _ = _realtimeNotifier.NotifySessionStatusChangedAsync(sessionId, "Cancelled", "A participant left the session.", CancellationToken.None);
             }
 
-            return ApiResponse<DebateSessionResponse>.SuccessResponse(MapToSessionResponse(session, userId), "Left the debate session. It has been cancelled.");
+            var resp = MapToSessionResponse(session, userId);
+            if (refundInfo.HasValue)
+            {
+                resp.CurrentUserBalance = refundInfo.Value.newBalance;
+            }
+            return ApiResponse<DebateSessionResponse>.SuccessResponse(resp, "Left the debate session. It has been cancelled.");
         }
 
         private async Task<ApiResponse<DebateSessionResponse>> SubmitTeamArgumentAsync(
@@ -1186,6 +1301,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
                 SessionId = session.DebateSessionId,
                 Title = session.Topic?.Title ?? "Debate Session",
                 Topic = session.Topic?.Description ?? session.Topic?.Title ?? string.Empty,
+                Motion = DebateSideGuide.ResolveMotion(session.Topic),
                 EvidenceTopic = MapEvidenceTopic(session.Topic?.Category),
                 DebateType = debateType,
                 Difficulty = session.Difficulty ?? session.Topic?.Difficulty,
@@ -1765,6 +1881,10 @@ namespace SystemService.BLL.Services.Debate.Implementations
                             : "Cuộc tranh biện đã được bắt đầu bởi một tiến trình khác.");
                 }
 
+                WalletTransaction? chargedTx = null;
+                long finalChargedBalance = 0;
+                long prevBalance = 0;
+
                 if (shouldChargeAiPractice && _walletRepository != null)
                 {
                     var wallet = await _walletRepository.GetByUserIdForUpdateAsync(userId, cancellationToken)
@@ -1782,34 +1902,63 @@ namespace SystemService.BLL.Services.Debate.Implementations
                             return ApiResponse<DebateSessionResponse>.InsufficientCreditsResponse(aiPracticeCost, wallet.Balance);
                         }
 
-                        long balanceBefore = wallet.Balance;
-                        long balanceAfter = balanceBefore - aiPracticeCost;
-                        wallet.Balance = balanceAfter;
+                        prevBalance = wallet.Balance;
+                        finalChargedBalance = prevBalance - aiPracticeCost;
+                        wallet.Balance = finalChargedBalance;
                         wallet.UpdatedAt = DateTime.UtcNow;
                         await _walletRepository.UpdateWalletAsync(wallet, cancellationToken);
 
-                        await _walletRepository.AddTransactionAsync(new WalletTransaction
+                        chargedTx = new WalletTransaction
                         {
                             WalletId = wallet.WalletId,
                             TransactionType = "Debit",
                             SourceType = "AiUsage",
                             Amount = aiPracticeCost,
-                            BalanceBefore = balanceBefore,
-                            BalanceAfter = balanceAfter,
+                            BalanceBefore = prevBalance,
+                            BalanceAfter = finalChargedBalance,
                             ReferenceType = "DebateSession",
                             ReferenceId = sessionId,
                             Description = $"Start AI Practice debate session #{sessionId} ({aiPracticeRuleCode}) user #{userId}",
                             CreatedAt = DateTime.UtcNow
-                        }, cancellationToken);
+                        };
+                        await _walletRepository.AddTransactionAsync(chargedTx, cancellationToken);
                     }
                 }
 
                 await transaction.CommitAsync(cancellationToken);
 
+                if (chargedTx != null && _creditNotifier != null)
+                {
+                    _ = _creditNotifier.NotifyCreditBalanceUpdatedAsync(
+                        userId, finalChargedBalance, prevBalance, -aiPracticeCost, chargedTx.WalletTransactionId, sessionId.ToString(), aiPracticeRuleCode, CancellationToken.None);
+                    _ = _creditNotifier.NotifyCreditTransactionCreatedAsync(
+                        userId,
+                        new
+                        {
+                            transactionId = chargedTx.WalletTransactionId,
+                            walletId = chargedTx.WalletId,
+                            amount = aiPracticeCost,
+                            type = "Debit",
+                            sourceType = "AiUsage",
+                            balanceAfter = finalChargedBalance,
+                            description = chargedTx.Description,
+                            createdAt = chargedTx.CreatedAt
+                        },
+                        CancellationToken.None);
+                }
+
                 // ExecuteUpdate bypasses the change tracker, so reload a consistent response.
                 _debateRepository.ClearChangeTracker();
                 var updatedSession = await _debateRepository.GetSessionWithDetailsAsync(sessionId, cancellationToken);
                 var mapped = MapToSessionResponse(updatedSession!, userId);
+                if (_walletRepository != null)
+                {
+                    var userWallet = await _walletRepository.GetByUserIdAsync(userId, cancellationToken);
+                    if (userWallet != null)
+                    {
+                        mapped.CurrentUserBalance = userWallet.Balance;
+                    }
+                }
                 if (_realtimeNotifier != null)
                 {
                     _ = _realtimeNotifier.NotifySessionStartedAsync(sessionId, mapped, CancellationToken.None);
@@ -2101,7 +2250,7 @@ namespace SystemService.BLL.Services.Debate.Implementations
 
             try
             {
-                var motion = session.Topic?.Description ?? session.Topic?.Title ?? "Debate motion";
+                var motion = DebateSideGuide.ResolveMotion(session.Topic);
                 bool isRagEnabled = session.EnableRag ?? true;
                 var evidenceTopic = isRagEnabled ? MapEvidenceTopic(session.Topic?.Category) : null;
                 var sortedRounds = session.DebateRounds.OrderBy(r => r.RoundNumber).ToList();

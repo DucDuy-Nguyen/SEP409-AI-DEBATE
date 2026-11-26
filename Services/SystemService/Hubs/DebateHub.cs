@@ -95,10 +95,24 @@ namespace SystemService.Hubs
             });
         }
 
+        public override async Task OnConnectedAsync()
+        {
+            var userId = GetUserId();
+            if (userId.HasValue)
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId.Value}");
+                _logger.LogInformation("User {UserId} connected to DebateHub (ConnectionId: {ConnectionId})", userId.Value, Context.ConnectionId);
+            }
+            await base.OnConnectedAsync();
+        }
+
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             var userId = GetUserId();
-            var fullName = GetUserFullName();
+            if (userId.HasValue)
+            {
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user_{userId.Value}");
+            }
             _logger.LogInformation("Connection {ConnectionId} for User {UserId} disconnected.", Context.ConnectionId, userId);
             await base.OnDisconnectedAsync(exception);
         }

@@ -111,6 +111,7 @@ builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddSingleton<DebateEvaluationCoordinator>();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IDebateRealtimeNotifier, DebateRealtimeNotifier>();
+builder.Services.AddScoped<ICreditRealtimeNotifier, CreditRealtimeNotifier>();
 builder.Services.AddScoped<IDebateService, DebateService>();
 builder.Services.AddScoped<IDebateChallengeService, DebateChallengeService>();
 builder.Services.AddScoped<ITopicService, TopicService>();
