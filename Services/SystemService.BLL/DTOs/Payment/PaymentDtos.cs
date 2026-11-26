@@ -133,12 +133,28 @@ namespace SystemService.BLL.DTOs.Payment
             !_hasBonusCredit &&
             !_hasIsActive;
     }
-public class TopUpRequest
-{
-    public int PackageId { get; set; }
+    public class TopUpRequest
+    {
+        public int PackageId { get; set; }
+        public string? FrontendOrigin { get; set; }
+    }
 
-    public string? FrontendOrigin { get; set; }
-}
+    public class CustomTopUpRequest
+    {
+        public long CreditAmount { get; set; }
+        public string? FrontendOrigin { get; set; }
+    }
+
+    public class CustomTopUpQuoteResponse
+    {
+        public long CreditAmount { get; set; }
+        public decimal UnitPriceVnd { get; set; }
+        public decimal TotalAmountVnd { get; set; }
+        public string Currency { get; set; } = "VND";
+        public long MinCredits { get; set; }
+        public long MaxCredits { get; set; }
+    }
+
     public class PaymentLinkResponse
     {
         public long PaymentId { get; set; }
@@ -147,14 +163,18 @@ public class TopUpRequest
         public string Currency { get; set; } = "VND";
         public long CreditAmount { get; set; }
         public string Provider { get; set; } = "PayOS";
+        public string TopUpType { get; set; } = "Package";
+        public decimal? UnitPriceVnd { get; set; }
         public string Status { get; set; } = "Pending";
         public string? CheckoutUrl { get; set; }
+        public string? PaymentUrl => CheckoutUrl;
         public string? QrCode { get; set; }
     }
 
     public class PaymentStatusResponse
     {
         public long PaymentId { get; set; }
+        public string TopUpType { get; set; } = "Package";
         public string? PackageCode { get; set; }
         public string? PackageName { get; set; }
         public decimal Amount { get; set; }

@@ -17,6 +17,9 @@ namespace SystemService.BLL.DTOs.Payment
         public long P2p2v2 { get; set; }
         public long CompetitionJoin { get; set; }
         public long AiEvaluatorP2p { get; set; }
+        public decimal CustomTopUpUnitPriceVnd { get; set; }
+        public long CustomTopUpMinCredits { get; set; }
+        public long CustomTopUpMaxCredits { get; set; }
         public List<CreditPriceRuleItemDto> Rules { get; set; } = new();
     }
 
