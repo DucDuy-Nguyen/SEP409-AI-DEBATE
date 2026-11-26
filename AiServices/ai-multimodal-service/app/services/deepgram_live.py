@@ -14,7 +14,7 @@ import websockets
 
 from app.config import Settings
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 DEEPGRAM_LISTEN_WS_URL = "wss://api.deepgram.com/v1/listen"
 MAX_PENDING_AUDIO_CHUNKS = 100
@@ -196,6 +196,13 @@ def _translate_deepgram_event(payload: dict[str, Any]) -> dict[str, Any] | None:
         if not transcript and not is_final and not speech_final and not from_finalize:
             return None
 
+        if transcript:
+            logger.info(
+                "Deepgram transcript (%s): %s",
+                "FINAL" if is_final else "interim",
+                transcript[:80],
+            )
+
         return {
             "type": "transcript",
             "transcript": alt0.get("transcript") or "",
@@ -209,6 +216,7 @@ def _translate_deepgram_event(payload: dict[str, Any]) -> dict[str, Any] | None:
         }
 
     if event_type == "SpeechStarted":
+        logger.info("Deepgram SpeechStarted (ts=%s)", payload.get("timestamp"))
         return {"type": "speech_started", "timestamp": payload.get("timestamp")}
 
     if event_type == "UtteranceEnd":
@@ -314,6 +322,12 @@ async def proxy_deepgram_live(client_ws: WebSocket, settings: Settings) -> None:
                                         len(raw_bytes),
                                         options["encoding"],
                                     )
+                                elif chunk_count % 20 == 0:
+                                    logger.info(
+                                        "Deepgram WS chunk #%d forwarded (%d bytes)",
+                                        chunk_count,
+                                        len(raw_bytes),
+                                    )
                                 await dg_ws.send(raw_bytes)
                             continue
 
@@ -330,6 +344,8 @@ async def proxy_deepgram_live(client_ws: WebSocket, settings: Settings) -> None:
                                 break
                 except (WebSocketDisconnect, websockets.ConnectionClosed, asyncio.CancelledError):
                     is_stopping = True
+                finally:
+                    logger.info("Deepgram WS client->dg loop ended (total chunks=%d, stopping=%s)", chunk_count, is_stopping)
 
             async def forward_dg_to_client() -> None:
                 try:
